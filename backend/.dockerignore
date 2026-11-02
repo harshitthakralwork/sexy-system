@@ -1,0 +1,16 @@
+# The host virtualenv is Windows-shaped and must never enter the image; the
+# Dockerfile creates its own Linux venv at /app/.venv.
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+var/
+tests/
+.coverage
+htmlcov/
+*.log
+.env
+.env.*
+!.env.example

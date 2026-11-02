@@ -1,0 +1,56 @@
+# SearXNG configuration for SparkXFlow Nexus (local discovery instance).
+#
+# SparkXFlow calls the JSON API, which is not enabled on a default SearXNG
+# install — the `search.formats` entry below is what makes the adapter work.
+# Set SEARXNG_SECRET in .env or the container will refuse to start.
+
+use_default_settings: true
+
+general:
+  debug: false
+  instance_name: "SparkXFlow Discovery"
+
+server:
+  secret_key: !ENV SEARXNG_SECRET
+  # The limiter blocks repeat automated queries and expects a public-instance
+  # deployment. This container is bound to loopback and used by one operator.
+  limiter: false
+  public_instance: false
+  image_proxy: false
+
+search:
+  formats:
+    - json
+    - csv
+  safe_search: 0
+  autocomplete: "google"
+  default_lang: "en-IN"
+
+ui:
+  show_results_url: true
+  query_in_title: false
+
+outgoing:
+  request_timeout: 4.0
+  max_request_timeout: 15.0
+  pool_connections: 100
+  pool_maxsize: 20
+
+engines:
+  # Keep only engines that reliably answer business-shaped queries, and pin
+  # weights so one flaky engine cannot dominate results. Anything disabled here
+  # is reported as unavailable rather than silently skipped.
+  - name: google
+    disabled: false
+  - name: bing
+    disabled: false
+  - name: duckduckgo
+    disabled: false
+  - name: brave
+    disabled: false
+  - name: wikipedia
+    disabled: false
+  - name: startpage
+    disabled: true
+  - name: qwant
+    disabled: true

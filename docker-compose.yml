@@ -1,0 +1,142 @@
+# SparkXFlow Nexus — local infrastructure
+#
+# Memory limits are explicit because this machine has 16 GB and the stack is
+# expected to run alongside a browser and an editor. Raise them only if a
+# container is measurably starved.
+#
+# Requires Docker Desktop with the WSL2 backend. See docs/RUNBOOK-DOCKER.md.
+
+name: sparkxflow-nexus
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: sparkx-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sparkx}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-sparkx}
+      POSTGRES_DB: ${POSTGRES_DB:-sparkxflow}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sparkx} -d ${POSTGRES_DB:-sparkxflow}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: sparkx-redis
+    # appendonly gives durable queue state so a container restart does not drop
+    # queued discovery jobs; without it "resumable jobs" is not true.
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+    restart: unless-stopped
+
+  searxng:
+    image: searxng/searxng:latest
+    container_name: sparkx-searxng
+    environment:
+      SEARXNG_BASE_URL: http://localhost:8080/
+      SEARXNG_SECRET: ${SEARXNG_SECRET:-}
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./infra/searxng:/etc/searxng:rw
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETGID
+      - SETUID
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./backend
+    container_name: sparkx-api
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+    env_file: .env
+    environment:
+      # Inside the network the services are reachable by name, not localhost.
+      SPARKX_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-sparkx}:${POSTGRES_PASSWORD:-sparkx}@postgres:5432/${POSTGRES_DB:-sparkxflow}
+      SPARKX_REDIS_URL: redis://redis:6379/0
+      SPARKX_CELERY_BROKER_URL: redis://redis:6379/1
+      SPARKX_CELERY_RESULT_BACKEND: redis://redis:6379/2
+      SPARKX_SEARXNG_BASE_URL: http://searxng:8080
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      # Source is mounted narrowly on purpose. Mounting ./backend over /app would
+      # hide the image's Linux virtualenv behind the host's Windows one.
+      - ./backend/app:/app/app:ro
+      - ./backend/migrations:/app/migrations:ro
+      - ./backend/alembic.ini:/app/alembic.ini:ro
+      - api_exports:/app/var
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 768M
+
+  worker:
+    build:
+      context: ./backend
+    container_name: sparkx-worker
+    # Linux containers get the prefork pool; the Windows host path uses --pool=solo.
+    command: ["celery", "-A", "app.workers.celery_app.celery_app", "worker", "--loglevel", "INFO"]
+    env_file: .env
+    environment:
+      SPARKX_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-sparkx}:${POSTGRES_PASSWORD:-sparkx}@postgres:5432/${POSTGRES_DB:-sparkxflow}
+      SPARKX_REDIS_URL: redis://redis:6379/0
+      SPARKX_CELERY_BROKER_URL: redis://redis:6379/1
+      SPARKX_CELERY_RESULT_BACKEND: redis://redis:6379/2
+      SPARKX_SEARXNG_BASE_URL: http://searxng:8080
+    volumes:
+      - ./backend/app:/app/app:ro
+      - ./backend/migrations:/app/migrations:ro
+      - ./backend/alembic.ini:/app/alembic.ini:ro
+      - api_exports:/app/var
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+    stop_grace_period: 30s
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  api_exports:
