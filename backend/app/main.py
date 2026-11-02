@@ -6,8 +6,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app import models as _registered_models  # noqa: F401  registers every table
 from app.api.v1 import api_router
 from app.core.config import get_settings
+from app.core.database import build_engine_and_maker, register_health_probe_engine
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging, get_logger
 from app.core.middleware import CorrelationIdMiddleware, RequestResponseLoggingMiddleware
@@ -29,6 +31,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             logger.error("startup_configuration_error", problem=problem)
         raise RuntimeError("Invalid configuration for production startup")
 
+    # The engine belongs to this app instance, not to the module. A global engine
+    # survives the event loop that created it, which no one notices in production
+    # and everyone notices in tests.
+    engine, sessionmaker = build_engine_and_maker(settings.database_url, pooled=True)
+    app.state.engine = engine
+    app.state.sessionmaker = sessionmaker
+    register_health_probe_engine(engine)
+
     settings.export_dir.mkdir(parents=True, exist_ok=True)
     logger.info(
         "application_started",
@@ -37,6 +47,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         execution_model="local_first",
     )
     yield
+    register_health_probe_engine(None)
+    await engine.dispose()
     logger.info("application_stopping")
 
 

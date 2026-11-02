@@ -24,10 +24,19 @@ class DomainError(Exception):
     status: int = HTTPStatus.BAD_REQUEST
     code: str = "domain_error"
 
-    def __init__(self, message: str, *, details: dict[str, Any] | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        details: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> None:
         super().__init__(message)
         self.message = message
         self.details = details or {}
+        # Carried separately so a rate-limited response can advertise when to
+        # retry instead of leaving the client to guess.
+        self.headers = headers or {}
 
 
 class NotFoundError(DomainError):
@@ -38,6 +47,11 @@ class NotFoundError(DomainError):
 class ConflictError(DomainError):
     status = HTTPStatus.CONFLICT
     code = "conflict"
+
+
+class TooManyRequestsError(DomainError):
+    status = HTTPStatus.TOO_MANY_REQUESTS
+    code = "rate_limited"
 
 
 class AuthenticationError(DomainError):
@@ -108,6 +122,7 @@ def register_exception_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=exc.status,
             content=_error_payload(exc.code, exc.message, exc.details),
+            headers=exc.headers or None,
         )
 
     @app.exception_handler(StarletteHTTPException)

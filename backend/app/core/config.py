@@ -47,6 +47,17 @@ class Settings(BaseSettings):
     cookie_secure: bool = False
     cookie_samesite: str = "lax"
 
+    csrf_cookie_name: str = "sparkx_csrf"
+    csrf_header_name: str = "X-CSRF-Token"
+
+    password_min_length: int = 12
+    allow_registration: bool = True
+
+    login_max_attempts: int = 10
+    login_window_seconds: int = 300
+    register_max_attempts: int = 5
+    register_window_seconds: int = 3600
+
     # Both loopback spellings, because a browser at http://127.0.0.1:3000 is a
     # different origin from http://localhost:3000 and would otherwise be silently
     # blocked by CORS — which surfaces as a dashboard stuck on "checking".
@@ -121,6 +132,13 @@ class Settings(BaseSettings):
             raise ValueError("retention days must be at least 1")
         return value
 
+    @field_validator("password_min_length")
+    @classmethod
+    def _valid_password_length(cls, value: int) -> int:
+        if value < 10:
+            raise ValueError("password_min_length must be at least 10")
+        return value
+
     @property
     def is_production(self) -> bool:
         return self.app_env.lower() in {"production", "prod"}
@@ -144,6 +162,19 @@ class Settings(BaseSettings):
             # site the operator's browser visits, so it is refused outright.
             if "*" in self.cors_origins:
                 problems.append("SPARKX_CORS_ORIGINS must not contain '*' with cookie auth")
+            # Open registration turns a private tool into a hosted one. Deliberate,
+            # never accidental.
+            if self.allow_registration:
+                problems.append(
+                    "SPARKX_ALLOW_REGISTRATION must be false unless multi-user signup is intended"
+                )
+            # CSRF tokens are HMAC-signed. Development falls back to a fixed,
+            # documented key; in production that fallback is a predictable token,
+            # which is worse than having no check at all.
+            if not self.signing_secret:
+                problems.append(
+                    "SPARKX_SIGNING_SECRET is required for CSRF protection in production"
+                )
         return problems
 
 
