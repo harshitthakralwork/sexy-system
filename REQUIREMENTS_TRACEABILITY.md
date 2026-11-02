@@ -193,6 +193,32 @@ mocked transport and browser-verified, but a live request from this client retur
 fabricating results. No other platform offers a permitted, key-free access method to
 add.
 
+## Automation Engine (Phase 5, implemented 2026-11-03)
+
+Specified in `PRD.md` §10, `architecture.md` §16, `database-schema.md` §15–16, and
+`implementation-roadmap.md`. Two modules — `automation` and `email` — sharing the
+auth/CSRF/audit/ownership machinery. Statuses describe **code**, not documents.
+
+| Capability | Status | Evidence |
+|---|---|---|
+| Versioned workflow definition | **Tested** | `workflows.workflow_definition` JSON of validated steps; `version` bumps only on a definition change; unsupported step type → 422, duplicate keys → 422 |
+| Step engine runs in order, records each step | **Tested**, browser-verified | `run_workflow_execution` claims a `pending` execution (idempotent), executes `qualify`/`shortlist`/`email_draft`/`send`, one `workflow_step_executions` row per step; `test_run_workflow_*` |
+| Steps connect to real logic | **Tested** | `qualify` calls the services-catalog scorer, `shortlist` the CRM repository, `email_draft` renders from the business's actual `website_status`/domain, `send` the SMTP path |
+| Approval gate before any send | **Tested**, browser-verified | workflow drafts create an `email_send` `workflow_approvals` row and a `pending_approval` message; `send` refuses non-approved, suppressed, or accountless messages; `test_run_workflow_drafts_email_and_gates_on_approval`, `test_send_without_account_blocks_honestly` |
+| Approval review flips the message | **Tested** | approve sets message `approved`, reject sets `rejected`; double review → 409; cross-owner review → 404 |
+| Recurring schedules (interval + cron) | **Tested**, browser-verified | custom five-field cron parser + interval recurrence; `next_run_at` stored; invalid recurrence → 422, unknown timezone → 422; `next_cron`/`compute_next_run` unit-tested incl. Feb-31 → None |
+| Email accounts, campaigns, messages, events, suppression | **Tested** | 5-table schema; account CRUD (duplicate → 409, unknown provider → 422), campaign CRUD, message lifecycle with events, suppression unique per owner+normalized email |
+| Suppression enforced | **Tested** | a suppressed recipient is refused at draft (409); a suppressed message returns status `suppressed` on send |
+| Secrets never stored in the database | Implemented | `email_accounts` holds `secret_reference` only; the spec's `encrypted_credentials` column is deliberately omitted in favour of an external secret manager |
+| Ownership and CSRF on every write | **Tested** | all 32 routes use `CurrentUser` + CSRF; `test_cross_owner_cannot_see_or_run_workflow`, `test_cross_owner_email_isolation` |
+| Workspaces UI | Implemented, browser-verified | `/automation/workflows`, `/automation/scheduler`, `/automation/approvals` and `/email` render and mutate against real PostgreSQL |
+
+**Deferred with reason — live delivery and the queued path.** SMTP is proven only to the
+provider boundary (and its honest refusals); no mail server/credentials exist here, so no
+real delivery is claimed. Gmail OAuth reports itself unconfigured. The Celery `run_workflow`
+task and the beat-driven `tick_schedules` are registered and tested but not run live because
+Redis is absent — "run now" executes the same engine inline.
+
 ## Deferred (with reason — see IMPLEMENTATION_PLAN.md section 7)
 
 Hybrid worker dispatch and heartbeats · Google Sheets two-way sync · cloud browser

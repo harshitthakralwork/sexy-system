@@ -95,6 +95,20 @@ class Settings(BaseSettings):
     reddit_user_agent: str = "sparkxflow-nexus/0.1 (local research tool)"
     reddit_timeout_seconds: float = 20.0
 
+    # Email sending (Automation Engine). SMTP is the first adapter because it is
+    # testable without credentials; Gmail OAuth stays credential-gated. Secrets
+    # live in the environment, referenced by `secret_reference` in the database.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_use_tls: bool = True
+    smtp_use_ssl: bool = False
+    smtp_from_email: str = ""
+    gmail_client_id: str = ""
+    gmail_client_secret: str = ""
+    gmail_refresh_token: str = ""
+
     # Geographic discovery ceilings. Set from the D4 measurements in
     # PROJECT_STATUS.md section 9: a 78.5 km² circle took 36-45 s on the public
     # interpreter, and smaller/faster units are what keep a job from timing out —
@@ -178,6 +192,13 @@ class Settings(BaseSettings):
     def _bounded_reddit_timeout(cls, value: float) -> float:
         if not 1.0 <= value <= 60.0:
             raise ValueError("reddit_timeout_seconds must be between 1 and 60")
+        return value
+
+    @field_validator("smtp_port")
+    @classmethod
+    def _bounded_smtp_port(cls, value: int) -> int:
+        if not 1 <= value <= 65535:
+            raise ValueError("smtp_port must be between 1 and 65535")
         return value
 
     @field_validator("discovery_max_tiles_per_job")

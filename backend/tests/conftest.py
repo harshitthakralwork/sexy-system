@@ -234,8 +234,12 @@ def make_account(
                     "delete from discovery_jobs where owner_user_id = $1", user_id
                 )
                 await connection.execute("delete from searches where owner_user_id = $1", user_id)
-                await connection.execute("delete from social_content where owner_user_id = $1", user_id)
-                await connection.execute("delete from social_profiles where owner_user_id = $1", user_id)
+                await connection.execute(
+                    "delete from social_content where owner_user_id = $1", user_id
+                )
+                await connection.execute(
+                    "delete from social_profiles where owner_user_id = $1", user_id
+                )
                 await connection.execute(
                     "delete from social_research_queries where owner_user_id = $1", user_id
                 )
@@ -243,6 +247,42 @@ def make_account(
                     "delete from business_social_profiles where business_id in"
                     " (select id from businesses where owner_user_id = $1)",
                     user_id,
+                )
+                await connection.execute(
+                    "delete from email_events where email_message_id in"
+                    " (select id from email_messages where owner_user_id = $1)",
+                    user_id,
+                )
+                await connection.execute(
+                    "delete from email_messages where owner_user_id = $1", user_id
+                )
+                await connection.execute(
+                    "delete from suppression_list where owner_user_id = $1", user_id
+                )
+                await connection.execute(
+                    "delete from campaigns where owner_user_id = $1", user_id
+                )
+                await connection.execute(
+                    "delete from email_accounts where owner_user_id = $1", user_id
+                )
+                await connection.execute(
+                    "delete from workflow_approvals where execution_id in"
+                    " (select id from workflow_executions where owner_user_id = $1)",
+                    user_id,
+                )
+                await connection.execute(
+                    "delete from workflow_step_executions where execution_id in"
+                    " (select id from workflow_executions where owner_user_id = $1)",
+                    user_id,
+                )
+                await connection.execute(
+                    "delete from workflow_executions where owner_user_id = $1", user_id
+                )
+                await connection.execute(
+                    "delete from schedules where owner_user_id = $1", user_id
+                )
+                await connection.execute(
+                    "delete from workflows where owner_user_id = $1", user_id
                 )
                 await connection.execute("delete from businesses where owner_user_id = $1", user_id)
                 await connection.execute("delete from tags where owner_user_id = $1", user_id)

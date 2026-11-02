@@ -1,10 +1,10 @@
 # SparkXFlow Nexus — Project Status
 
-**Last updated:** 2026-11-03 (social-intelligence milestone)
+**Last updated:** 2026-11-03 (automation engine — milestone complete)
 **Current phase:** **Full product completion, in progress.** Phases 1 (background
-execution), 2 (leads intelligence), 3 (startup intelligence) and 4 (social
-intelligence) are implemented and tested; work continues through the remaining phases
-in order.
+execution), 2 (leads intelligence), 3 (startup intelligence), 4 (social
+intelligence) and 5 (automation engine) are implemented and tested; work continues
+through the remaining phases in order.
 **Overall status:** Authentication and ownership enforcement are proven with two
 separate users. Discovery jobs run against real PostgreSQL and persist businesses with
 provenance. Jobs run exactly once per submission (atomic claim), can be retried
@@ -12,13 +12,20 @@ safely, and recover from a dead worker. Leads intelligence is usable end to end 
 browser (standalone table, profiles, qualification, 12-stage CRM, notes, tags);
 startup intelligence has its own 9-table schema, 21 API routes and browser UI
 (records, founders, products, pricing, evidence-labelled revenue, competitors,
-research, watchlists); and social intelligence now has a 4-table schema, an honest
+research, watchlists); social intelligence now has a 4-table schema, an honest
 6-platform catalogue (only Reddit enabled), research queries with real Reddit
 collection, deduplicated content storage, owner isolation, CSV export and a browser
-workspace (`/social`) — all browser-verified, including the honest live failure when
-Reddit's public JSON returns 403 from this client. 295 backend tests pass. Redis is
-still absent on this machine, so the Celery queued path is configured and tested but
-not live-run; the inline execution path is fully exercised.
+workspace (`/social`); and the automation engine now spans two modules (`automation`:
+workflows, schedules, executions, approvals; `email`: accounts, campaigns, messages,
+events, suppression list) with a 4-step runner that executes real qualification,
+shortlisting, draft-rendering and approval-gated sending. All four workspaces
+(`/automation/workflows`, `/automation/scheduler`, `/automation/approvals`, `/email`)
+are browser-verified against real PostgreSQL — including the honest "blocked" refusal
+when a send has no connected account, and the inline engine completing a run step by
+step. 331 backend tests pass. Redis is still absent on this machine, so the Celery
+queued path and the recurring-schedule tick are configured and tested but not
+live-run; the inline execution path is fully exercised. Gmail OAuth sending and live
+SMTP delivery remain credential-gated and are not claimed.
 
 ### Documentation change (2026-11-02)
 
@@ -43,7 +50,8 @@ This file uses the master prompt's Phase 0–11 numbering. The mapping to
 | 3 | Discovery vertical slice + map discovery | **Complete** — jobs, progress, cancel, provenance, SQL persistence, the geographic grid/map API, and the browser UI (Leads table, profiles, qualification, CRM board, service catalog) are all implemented and verified |
 | 4 | Startup Intelligence | **Complete except discovery-from-sources, reports and comparison.** 9-table schema (startups, founders, products, pricing, revenue records, competitors, research records, watchlists), 21 owner-scoped API routes with audit writes, and a browser UI (dashboard, profile, watchlists) — manual entry, research, evidence-labelled revenue, competitor and watchlist flows all browser-verified. Discovery from configured startup sources (Product Hunt, HN, GitHub) is **Deferred** (needs new adapters), and report generation / company comparison are **Not Started** (Phase 7) |
 | 5 | Social Intelligence | **Complete except live Reddit reachability.** 4-table schema (platforms, profiles, content, research queries), an honest 6-platform catalogue (Reddit enabled; LinkedIn/Instagram/Facebook/X/YouTube disabled with their real access terms stated), research-query CRUD + run with deduplication, owner-isolated content list/filter/CSV export, business linking, and the `/social` browser workspace. Live Reddit requests return 403 from this client, which the adapter reports honestly as a failure rather than fabricating results |
-| 6–11 | Automation, Global Search, Analytics, Source Manager, Import/Export, Hardening | Not Started — the next milestone is Phase 5 Automation Engine |
+| 6 | Automation Engine | **Complete except live SMTP delivery, Gmail OAuth and the Celery/beat path.** Two modules — `automation` (workflows, executions, step executions, schedules, approvals — 5 tables) and `email` (accounts, campaigns, messages, events, suppression list — 5 tables), 10 new tables in migration `682d9e15b781`. The step engine runs `qualify` → `shortlist` → `email_draft` → `send` inline on "run now", each step recorded in `workflow_step_executions`; `email_draft` writes an approval-gated message plus a `workflow_approvals` row; `send` refuses anything not approved, suppressed, or without a configured account. Recurring schedules compute `next_run_at` from an interval or a five-field cron subset (custom parser, no croniter). SMTP adapter first; Gmail OAuth and live delivery deferred (credential-gated). Browser-verified. See D-048 |
+| 7–11 | Global Search, Analytics, Source Manager, Import/Export, Hardening | Not Started — after Automation Engine |
 
 ## 1. Security review findings (2026-11-02)
 
@@ -100,16 +108,17 @@ helpers.
 
 | Gate | Result |
 |---|---|
-| `pytest` | **295 passed** |
+| `pytest` | **331 passed** (36 new: 21 automation + 15 email) |
 | `ruff check` | All checks passed |
-| `mypy app` | No issues in 91 source files |
+| `mypy app` | No issues in 102 source files |
 | `eslint` / `tsc --noEmit` | Clean |
-| `next build` | Succeeds; routes `/`, `/dashboard`, `/leads`, `/leads/[id]`, `/leads/crm`, `/leads/map`, `/leads/services`, `/login`, `/social`, `/startups`, `/startups/[id]`, `/startups/watchlists` |
-| `alembic upgrade head` from empty | 8 revisions applied to a scratch database, 52 tables created (4 social tables) |
+| `next build` | Succeeds; routes `/`, `/dashboard`, `/leads`, `/leads/[id]`, `/leads/crm`, `/leads/map`, `/leads/services`, `/login`, `/social`, `/startups`, `/startups/[id]`, `/startups/watchlists`, `/automation/workflows`, `/automation/scheduler`, `/automation/approvals`, `/email` |
+| `alembic upgrade head` from empty | 9 revisions applied, 62 tables created (10 new automation/email tables) |
 | `alembic check` on that schema | **No new upgrade operations detected** |
-| Schema audit query | 52/52 tables have a primary key; 29 named CHECK constraints, 55 FKs, 201 indexes |
+| Schema audit query | 62/62 tables have a primary key; 43 named CHECK constraints, 67 FKs, 236 indexes |
 | Live HTTP smoke test | register 201 → login 200 → session 200 → businesses 200 → **anonymous 401** → **shortlist without CSRF 403** → logout 200 → **session after logout 401** |
 | Browser mutation smoke test | qualify 200 (score/status/evidence rendered) → note 201 → shortlist 200 → stage move 200, all against real PostgreSQL |
+| Browser automation smoke test | create workflow 201 → run inline (execution `completed`, `shortlist` step `completed`) → create schedule (`next_run_at` computed +3600 s) → email draft → approve → **send returns honest "blocked: no sending account"**, against real PostgreSQL |
 
 Runtime note: the suite now takes about four minutes because the auth and
 authorization tests hit a real database and real Argon2 hashing. That is the cost of
@@ -245,6 +254,71 @@ shown up as a functional bug.
   UI, not replaced with sample data. No other platform has a permitted, key-free
   access method to add.
 
+### Phase 5 — what was built
+
+- **Automation schema (5 tables)** — `workflows` (versioned JSON step definition, status
+  vocabulary, `version` bumps on definition change), `workflow_executions` (trigger type,
+  status, input/output JSON, timing, error details), `workflow_step_executions` (one row
+  per step per run, own status/output/error, `retry_count`), `schedules` (interval or
+  five-field cron `recurrence_config`, `next_run_at` stored rather than derived,
+  `start_at`/`end_at`, timezone, enabled flag) and `workflow_approvals` (original vs
+  approved content kept apart). CHECK constraints pin the status vocabularies and the
+  four executable step types.
+- **Email schema (5 tables)** — `email_accounts` (provider, address, `secret_reference`
+  only — no credential column), `campaigns`, `email_messages` (12-state lifecycle, unique
+  per owner, links to business/contact/campaign/account/execution), `email_events` (9
+  event types) and `suppression_list` (unique per owner + normalized email). The
+  `encrypted_credentials BYTEA` column that `database-schema.md` §16.1 lists is
+  deliberately **not** modelled — the spec itself prefers an external secret manager, and
+  a secret in the application database leaks with the backup.
+- **Step engine** — `run_workflow_execution` claims a `pending` execution (idempotent,
+  like the job runner) and runs its steps in order, committing each step's row so a crash
+  leaves an inspectable history. `qualify` calls the real services-catalog scorer;
+  `shortlist` moves the CRM record through the real repository; `email_draft` renders a
+  deterministic draft from the business's actual `website_status`/domain/city and creates
+  an approval-gated message; `send` only sends messages that are `approved`, un-suppressed
+  and attached to a connected, configured account — otherwise it refuses with a real
+  reason and records a `failed` event. There is no dry-run mode that reports success.
+- **Recurrence** — a custom cron parser (no new dependency) supporting `*`, lists,
+  ranges, `a-b/N` and `*/N` steps over the five standard fields, with the
+  dom/dow OR-when-both-restricted rule; bounded by a five-year horizon so an impossible
+  date like "Feb 31" returns no run instead of looping. Interval recurrences advance from
+  `last_run_at`. The `tick_schedules` task is registered for Celery beat.
+- **Providers** — an `EmailProvider` protocol with an SMTP implementation (stdlib
+  `smtplib` via `asyncio.to_thread`) and a Gmail-OAuth implementation that reports
+  `configured() == False` until credentials exist, so it never fabricates a send.
+- **32 API routes** across `/workflows` and `/email` — CRUD for workflows, schedules,
+  accounts, campaigns and suppression; run-now for workflows and schedules; execution
+  list/detail with step history; approval list/review; message create/approve/send and
+  event listing. Every write is CSRF-gated and owner-scoped; the state-changing ones write
+  audit rows. Static sub-resource routes are declared before `/{workflow_id}` so the UUID
+  path converter cannot swallow `/approvals`, `/executions` or `/schedules`.
+- **Frontend** — `/automation/workflows` (step builder with the four real step types,
+  run-now with optional business ids, execution list with expandable per-step status),
+  `/automation/scheduler` (interval or cron, workflow picker, live `next_run`),
+  `/automation/approvals` (original content, approve/reject), and `/email`
+  (accounts, campaigns, draft → approve → send with the honest blocked result, suppression).
+  The purple design system, routing conventions and existing screens were preserved.
+
+### Defects the Phase 5 tests found (all fixed)
+
+1. **`list_approvals` failed mypy.** Reassigning `where = where & (...)` widened the
+   inferred type from `BinaryExpression` to `BooleanClauseList`; annotated `where` as
+   `ColumnElement[bool]`.
+2. **`/workflows/approvals` returned 422, not the approval list.** `GET /{workflow_id}`
+   was declared first and FastAPI matches in registration order, so the UUID converter
+   tried to parse "approvals" as an id. The static routes were reordered ahead of the
+   dynamic one; browser verification confirmed the fix.
+
+### Phase 5 — deferred (honest)
+
+- **Live SMTP delivery** is not exercised: no mail server is configured here, so the send
+  path is proven up to the provider boundary (and its refusals), not against a real
+  delivery. Gmail OAuth is entirely credential-gated and not attempted.
+- **The Celery queued path and the beat-driven `tick_schedules`** are configured and
+  registered but not run live, because Redis is absent. "Run now" executes inline through
+  the same engine, which is fully exercised; nothing pretends a queued job ran.
+
 ### Infrastructure actually running
 
 | Service | How | State |
@@ -284,7 +358,8 @@ are confined to the `dev` dependency extra so they cannot leak into a runtime in
 | Celery worker running jobs | No Redis | Blocked — Memurai (runbook §3.2) or Docker (§2.4). `SynchronousDispatcher` covers development |
 | Live SearXNG verification | No container runtime | Blocked — needs a SearXNG instance. **Overpass can be live-tested now** (public endpoint, internet confirmed working) |
 | Discovery UI | Nothing | Next: Phase 3 job management, then the results table |
-| Gmail sending | No credentials, and scope verification | Not attempted — adapter and approval queue first |
+| Gmail sending | No credentials, and scope verification | Not attempted — Gmail OAuth adapter reports `configured() == False`; SMTP-first path built, live delivery needs a configured mail server |
+| Celery/beat recurring schedules | No Redis | `run_workflow` and `tick_schedules` tasks registered and tested; "run now" executes the same engine inline |
 
 **No administrator rights are required for anything marked Unblocked.** The remaining
 blockers are Redis, a SearXNG container and Google credentials — each recorded with its

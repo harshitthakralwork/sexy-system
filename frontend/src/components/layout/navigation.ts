@@ -10,6 +10,7 @@ import {
   LayoutDashboard,
   ListChecks,
   MapPinned,
+  Mail,
   Bell,
   Radar,
   Search,
@@ -76,9 +77,10 @@ export const navigation: NavSection[] = [
   {
     title: "Automation",
     items: [
-      { label: "Workflow Builder", href: "/automation/workflows", icon: Workflow, available: false },
-      { label: "Scheduler", href: "/automation/scheduler", icon: CalendarClock, available: false },
-      { label: "Approval Queue", href: "/automation/approvals", icon: CheckSquare, available: false },
+      { label: "Workflow Builder", href: "/automation/workflows", icon: Workflow, available: true },
+      { label: "Scheduler", href: "/automation/scheduler", icon: CalendarClock, available: true },
+      { label: "Approval Queue", href: "/automation/approvals", icon: CheckSquare, available: true },
+      { label: "Email Outreach", href: "/email", icon: Mail, available: true },
     ],
   },
   {

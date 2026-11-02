@@ -34,6 +34,7 @@ def make_celery() -> Celery:
             "sparkxflow.exports.*": {"queue": "io"},
             "sparkxflow.retention.*": {"queue": "scheduled"},
             "sparkxflow.maintenance.*": {"queue": "scheduled"},
+            "sparkxflow.automation.*": {"queue": "automation"},
         },
         # Scheduled work runs from a separate `celery beat` process; the schedule
         # is data here so the worker image and the beat image stay in lockstep.
@@ -41,6 +42,10 @@ def make_celery() -> Celery:
             "recover-stale-jobs": {
                 "task": "sparkxflow.maintenance.recover_stale_jobs",
                 "schedule": 600.0,
+            },
+            "tick-schedules": {
+                "task": "sparkxflow.automation.tick_schedules",
+                "schedule": 60.0,
             },
         },
         broker_transport_options={"visibility_timeout": 3600},

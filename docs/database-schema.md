@@ -1155,6 +1155,14 @@ Workflow definitions must be validated against supported step types.
 
 Prefer an external secret manager or encrypted credential storage with keys outside the database.
 
+> **Implementation note (migration `682d9e15b781`).** The built `email_accounts` table
+> deliberately omits `encrypted_credentials`. The guidance above is followed literally: a
+> secret in the application database leaks with the backup, so only `secret_reference`
+> (a pointer) is stored. `email_messages.email_account_id`, `workflow_approvals.step_execution_id`,
+> and `schedules.next_run_at` / `last_run_at` are nullable in the build — a draft has no
+> account until one is attached, an approval may predate a step row, and a paused schedule
+> has no next run.
+
 ## 16.2 campaigns
 
 | Field | Type |

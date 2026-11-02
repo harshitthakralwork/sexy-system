@@ -531,3 +531,208 @@ export interface SocialRun {
   error: string | null;
 }
 
+// --- Automation engine (Phase 5) --------------------------------------------
+
+export interface WorkflowStepDef {
+  key: string;
+  type: string;
+  config: Record<string, unknown>;
+}
+
+export interface Workflow {
+  id: string;
+  name: string;
+  description: string | null;
+  module: string;
+  workflow_definition: { steps: WorkflowStepDef[] };
+  status: string;
+  version: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkflowList {
+  items: Workflow[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface StepExecution {
+  id: string;
+  execution_id: string;
+  step_key: string;
+  step_type: string;
+  status: string;
+  input_data: Record<string, unknown>;
+  output_data: Record<string, unknown>;
+  retry_count: number;
+  started_at: string | null;
+  completed_at: string | null;
+  error_details: Record<string, unknown> | null;
+}
+
+export interface Execution {
+  id: string;
+  workflow_id: string;
+  trigger_type: string;
+  status: string;
+  input_data: Record<string, unknown>;
+  output_data: Record<string, unknown>;
+  started_at: string | null;
+  completed_at: string | null;
+  error_details: Record<string, unknown> | null;
+  created_at: string;
+  steps: StepExecution[] | null;
+}
+
+export interface ExecutionList {
+  items: Execution[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface WorkflowRun {
+  execution_id: string;
+  status: string;
+}
+
+export interface Schedule {
+  id: string;
+  workflow_id: string;
+  timezone: string;
+  recurrence_config: Record<string, unknown>;
+  start_at: string;
+  end_at: string | null;
+  next_run_at: string | null;
+  last_run_at: string | null;
+  is_enabled: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ScheduleList {
+  items: Schedule[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface Approval {
+  id: string;
+  execution_id: string;
+  step_execution_id: string | null;
+  approval_type: string;
+  status: string;
+  original_content: Record<string, unknown>;
+  approved_content: Record<string, unknown> | null;
+  reviewed_by_user_id: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+}
+
+export interface ApprovalList {
+  items: Approval[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+// --- Email outreach (Phase 5) ------------------------------------------------
+
+export interface EmailAccount {
+  id: string;
+  provider: string;
+  email_address: string;
+  secret_reference: string | null;
+  status: string;
+  connected_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EmailAccountList {
+  items: EmailAccount[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface Campaign {
+  id: string;
+  workflow_id: string | null;
+  name: string;
+  status: string;
+  settings: Record<string, unknown>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CampaignList {
+  items: Campaign[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface EmailMessage {
+  id: string;
+  campaign_id: string | null;
+  email_account_id: string | null;
+  business_id: string | null;
+  contact_id: string | null;
+  workflow_execution_id: string | null;
+  recipient_email: string;
+  subject: string | null;
+  body: string | null;
+  status: string;
+  provider_message_id: string | null;
+  approved_at: string | null;
+  sent_at: string | null;
+  delivered_at: string | null;
+  bounced_at: string | null;
+  replied_at: string | null;
+  created_at: string;
+}
+
+export interface EmailMessageList {
+  items: EmailMessage[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface EmailEvent {
+  id: string;
+  email_message_id: string;
+  event_type: string;
+  provider_event_id: string | null;
+  event_data: Record<string, unknown>;
+  occurred_at: string;
+  created_at: string;
+}
+
+export interface SuppressionEntry {
+  id: string;
+  email_address: string;
+  normalized_email: string;
+  reason: string | null;
+  source: string | null;
+  created_at: string;
+}
+
+export interface SuppressionList {
+  items: SuppressionEntry[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface SendResult {
+  message_id: string;
+  status: string;
+  provider_message_id: string | null;
+  error: string | null;
+}
+

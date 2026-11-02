@@ -46,3 +46,19 @@ def recover_stale_jobs_task() -> int:
     from app.workers.maintenance import recover_stale_jobs
 
     return asyncio.run(recover_stale_jobs())
+
+
+@celery_app.task(name="sparkxflow.automation.run_workflow")
+def run_workflow_task(execution_id: str) -> str:
+    """Worker entry point for a queued workflow execution."""
+    from app.modules.automation.service import run_workflow_execution
+
+    return asyncio.run(run_workflow_execution(uuid.UUID(execution_id)))
+
+
+@celery_app.task(name="sparkxflow.automation.tick_schedules")
+def tick_schedules_task() -> int:
+    """Worker entry point for the recurring-schedule sweep."""
+    from app.modules.automation.service import run_due_schedules
+
+    return asyncio.run(run_due_schedules())

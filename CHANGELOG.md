@@ -6,6 +6,69 @@ In Progress · Blocked · Deferred.
 
 ---
 
+## 2026-11-03 (Automation Engine) — workflows, recurring schedules, approval-gated email
+
+Phase 5 of full product completion. The automation engine is two modules that share
+the auth/CSRF/audit/ownership infrastructure: `automation` runs versioned step
+workflows and recurring schedules; `email` holds accounts, campaigns, the message
+lifecycle, events and a suppression list. Sending is approval-gated and refuses
+without a connected, configured account — there is no dry-run that reports success.
+
+### What changed
+
+- **Schema** — 10 tables in migration `682d9e15b781`: `workflows`,
+  `workflow_executions`, `workflow_step_executions`, `schedules`, `workflow_approvals`,
+  `email_accounts`, `campaigns`, `email_messages`, `email_events`, `suppression_list`,
+  with status/step-type CHECK constraints, owner-scoped unique indexes and cascade FKs.
+  `email_accounts` stores a `secret_reference` only; the spec's `encrypted_credentials`
+  column is deliberately omitted in favour of an external secret manager.
+- **Step engine** — a `pending`-claim idempotent runner executes `qualify` → `shortlist`
+  → `email_draft` → `send` in order, committing one `workflow_step_executions` row per
+  step. `qualify` calls the real services-catalog scorer, `shortlist` the real CRM
+  repository, `email_draft` renders a deterministic draft from the business's actual
+  website state and raises an approval gate, and `send` only sends approved,
+  un-suppressed messages attached to a connected account.
+- **Recurrence** — a custom five-field cron parser (interval or cron, no new
+  dependency) stores `next_run_at` rather than deriving it; `tick_schedules` is
+  registered for Celery beat.
+- **Providers** — an `EmailProvider` protocol with an SMTP implementation and a
+  Gmail-OAuth implementation that reports itself unconfigured until credentials exist.
+- **API** — 32 owner-scoped routes across `/workflows` and `/email` (workflow/schedule/
+  account/campaign/suppression CRUD, run-now, execution history with step detail,
+  approval review, message create/approve/send and event listing), CSRF-gated with audit
+  writes on state changes.
+- **Frontend** — `/automation/workflows`, `/automation/scheduler`,
+  `/automation/approvals` and `/email` workspaces, navigation enabled, existing purple
+  design system and routing conventions preserved.
+
+### Bugs fixed
+
+- **`/workflows/approvals` returned 422** — `GET /{workflow_id}` was registered ahead of
+  the static routes and FastAPI matches in order, so the UUID converter rejected
+  "approvals". Static sub-resource routes moved before the dynamic one.
+- **mypy `Incompatible types in assignment`** in `list_approvals` — annotated the
+  accumulating `where` as `ColumnElement[bool]`.
+
+### Deferred
+
+- **Live SMTP delivery and Gmail OAuth** — the send path is proven to the provider
+  boundary (and its refusals) but no mail server/credentials exist here, so no real
+  delivery is claimed.
+- **Celery queued path and the beat-driven schedule tick** — configured and tested;
+  Redis is absent, so "run now" executes the same engine inline.
+
+### Verification
+
+- Browser-verified against real PostgreSQL: workflow created (201), run inline to
+  `completed` with its `shortlist` step `completed`; schedule created with `next_run_at`
+  computed; email draft → approve → **send honestly reported "blocked: no sending
+  account"**; approval queue rendered.
+- 331 backend tests pass (36 new: 21 `test_automation.py` + 15 `test_email.py`); ruff and
+  mypy clean (102 files); `next build` succeeds; `alembic upgrade head` + `check`
+  drift-free (62 tables, 43 named CHECKs, 67 FKs).
+
+---
+
 ## 2026-11-03 (Social Intelligence) — honest platform catalogue, Reddit research, content workspace
 
 Phase 4 of full product completion. Social Intelligence shares the

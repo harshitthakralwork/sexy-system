@@ -7,6 +7,42 @@ Format: decision, driver, alternatives rejected, consequence.
 
 ---
 
+## D-048 | Automation Engine: two modules, approval-first email, SMTP-first sending
+
+**Decision:** Phase 5 (Automation Engine) lands as two backend modules — `automation`
+(workflows, schedules, executions, approvals) and `email` (accounts, campaigns,
+messages, events, suppression list) — exposing `/api/v1/workflows` and
+`/api/v1/email` as the architecture document already names them. The workflow step
+engine implements five steps in version 1 — `qualify`, `shortlist`, `email_draft`,
+`approval`, `send` — each wired to real backend logic (the existing deterministic
+qualifier, the CRM shortlist stage, and a draft generator fed by real business
+context). Email sending is gated: a message must be approved by a human and routed
+through a configured, connected account; there is no auto-send. The first sending
+adapter is **SMTP** (stdlib `smtplib`, environment-configured), not Gmail OAuth,
+because SMTP is testable locally without credentials while Gmail OAuth is
+credential-gated; the account model already carries `secret_reference`, so the OAuth
+adapter slots in behind the same `EmailProvider` interface later.
+
+**Driver:** PRD §5.4 and §9 require the full trigger→…→send→track pipeline with
+human approval before sending and honest refusal when no provider exists. Gmail OAuth
+and any real send need credentials this machine does not have, so the engine must
+degrade to a clear error rather than pretend to send — the same honesty rule that
+already governs Redis and SearXNG.
+
+**Rejected:** a single `automation` module containing the email tables (the
+architecture already separates the components, and 10 tables in one module is
+unreadable); a "dry-run send" that marks messages sent without a provider (violates
+the no-fake-completeness rule); implementing `discovery`/`research` as workflow steps
+now (discovery is already an independently schedulable job, and wiring it as a step
+would duplicate the job runner).
+
+**Consequence:** the recurring-schedule tick is a Celery beat task that is configured
+but live-unverified without Redis; "run now" executes inline via the same
+`SynchronousDispatcher`-style path as discovery. Automated discovery-from-a-workflow
+step and Gmail OAuth sending are recorded as deferred with reasons.
+
+---
+
 ## D-047 | Where a record was found is never the record's website
 **Decision:** `DiscoveredItem` carries an explicit `website_hint`. The SearXNG adapter
 sets it to the result URL; the Overpass adapter never does. `normalized_domain` — a
