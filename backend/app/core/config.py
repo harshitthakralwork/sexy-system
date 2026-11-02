@@ -88,6 +88,9 @@ class Settings(BaseSettings):
     searxng_max_pages: int = 3
     searxng_results_per_page: int = 20
 
+    overpass_base_url: str = "https://overpass-api.de"
+    overpass_timeout_seconds: float = 30.0
+
     default_region: str = "IN"
     export_dir: Path = Path("var/exports")
     retention_raw_days: int = 15
@@ -129,11 +132,11 @@ class Settings(BaseSettings):
             raise ValueError("searxng_results_per_page must be between 1 and 50")
         return value
 
-    @field_validator("searxng_timeout_seconds")
+    @field_validator("searxng_timeout_seconds", "overpass_timeout_seconds")
     @classmethod
     def _bounded_timeout(cls, value: float) -> float:
         if not 1.0 <= value <= 60.0:
-            raise ValueError("searxng_timeout_seconds must be between 1 and 60")
+            raise ValueError("source timeout_seconds must be between 1 and 60")
         return value
 
     @field_validator("session_ttl_hours")

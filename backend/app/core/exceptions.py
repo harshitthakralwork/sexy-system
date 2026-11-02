@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from http import HTTPStatus
 from typing import Any
 
@@ -116,6 +117,25 @@ _HTTP_ERROR_CODES: dict[int, str] = {
 }
 
 
+def _safe_errors(errors: Sequence[Any]) -> list[dict[str, Any]]:
+    """Make validation errors serialisable without losing what the caller needs.
+
+    Pydantic attaches the original exception object as `ctx`; it is not JSON, so
+    a plain validator failure would turn a 422 into a 500. `loc`, `msg` and the
+    offending input are what a form needs to show.
+    """
+    cleaned: list[dict[str, Any]] = []
+    for entry in errors:
+        item = dict(entry)
+        item.pop("ctx", None)
+        item.pop("url", None)
+        raw_input = item.get("input")
+        if raw_input is not None and not isinstance(raw_input, (str, int, float, bool)):
+            item["input"] = str(raw_input)
+        cleaned.append(item)
+    return cleaned
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(DomainError)
     async def _handle_domain_error(_request: Request, exc: DomainError) -> JSONResponse:
@@ -147,7 +167,7 @@ def register_exception_handlers(app: FastAPI) -> None:
             content=_error_payload(
                 "validation_failed",
                 "Request payload did not validate",
-                {"errors": exc.errors()},
+                {"errors": _safe_errors(exc.errors())},
             ),
         )
 

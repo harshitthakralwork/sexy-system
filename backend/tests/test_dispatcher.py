@@ -53,19 +53,28 @@ def test_synchronous_dispatcher_is_not_valid_in_production() -> None:
     assert any("RUN_JOBS_SYNCHRONOUSLY" in problem for problem in problems)
 
 
-def test_default_selection_is_the_queued_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.delenv("SPARKX_RUN_JOBS_SYNCHRONOUSLY", raising=False)
+def _isolate_settings(monkeypatch: pytest.MonkeyPatch, value: str | None) -> None:
+    """Read dispatcher choice from the code defaults, not the operator's `.env`.
+
+    These tests assert what an unconfigured installation does. Leaving the repo
+    `.env` in the frame would make them pass or fail on someone's local file.
+    `env_file` is read at instantiation, so suppressing it here is enough.
+    """
     from app.core import config as config_module
 
+    monkeypatch.setitem(config_module.Settings.model_config, "env_file", None)
+    if value is None:
+        monkeypatch.delenv("SPARKX_RUN_JOBS_SYNCHRONOUSLY", raising=False)
+    else:
+        monkeypatch.setenv("SPARKX_RUN_JOBS_SYNCHRONOUSLY", value)
     config_module.get_settings.cache_clear()
+
+
+def test_default_selection_is_the_queued_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    _isolate_settings(monkeypatch, None)
     assert isinstance(get_dispatcher(), CeleryDispatcher)
-    config_module.get_settings.cache_clear()
 
 
 def test_configuration_can_select_the_inline_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("SPARKX_RUN_JOBS_SYNCHRONOUSLY", "true")
-    from app.core import config as config_module
-
-    config_module.get_settings.cache_clear()
+    _isolate_settings(monkeypatch, "true")
     assert isinstance(get_dispatcher(), SynchronousDispatcher)
-    config_module.get_settings.cache_clear()

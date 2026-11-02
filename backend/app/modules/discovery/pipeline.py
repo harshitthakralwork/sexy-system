@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+from collections.abc import Awaitable, Callable, Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Protocol
@@ -293,6 +293,7 @@ class PipelineReport:
     review_pairs: list[DuplicatePair] = field(default_factory=list)
     scores: list[ScoreResult] = field(default_factory=list)
     enrichment: EnrichmentOutcome | None = None
+    cancelled: bool = False
 
     @property
     def any_source_failed(self) -> bool:
@@ -307,6 +308,10 @@ class PipelineReport:
         return "; ".join(failed) if failed else "All sources completed"
 
 
+StageHook = Callable[[str, "StageCounters"], Awaitable[None]]
+CancelCheck = Callable[[], Awaitable[bool]]
+
+
 async def run_pipeline(
     adapters: Iterable[tuple[str, DiscoveryAdapter]],
     queries: Sequence[DiscoveryQuery],
@@ -317,18 +322,35 @@ async def run_pipeline(
     scoring_rules: Sequence[ScoringRule] | None = None,
     qualification_threshold: float = 60.0,
     retrieved_at: datetime | None = None,
+    on_stage: StageHook | None = None,
+    is_cancelled: CancelCheck | None = None,
 ) -> PipelineReport:
     """Discover → Normalize → Validate → Deduplicate → Enrich → Score → Store → Report.
 
     A source that fails is recorded and the rest continue. One dead provider must
     not make the whole discovery platform unusable (PRD section 19).
+
+    ``on_stage`` is called with the stage name and the counters observed so far,
+    so a job can publish progress from real work rather than a timer. Cancellation
+    is checked between units of work; a run that stops is reported as cancelled,
+    not as completed.
     """
     when = retrieved_at or datetime.now(UTC)
     report = PipelineReport()
     adapter_list = list(adapters)
     collected: list[NormalizedBusiness] = []
 
+    async def stage(name: str) -> None:
+        if on_stage is not None:
+            await on_stage(name, report.counters)
+
+    async def cancelled() -> bool:
+        return is_cancelled is not None and await is_cancelled()
+
     for slug, adapter in adapter_list:
+        if await cancelled():
+            report.cancelled = True
+            return report
         outcome = SourceOutcome(slug=slug)
         report.sources.append(outcome)
         for query in queries:
@@ -348,6 +370,7 @@ async def run_pipeline(
             outcome.items_returned += len(items)
             outcome.requests_made = getattr(adapter, "requests_made", outcome.requests_made)
             report.counters.discovered += len(items)
+            await stage("discover")
 
             for item in items:
                 business = normalize_item(
@@ -360,6 +383,7 @@ async def run_pipeline(
                 if verdict.warnings:
                     report.counters.warning_flagged += 1
                 collected.append(business)
+            await stage("normalize")
 
     report.counters.normalized = len(collected)
 
@@ -393,6 +417,7 @@ async def run_pipeline(
 
     enricher = enricher or NoEnrichment()
     report.enrichment = await enricher.enrich(survivors)
+    await stage("deduplicate")
 
     if scoring_rules:
         for business in survivors:
@@ -405,7 +430,11 @@ async def run_pipeline(
             )
 
     for business in survivors:
+        if await cancelled():
+            report.cancelled = True
+            return report
         if await store.upsert(business):
             report.counters.stored_new += 1
+        await stage("store")
 
     return report

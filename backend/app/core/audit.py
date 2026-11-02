@@ -23,6 +23,8 @@ SENSITIVE_ACTIONS = frozenset(
         "business.delete",
         "business.bulk_update",
         "crm.stage_change",
+        "discovery.job_created",
+        "discovery.job_cancelled",
         "export.create",
         "source.configure",
         "source.enable",

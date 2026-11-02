@@ -43,9 +43,16 @@ class SqlBusinessStore:
     another user's records, and the database would not complain.
     """
 
-    def __init__(self, session: AsyncSession, *, owner_user_id: uuid.UUID) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        *,
+        owner_user_id: uuid.UUID,
+        job_id: uuid.UUID | None = None,
+    ) -> None:
         self._session = session
         self._owner = owner_user_id
+        self._job_id = job_id
         self._source_ids: dict[str, uuid.UUID | None] = {}
         self.created = 0
         self.merged = 0
@@ -241,7 +248,7 @@ class SqlBusinessStore:
             collected_at = attribution.retrieved_at
             record = SourceRecord(
                 source_id=source_id,
-                job_id=None,
+                job_id=self._job_id,
                 owner_user_id=self._owner,
                 module="leads",
                 external_id=attribution.external_id,
