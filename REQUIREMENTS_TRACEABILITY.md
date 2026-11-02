@@ -171,11 +171,32 @@ built, `/startups/discover` stays disabled rather than a nonfunctional control. 
 and company comparison are also not yet built (Not Started above). No startup record is
 invented — every row was created through the API by the operator.
 
+## Social Intelligence (Phase 4, implemented 2026-11-03)
+
+Specified in `PRD.md` §5, `architecture.md` §15 and `database-schema.md` §14. Statuses
+describe **code**, not documents.
+
+| Capability | Status | Evidence |
+|---|---|---|
+| Honest platform catalogue | **Tested** | `PLATFORM_DEFINITIONS` states each platform's permitted access; Reddit enabled, LinkedIn/Instagram/Facebook/X/YouTube disabled with their real terms; `test_platform_catalogue_seeds_honestly` |
+| Research queries (create/list/run/delete) | **Tested** | `POST/GET/DELETE /social/research-queries`, `POST .../run`; disabled platform → 409, invalid config → 422, failed run marks `last_run_status=failed` |
+| Reddit collection | **Tested** (mocked transport) | `RedditAdapter` validates query kind/sort/limit, one request, `follow_redirects=False`, descriptive User-Agent; 429/401/403/400 mapped to distinct errors |
+| Content storage with deduplication | **Tested** | unique `(owner, platform, external_id)`; re-run reports `duplicates` instead of re-storing; `test_run_stores_content_and_dedups` |
+| Content list/filter/export | **Tested** | platform/type/text filters; CSV export with neutralised formula values |
+| Link content to business | **Tested** | `POST /social/content/{id}/link` → `BusinessSocialProfile`, audit `social.link` |
+| Ownership and CSRF on every write | **Tested** | `test_cross_owner_isolation`; all writes CSRF-gated |
+| Social workspace UI | Implemented, browser-verified | `/social` renders the catalogue, create/run/delete queries and the content table against real PostgreSQL; the live 403 is surfaced honestly |
+
+**Deferred with reason — live Reddit reachability.** The full path is tested against a
+mocked transport and browser-verified, but a live request from this client returns
+**403** (unauthenticated JSON blocked). The UI reports that as a failure rather than
+fabricating results. No other platform offers a permitted, key-free access method to
+add.
+
 ## Deferred (with reason — see IMPLEMENTATION_PLAN.md section 7)
 
 Hybrid worker dispatch and heartbeats · Google Sheets two-way sync · cloud browser
-automation · PostGIS · dedicated search engine · multi-tenancy · auto-send email ·
-Social Intelligence tables.
+automation · PostGIS · dedicated search engine · multi-tenancy · auto-send email.
 
 ## Known gaps to close before they become expensive
 

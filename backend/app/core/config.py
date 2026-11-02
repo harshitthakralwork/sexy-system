@@ -91,6 +91,10 @@ class Settings(BaseSettings):
     overpass_base_url: str = "https://overpass-api.de"
     overpass_timeout_seconds: float = 90.0
 
+    reddit_base_url: str = "https://www.reddit.com"
+    reddit_user_agent: str = "sparkxflow-nexus/0.1 (local research tool)"
+    reddit_timeout_seconds: float = 20.0
+
     # Geographic discovery ceilings. Set from the D4 measurements in
     # PROJECT_STATUS.md section 9: a 78.5 km² circle took 36-45 s on the public
     # interpreter, and smaller/faster units are what keep a job from timing out —
@@ -167,6 +171,13 @@ class Settings(BaseSettings):
         # unbounded wait against shared infrastructure is a self-inflicted DoS.
         if not 1.0 <= value <= 120.0:
             raise ValueError("overpass_timeout_seconds must be between 1 and 120")
+        return value
+
+    @field_validator("reddit_timeout_seconds")
+    @classmethod
+    def _bounded_reddit_timeout(cls, value: float) -> float:
+        if not 1.0 <= value <= 60.0:
+            raise ValueError("reddit_timeout_seconds must be between 1 and 60")
         return value
 
     @field_validator("discovery_max_tiles_per_job")

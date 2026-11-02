@@ -6,6 +6,59 @@ In Progress · Blocked · Deferred.
 
 ---
 
+## 2026-11-03 (Social Intelligence) — honest platform catalogue, Reddit research, content workspace
+
+Phase 4 of full product completion. Social Intelligence shares the
+auth/CSRF/audit/ownership infrastructure, and is honest about what each platform's
+permitted public access actually allows: only Reddit offers a key-free method, so only
+Reddit is enabled.
+
+### What changed
+
+- **Schema** — 4 tables (`social_platforms`, `social_profiles`, `social_content`,
+  `social_research_queries`) in migration `6dbf1bf0e71c`, with a content-type CHECK and
+  unique owner/platform/external-id indexes so re-runs deduplicate instead of duplicating.
+- **Platform catalogue** — `PLATFORM_DEFINITIONS` states each platform's real access
+  terms. LinkedIn/Instagram/Facebook/X/YouTube are disabled with their terms stated;
+  Reddit is enabled via its unauthenticated public JSON.
+- **Reddit adapter** — validates query kind/sort/limit, one request per run,
+  `follow_redirects=False`, descriptive User-Agent; maps 429/401/403/400 to distinct
+  adapter errors; health check endpoint.
+- **API** — 13 owner-scoped routes under `/social` (platforms, research-query CRUD +
+  run, content list/filter/export, delete, link-to-business), CSRF-gated, with audit
+  writes on run and link.
+- **Frontend** — `/social` workspace: platform catalogue, create-query form, query list
+  with run/delete and honest last-run status, collected-content table with filters,
+  CSV export, per-row delete and link-to-business. Navigation enables the section.
+
+### Bug fixed
+
+- **Response schemas could not be built by `model_validate`** — `SocialResearchQueryOut`
+  and `SocialContentOut` carry `platform_slug`/`author_username` that live on joined
+  rows, not the ORM object, so the router now constructs them explicitly.
+- **`link_content_to_business` read a non-existent column** (`content.author_username`);
+  it now resolves the `SocialProfile` via `profile_id`.
+- **`SourceUnavailableError` called with one argument** in three places; fixed to the
+  `(source_slug, reason)` signature.
+
+### Deferred
+
+- **Live Reddit collection** — the full path is tested against a mocked transport and
+  browser-verified, but the live request returns 403 from this client. The UI reports
+  that honestly rather than fabricating data.
+
+### Verification
+
+- Browser-verified against real PostgreSQL: catalogue rendered (6 platforms, Reddit
+  "available", others "restricted"), query created, run returned the honest 403
+  failure surfaced in the UI, delete removed the row.
+- 295 backend tests pass (10 new in `test_social.py`); ruff and mypy clean (91 files);
+  `next build` exit 0 with the new `/social` route.
+- `alembic upgrade head` from empty: 8 revisions, 52 tables; `alembic check` clean;
+  52/52 tables have a primary key.
+
+---
+
 ## 2026-11-03 (Startup Intelligence) — 9-table schema, 21 routes, dashboard, profiles, watchlists
 
 Phase 3 of full product completion. Startup Intelligence is its own module sharing the

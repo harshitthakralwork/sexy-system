@@ -14,5 +14,6 @@ from app.modules.discovery import models as discovery_models  # noqa: F401
 from app.modules.exports import models as exports_models  # noqa: F401
 from app.modules.notifications import models as notifications_models  # noqa: F401
 from app.modules.services_catalog import models as services_models  # noqa: F401
+from app.modules.social import models as social_models  # noqa: F401
 from app.modules.sources import models as sources_models  # noqa: F401
 from app.modules.startups import models as startups_models  # noqa: F401

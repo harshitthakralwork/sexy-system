@@ -462,3 +462,72 @@ export interface Watchlist {
   updated_at: string;
   items: Startup[];
 }
+
+// --- Social intelligence (Phase 4) -------------------------------------------
+
+export interface SocialPlatform {
+  id: string;
+  name: string;
+  slug: string;
+  adapter_key: string;
+  capabilities: Record<string, unknown>;
+  limitations: Record<string, unknown>;
+  is_enabled: boolean;
+  health_status: string;
+  last_run_at: string | null;
+  last_error: string | null;
+}
+
+export interface SocialResearchQuery {
+  id: string;
+  platform_id: string;
+  platform_slug: string;
+  query_config: Record<string, unknown>;
+  last_run_at: string | null;
+  last_run_status: string | null;
+  last_run_error: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SocialResearchQueryList {
+  items: SocialResearchQuery[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface SocialContent {
+  id: string;
+  platform_id: string;
+  platform_slug: string;
+  research_query_id: string | null;
+  profile_id: string | null;
+  external_id: string;
+  content_url: string | null;
+  content_type: string;
+  content_text: string | null;
+  published_at: string | null;
+  engagement_data: Record<string, unknown>;
+  author_username: string | null;
+  author_profile_url: string | null;
+  collected_at: string;
+}
+
+export interface SocialContentList {
+  items: SocialContent[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface SocialRun {
+  query_id: string;
+  platform_slug: string;
+  status: string;
+  collected: number;
+  stored_new: number;
+  duplicates: number;
+  error: string | null;
+}
+

@@ -1,20 +1,24 @@
 # SparkXFlow Nexus — Project Status
 
-**Last updated:** 2026-11-03 (startup-intelligence milestone)
-**Current phase:** **Full product completion, in progress.** Phase 1 (background
-execution), Phase 2 (leads intelligence) and Phase 3 (startup intelligence) are
-implemented and tested; work continues through the remaining phases in order.
+**Last updated:** 2026-11-03 (social-intelligence milestone)
+**Current phase:** **Full product completion, in progress.** Phases 1 (background
+execution), 2 (leads intelligence), 3 (startup intelligence) and 4 (social
+intelligence) are implemented and tested; work continues through the remaining phases
+in order.
 **Overall status:** Authentication and ownership enforcement are proven with two
 separate users. Discovery jobs run against real PostgreSQL and persist businesses with
 provenance. Jobs run exactly once per submission (atomic claim), can be retried
 safely, and recover from a dead worker. Leads intelligence is usable end to end in the
-browser (standalone table, profiles, qualification, 12-stage CRM, notes, tags), and
-startup intelligence now has its own 9-table schema, 21 API routes and browser UI:
-manual startup records, founders, products, pricing, evidence-labelled revenue,
-competitors, research records and watchlists all connect to real endpoints against
-PostgreSQL (browser-verified). 285 backend tests pass. Redis is still absent on this
-machine, so the Celery queued path is configured and tested but not live-run; the
-inline execution path is fully exercised.
+browser (standalone table, profiles, qualification, 12-stage CRM, notes, tags);
+startup intelligence has its own 9-table schema, 21 API routes and browser UI
+(records, founders, products, pricing, evidence-labelled revenue, competitors,
+research, watchlists); and social intelligence now has a 4-table schema, an honest
+6-platform catalogue (only Reddit enabled), research queries with real Reddit
+collection, deduplicated content storage, owner isolation, CSV export and a browser
+workspace (`/social`) — all browser-verified, including the honest live failure when
+Reddit's public JSON returns 403 from this client. 295 backend tests pass. Redis is
+still absent on this machine, so the Celery queued path is configured and tested but
+not live-run; the inline execution path is fully exercised.
 
 ### Documentation change (2026-11-02)
 
@@ -38,7 +42,8 @@ This file uses the master prompt's Phase 0–11 numbering. The mapping to
 | 2 | Authentication and authorization | **Complete** — includes the mandatory two-user isolation proof |
 | 3 | Discovery vertical slice + map discovery | **Complete** — jobs, progress, cancel, provenance, SQL persistence, the geographic grid/map API, and the browser UI (Leads table, profiles, qualification, CRM board, service catalog) are all implemented and verified |
 | 4 | Startup Intelligence | **Complete except discovery-from-sources, reports and comparison.** 9-table schema (startups, founders, products, pricing, revenue records, competitors, research records, watchlists), 21 owner-scoped API routes with audit writes, and a browser UI (dashboard, profile, watchlists) — manual entry, research, evidence-labelled revenue, competitor and watchlist flows all browser-verified. Discovery from configured startup sources (Product Hunt, HN, GitHub) is **Deferred** (needs new adapters), and report generation / company comparison are **Not Started** (Phase 7) |
-| 5–11 | Social, Automation, Analytics, Hardening and the remaining phases | Not Started — the next milestone is Phase 4 Social Intelligence |
+| 5 | Social Intelligence | **Complete except live Reddit reachability.** 4-table schema (platforms, profiles, content, research queries), an honest 6-platform catalogue (Reddit enabled; LinkedIn/Instagram/Facebook/X/YouTube disabled with their real access terms stated), research-query CRUD + run with deduplication, owner-isolated content list/filter/CSV export, business linking, and the `/social` browser workspace. Live Reddit requests return 403 from this client, which the adapter reports honestly as a failure rather than fabricating results |
+| 6–11 | Automation, Global Search, Analytics, Source Manager, Import/Export, Hardening | Not Started — the next milestone is Phase 5 Automation Engine |
 
 ## 1. Security review findings (2026-11-02)
 
@@ -95,14 +100,14 @@ helpers.
 
 | Gate | Result |
 |---|---|
-| `pytest` | **285 passed** |
+| `pytest` | **295 passed** |
 | `ruff check` | All checks passed |
-| `mypy app` | No issues in 84 source files |
+| `mypy app` | No issues in 91 source files |
 | `eslint` / `tsc --noEmit` | Clean |
-| `next build` | Succeeds; routes `/`, `/dashboard`, `/leads`, `/leads/[id]`, `/leads/crm`, `/leads/map`, `/leads/services`, `/login`, `/startups`, `/startups/[id]`, `/startups/watchlists` |
-| `alembic upgrade head` from empty | 7 revisions applied to a scratch database, 48 tables created (9 startup tables) |
+| `next build` | Succeeds; routes `/`, `/dashboard`, `/leads`, `/leads/[id]`, `/leads/crm`, `/leads/map`, `/leads/services`, `/login`, `/social`, `/startups`, `/startups/[id]`, `/startups/watchlists` |
+| `alembic upgrade head` from empty | 8 revisions applied to a scratch database, 52 tables created (4 social tables) |
 | `alembic check` on that schema | **No new upgrade operations detected** |
-| Schema audit query | 48/48 tables have a primary key; 28 CHECK constraints, 49 FKs, 185 indexes |
+| Schema audit query | 52/52 tables have a primary key; 29 named CHECK constraints, 55 FKs, 201 indexes |
 | Live HTTP smoke test | register 201 → login 200 → session 200 → businesses 200 → **anonymous 401** → **shortlist without CSRF 403** → logout 200 → **session after logout 401** |
 | Browser mutation smoke test | qualify 200 (score/status/evidence rendered) → note 201 → shortlist 200 → stage move 200, all against real PostgreSQL |
 
@@ -189,6 +194,56 @@ shown up as a functional bug.
   a startup directory. Product Hunt needs a key, Hacker News and GitHub are free
   candidates — the adapter choice is still open, so `/startups/discover` remains
   disabled rather than a decorative control.
+
+### Phase 4 — what was built
+
+- **Social schema (4 tables)** — `social_platforms` (name, slug, adapter_key,
+  capabilities/limitations JSONB, health status, last run), `social_profiles`
+  (platform + owner + external author id, unique per owner/platform/author),
+  `social_content` (platform + owner + research query + author profile, content type
+  CHECK, engagement JSONB, provenance `source_id`, unique per owner/platform/external
+  id), and `social_research_queries` (owner + platform, query_config JSONB, last-run
+  status). `owner_user_id` and `research_query_id` are deliberate additions beyond
+  `database-schema.md` §14 so the two-user isolation proof applies to social data too.
+- **Honest platform catalogue** — `PLATFORM_DEFINITIONS` states each platform's actual
+  permitted access. Reddit alone is enabled (unauthenticated public JSON, descriptive
+  User-Agent, one request per run, no redirects); LinkedIn, Instagram, Facebook,
+  X and YouTube are disabled with their real terms stated, so the UI shows
+  "restricted" instead of implying availability.
+- **Reddit adapter** — validates query kind (`search`/`subreddit`/`user`), sort and
+  limit ceilings; maps Listing JSON to `SocialResult`; treats 429/401/403/400 as
+  distinct `AdapterError` classifications; health check via `/r/announcements.json`.
+- **13 owner-scoped API routes** under `/social` — platform listing, research-query
+  CRUD + run, content list (platform/type/text filters), CSV export, content delete,
+  and link-to-business. Every write is CSRF-gated; runs and links write audit rows;
+  re-runs deduplicate by external id and report `duplicates` rather than hiding them.
+- **Frontend** — `/social` workspace: platform catalogue, create-query form
+  (platform/kind/terms/sort/limit), query list with run/delete and honest last-run
+  status, collected-content table with filters, CSV export, per-row delete and
+  link-to-business. Navigation enables the section.
+
+### Defects the Phase 4 tests found (all fixed)
+
+1. **`SocialResearchQueryOut`/`SocialContentOut` could not be built by
+   `model_validate`.** The response schemas carry `platform_slug`/`author_username`
+   fields that live on joined rows, not on the ORM object, so validating the ORM row
+   first raised `platform_slug: Field required`. The router now constructs the schema
+   explicitly instead of round-tripping through `model_validate`.
+2. **`link_content_to_business` referenced a non-existent column.** It read
+   `content.author_username`; author identity lives on `SocialProfile` via
+   `content.profile_id`. The service now resolves the profile and passes its username
+   through (nullable).
+3. **`SourceUnavailableError` was called with one argument** in three places; its
+   signature is `(source_slug, reason)`.
+
+### Social — deferred (honest)
+
+- **Live Reddit collection.** The adapter and storage path are fully tested against a
+  mocked transport, and the browser run works end to end, but the live request
+  returns **403 — "Reddit refused the request (403). Unauthenticated JSON access may
+  be blocked for this client."** — from this network. That is reported honestly in the
+  UI, not replaced with sample data. No other platform has a permitted, key-free
+  access method to add.
 
 ### Infrastructure actually running
 

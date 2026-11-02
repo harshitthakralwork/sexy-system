@@ -977,6 +977,12 @@ Add a unique constraint on `(watchlist_id, startup_id)`.
 
 # 14. Social Intelligence Tables
 
+Implemented 2026-11-03. Two ownership columns are deliberate additions beyond this
+section's original draft, made so the two-user isolation proof (PRD §22) applies to
+social data exactly as it does to leads and startups: `social_profiles.owner_user_id`
+and `social_content.owner_user_id`, plus `social_content.research_query_id` so content
+keeps its originating query for provenance.
+
 ## 14.1 social_platforms
 
 | Field | Type |
@@ -988,6 +994,9 @@ Add a unique constraint on `(watchlist_id, startup_id)`.
 | capabilities | JSONB |
 | limitations | JSONB |
 | is_enabled | BOOLEAN |
+| health_status | VARCHAR(30) |
+| last_run_at | TIMESTAMPTZ |
+| last_error | TEXT |
 
 ## 14.2 social_profiles
 
@@ -995,6 +1004,7 @@ Add a unique constraint on `(watchlist_id, startup_id)`.
 |---|---|
 | id | UUID |
 | platform_id | UUID |
+| owner_user_id | UUID |
 | external_id | VARCHAR(255) |
 | username | VARCHAR(255) |
 | profile_url | TEXT |
@@ -1002,12 +1012,16 @@ Add a unique constraint on `(watchlist_id, startup_id)`.
 | public_metadata | JSONB |
 | last_researched_at | TIMESTAMPTZ |
 
+Unique `(owner_user_id, platform_id, external_id)`.
+
 ## 14.3 social_content
 
 | Field | Type |
 |---|---|
 | id | UUID |
 | platform_id | UUID |
+| owner_user_id | UUID |
+| research_query_id | UUID, nullable |
 | profile_id | UUID, nullable |
 | external_id | VARCHAR(255) |
 | content_url | TEXT |
@@ -1019,7 +1033,9 @@ Add a unique constraint on `(watchlist_id, startup_id)`.
 | collected_at | TIMESTAMPTZ |
 | expires_at | TIMESTAMPTZ |
 
-Only store information that the configured access method is permitted to collect and retain.
+Unique `(owner_user_id, platform_id, external_id)`. `content_type` CHECK is
+`post`/`comment`/`profile`/`other`. Only store information that the configured access
+method is permitted to collect and retain.
 
 ## 14.4 social_research_queries
 
@@ -1029,7 +1045,11 @@ Only store information that the configured access method is permitted to collect
 | owner_user_id | UUID |
 | platform_id | UUID |
 | query_config | JSONB |
+| last_run_at | TIMESTAMPTZ |
+| last_run_status | VARCHAR(30) |
+| last_run_error | TEXT |
 | created_at | TIMESTAMPTZ |
+| updated_at | TIMESTAMPTZ |
 
 ---
 
@@ -1529,8 +1549,8 @@ containment work justifies it.
 
 ### Build in later phases
 
-- Startup research tables.
-- Social intelligence tables.
+- ~~Startup research tables~~ — built (Phase 3, §13).
+- ~~Social intelligence tables~~ — built (Phase 4, §14).
 - Workflow execution tables.
 - Email accounts and campaigns.
 - Advanced reporting.

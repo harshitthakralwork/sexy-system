@@ -70,8 +70,7 @@ export const navigation: NavSection[] = [
   {
     title: "Social Intelligence",
     items: [
-      { label: "Social Discovery", href: "/social/discover", icon: Globe, available: false },
-      { label: "Platform Sources", href: "/social/sources", icon: Shield, available: false },
+      { label: "Social Research", href: "/social", icon: Globe, available: true },
     ],
   },
   {
