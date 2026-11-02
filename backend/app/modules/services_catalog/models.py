@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import (
     Boolean,
@@ -105,7 +106,10 @@ class ScoringRuleRecord(Base, UUIDPrimaryKeyMixin):
     operator: Mapped[str] = mapped_column(
         String(30), nullable=False, default="exists", server_default=text("'exists'")
     )
-    threshold: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
+    # JSONB holds any JSON value, so a threshold can be a number, string, boolean
+    # or list — whatever the operator compares against. Typed as `dict` originally
+    # by mistake; the scoring engine compares against scalars.
+    threshold: Mapped[Any | None] = mapped_column(JSONType, nullable=True)
     is_required: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
     )

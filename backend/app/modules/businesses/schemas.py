@@ -101,3 +101,29 @@ class ActionOut(BaseModel):
     id: uuid.UUID
     message: str
     crm_stage: str | None = None
+
+
+class NoteOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    business_id: uuid.UUID
+    content: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class NoteCreateIn(BaseModel):
+    content: str = Field(min_length=1, max_length=4000)
+
+
+class TagOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    color: str | None = None
+
+
+class TagAssignIn(BaseModel):
+    names: list[str] = Field(max_length=20)

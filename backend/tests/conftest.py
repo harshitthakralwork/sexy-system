@@ -198,6 +198,26 @@ def make_account(
                     "delete from crm_pipelines where owner_user_id = $1", user_id
                 )
                 await connection.execute(
+                    "delete from opportunity_evidence where opportunity_id in"
+                    " (select id from business_opportunities where owner_user_id = $1)",
+                    user_id,
+                )
+                await connection.execute(
+                    "delete from business_opportunities where owner_user_id = $1", user_id
+                )
+                await connection.execute(
+                    "delete from scoring_rules where service_profile_id in"
+                    " (select id from service_profiles where service_id in"
+                    " (select id from services where owner_user_id = $1))",
+                    user_id,
+                )
+                await connection.execute(
+                    "delete from service_profiles where service_id in"
+                    " (select id from services where owner_user_id = $1)",
+                    user_id,
+                )
+                await connection.execute("delete from services where owner_user_id = $1", user_id)
+                await connection.execute(
                     "delete from source_record_links where source_record_id in"
                     " (select id from source_records where owner_user_id = $1)",
                     user_id,

@@ -6,11 +6,11 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
-from sqlalchemy import Select, func, or_, select
+from sqlalchemy import Select, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.businesses.models import Business, BusinessContact
-from app.modules.crm.models import CrmBusinessRecord, CrmStage
+from app.modules.crm.models import BusinessNote, BusinessTag, CrmBusinessRecord, CrmStage, Tag
 from app.modules.crm.service import move_stage
 from app.modules.exports.csv_export import BUSINESS_COLUMNS
 
@@ -304,6 +304,94 @@ async def soft_delete(
         raise LookupError("Business not found")
     business.deleted_at = datetime.now(UTC)
     business.lifecycle_status = "deleted"
+
+
+async def list_notes(
+    session: AsyncSession, owner_user_id: uuid.UUID, business_id: uuid.UUID
+) -> list[BusinessNote]:
+    business = await get_business(session, owner_user_id, business_id)
+    if business is None:
+        raise LookupError("Business not found")
+    rows = await session.scalars(
+        select(BusinessNote)
+        .where(BusinessNote.business_id == business_id, BusinessNote.owner_user_id == owner_user_id)
+        .order_by(BusinessNote.created_at.desc())
+    )
+    return list(rows)
+
+
+async def create_note(
+    session: AsyncSession, *, owner_user_id: uuid.UUID, business_id: uuid.UUID, content: str
+) -> BusinessNote:
+    business = await get_business(session, owner_user_id, business_id)
+    if business is None:
+        raise LookupError("Business not found")
+    note = BusinessNote(business_id=business_id, owner_user_id=owner_user_id, content=content)
+    session.add(note)
+    await session.flush()
+    return note
+
+
+async def tags_on_business(
+    session: AsyncSession, owner_user_id: uuid.UUID, business_id: uuid.UUID
+) -> list[Tag]:
+    business = await get_business(session, owner_user_id, business_id)
+    if business is None:
+        raise LookupError("Business not found")
+    rows = await session.scalars(
+        select(Tag)
+        .join(BusinessTag, BusinessTag.tag_id == Tag.id)
+        .where(BusinessTag.business_id == business_id, Tag.owner_user_id == owner_user_id)
+        .order_by(Tag.name)
+    )
+    return list(rows)
+
+
+async def all_tags(session: AsyncSession, owner_user_id: uuid.UUID) -> list[Tag]:
+    rows = await session.scalars(
+        select(Tag).where(Tag.owner_user_id == owner_user_id).order_by(Tag.name)
+    )
+    return list(rows)
+
+
+async def set_tags(
+    session: AsyncSession, *, owner_user_id: uuid.UUID, business_id: uuid.UUID, names: list[str]
+) -> list[Tag]:
+    """Replace a business's tags with exactly `names`, creating missing tags.
+
+    Tags are owned, so a name that already exists for this owner is reused; a new
+    name creates a new tag rather than aliasing someone else's.
+    """
+    business = await get_business(session, owner_user_id, business_id)
+    if business is None:
+        raise LookupError("Business not found")
+
+    cleaned = sorted({name.strip() for name in names if name.strip()})
+    existing = {
+        tag.name: tag
+        for tag in (
+            await session.scalars(
+                select(Tag).where(Tag.owner_user_id == owner_user_id, Tag.name.in_(cleaned))
+            )
+        ).all()
+    }
+    tags: list[Tag] = []
+    for name in cleaned:
+        tag = existing.get(name)
+        if tag is None:
+            tag = Tag(owner_user_id=owner_user_id, name=name)
+            session.add(tag)
+            await session.flush()
+            existing[name] = tag
+        tags.append(tag)
+
+    await session.execute(
+        delete(BusinessTag).where(BusinessTag.business_id == business_id)
+    )
+    for tag in tags:
+        session.add(BusinessTag(business_id=business_id, tag_id=tag.id))
+    await session.flush()
+    return tags
 
 
 async def stage_name(

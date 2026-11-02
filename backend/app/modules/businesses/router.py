@@ -15,8 +15,12 @@ from app.modules.businesses.schemas import (
     BusinessListOut,
     BusinessOut,
     ContactOut,
+    NoteCreateIn,
+    NoteOut,
     PinOut,
     SelectedExportIn,
+    TagAssignIn,
+    TagOut,
     ViewportOut,
 )
 from app.modules.crm.service import ensure_default_pipeline, stage_by_name
@@ -218,6 +222,12 @@ async def export_selected(
     return Response(content=body, media_type="text/csv; charset=utf-8", headers=headers)
 
 
+@router.get("/tags", response_model=list[TagOut])
+async def list_tags(session: AsyncSessionDep, user: CurrentUser) -> list[TagOut]:
+    tags = await repository.all_tags(session, user.id)
+    return [TagOut.model_validate(tag) for tag in tags]
+
+
 @router.get("/{business_id}", response_model=BusinessDetail)
 async def business_detail(
     business_id: uuid.UUID, session: AsyncSessionDep, user: CurrentUser
@@ -332,3 +342,57 @@ async def change_stage(
         metadata={"stage": stage_name},
     )
     return ActionOut(id=business_id, message=f"Moved to {stage_name}", crm_stage=stage_name)
+
+
+@router.get("/{business_id}/notes", response_model=list[NoteOut])
+async def list_notes(
+    business_id: uuid.UUID, session: AsyncSessionDep, user: CurrentUser
+) -> list[NoteOut]:
+    try:
+        notes = await repository.list_notes(session, user.id, business_id)
+    except LookupError as exc:
+        raise NotFoundError("Business not found") from exc
+    return [NoteOut.model_validate(note) for note in notes]
+
+
+@router.post("/{business_id}/notes", response_model=NoteOut, status_code=201, dependencies=[Csrf])
+async def create_note(
+    business_id: uuid.UUID,
+    payload: NoteCreateIn,
+    session: AsyncSessionDep,
+    user: CurrentUser,
+) -> NoteOut:
+    try:
+        note = await repository.create_note(
+            session, owner_user_id=user.id, business_id=business_id, content=payload.content
+        )
+    except LookupError as exc:
+        raise NotFoundError("Business not found") from exc
+    return NoteOut.model_validate(note)
+
+
+@router.get("/{business_id}/tags", response_model=list[TagOut])
+async def list_business_tags(
+    business_id: uuid.UUID, session: AsyncSessionDep, user: CurrentUser
+) -> list[TagOut]:
+    try:
+        tags = await repository.tags_on_business(session, user.id, business_id)
+    except LookupError as exc:
+        raise NotFoundError("Business not found") from exc
+    return [TagOut.model_validate(tag) for tag in tags]
+
+
+@router.put("/{business_id}/tags", response_model=list[TagOut], dependencies=[Csrf])
+async def set_tags(
+    business_id: uuid.UUID,
+    payload: TagAssignIn,
+    session: AsyncSessionDep,
+    user: CurrentUser,
+) -> list[TagOut]:
+    try:
+        tags = await repository.set_tags(
+            session, owner_user_id=user.id, business_id=business_id, names=payload.names
+        )
+    except LookupError as exc:
+        raise NotFoundError("Business not found") from exc
+    return [TagOut.model_validate(tag) for tag in tags]
