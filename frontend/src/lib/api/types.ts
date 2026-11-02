@@ -162,3 +162,188 @@ export interface ViewportResponse {
   truncated: boolean;
   bbox: number[];
 }
+
+// --- Leads intelligence (Phase 2) -------------------------------------------
+
+export interface Business {
+  id: string;
+  name: string;
+  primary_category: string | null;
+  website_url: string | null;
+  website_status: string;
+  phone: string | null;
+  email: string | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  address: string | null;
+  latitude: number | null;
+  longitude: number | null;
+  description: string | null;
+  lifecycle_status: string;
+  first_discovered_at: string | null;
+  last_researched_at: string | null;
+}
+
+export interface BusinessList {
+  items: Business[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface Contact {
+  id: string;
+  contact_type: string | null;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  verification_status: string;
+  verification_date: string | null;
+  source_url: string | null;
+}
+
+export interface BusinessDetail extends Business {
+  contacts: Contact[];
+  crm_stage: string | null;
+  source_slugs: string[];
+  source_urls: string[];
+  signals: Record<string, unknown>;
+}
+
+export interface ActionOut {
+  id: string;
+  message: string;
+  crm_stage: string | null;
+}
+
+export interface Note {
+  id: string;
+  business_id: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Tag {
+  id: string;
+  name: string;
+  color: string | null;
+}
+
+export interface Service {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  is_active: boolean;
+}
+
+export interface ServiceList {
+  items: Service[];
+  total: number;
+}
+
+export interface Rule {
+  id: string;
+  rule_name: string;
+  signal_key: string;
+  weight: number;
+  operator: string;
+  threshold: unknown;
+  is_required: boolean;
+  is_active: boolean;
+}
+
+export interface Profile {
+  id: string;
+  service_id: string;
+  name: string;
+  qualification_threshold: number;
+  is_active: boolean;
+  version: number;
+  rules: Rule[];
+}
+
+export interface ServiceDetail extends Service {
+  profiles: Profile[];
+}
+
+export interface Evidence {
+  id: string;
+  evidence_type: string;
+  description: string;
+  source_url: string | null;
+  evidence_value: Record<string, unknown> | null;
+  score_contribution: number;
+  confidence: number | null;
+  observed_at: string;
+}
+
+export interface Opportunity {
+  id: string;
+  business_id: string;
+  service_id: string;
+  service_profile_id: string;
+  score: number;
+  confidence: number;
+  status: string;
+  evidence_summary: string | null;
+  missing_information: string[];
+  profile_version: number;
+  evaluated_at: string;
+  evidence: Evidence[];
+}
+
+export interface OpportunityList {
+  items: Opportunity[];
+  total: number;
+}
+
+export interface Stage {
+  id: string;
+  name: string;
+  position: number;
+  color: string | null;
+  is_terminal: boolean;
+  is_active: boolean;
+}
+
+export interface Pipeline {
+  id: string;
+  name: string;
+  is_default: boolean;
+  stages: Stage[];
+}
+
+export interface BoardCard {
+  business_id: string;
+  name: string;
+  primary_category: string | null;
+  city: string | null;
+  website_status: string;
+  stage_id: string;
+  stage_name: string;
+  next_follow_up_at: string | null;
+}
+
+export interface Board {
+  stages: Stage[];
+  cards: BoardCard[];
+}
+
+export interface Activity {
+  id: string;
+  business_id: string;
+  activity_type: string;
+  title: string;
+  description: string | null;
+  occurred_at: string;
+}
+
+export interface ActivityList {
+  items: Activity[];
+  total: number;
+  limit: number;
+  offset: number;
+}

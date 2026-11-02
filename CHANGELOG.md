@@ -6,6 +6,47 @@ In Progress · Blocked · Deferred.
 
 ---
 
+## 2026-11-02 (Leads Intelligence UI) — table, profiles, qualification, CRM in the browser
+
+Phase 2 frontend, closing the loop on the already-committed leads-intelligence
+backend. A signed-in user can now discover businesses, view them in the standalone
+Leads table, open profiles, qualify them against the service catalog, shortlist,
+move them through the 12-stage CRM pipeline, add notes and tags, and export.
+
+### What changed
+
+- **Leads table** (`/leads`) — real rows with filters (query, city, website status,
+  phone availability), 25-row pagination, per-row shortlist, and CSV export. The
+  stage pill is fetched live per row, not faked.
+- **Business profile** (`/leads/[id]`) — overview with provenance and contacts,
+  archive/shortlist actions, a per-service qualification panel, CRM stage dropdown
+  with the activity feed, notes, and tags. All actions POST/PUT to real endpoints
+  with CSRF.
+- **CRM board** (`/leads/crm`) — kanban columns for the 12 default stages, cards
+  grouped by stage, per-card stage moves, and "Add stage".
+- **Service catalog** (`/leads/services`) — service list with expandable
+  detail (profiles + rules) and service creation.
+- **Navigation** — Leads Dashboard, CRM Pipeline and Service Catalog are enabled;
+  Analytics/Reports/Global Search/etc. remain disabled and labelled "not built yet".
+- **`modules_enabled`** now reports `services_catalog` so the runtime info is honest.
+
+### Bug fixed
+
+- **CORS blocked every browser mutation.** `allow_headers` omitted `X-CSRF-Token`,
+  so the preflight for any POST/PATCH/PUT/DELETE (which all send that header) was
+  rejected and every state-changing button failed with "Failed to fetch" while GETs
+  succeeded. Adding `X-CSRF-Token` to `allow_headers` unblocked qualify, shortlist,
+  note, tag and stage-move.
+
+### Verification
+
+- Browser-verified against real PostgreSQL: qualify (score/status/evidence rendered),
+  note (201), shortlist (200), stage move (200) — all confirmed in the backend log.
+- 277 backend tests pass; ruff and mypy clean; `next build` exit 0 with routes
+  `/leads`, `/leads/[id]`, `/leads/crm`, `/leads/services`, `/leads/map`.
+
+---
+
 ## 2026-11-02 (Background execution) — jobs run exactly once, retry safely, recover
 
 Phase 1 of full product completion. The queued-execution path (Celery + Redis)

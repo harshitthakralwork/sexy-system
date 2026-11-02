@@ -36,5 +36,13 @@ async def info() -> RuntimeInfo:
         execution_model="local_first",
         ai_enabled=False,
         registration_open=settings.allow_registration,
-        modules_enabled=["auth", "sources", "discovery", "businesses", "crm", "exports"],
+        modules_enabled=[
+            "auth",
+            "sources",
+            "discovery",
+            "businesses",
+            "crm",
+            "services_catalog",
+            "exports",
+        ],
     )

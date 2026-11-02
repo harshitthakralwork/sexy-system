@@ -1,13 +1,16 @@
 # SparkXFlow Nexus — Project Status
 
-**Last updated:** 2026-11-02 (background-execution milestone)
+**Last updated:** 2026-11-02 (leads-intelligence UI milestone)
 **Current phase:** **Full product completion, in progress.** Phase 1 (background
-execution) is implemented and tested; work continues through the remaining phases in
-order.
+execution) and Phase 2 (leads intelligence) are implemented and tested; work continues
+through the remaining phases in order.
 **Overall status:** Authentication and ownership enforcement are proven with two
 separate users. Discovery jobs run against real PostgreSQL and persist businesses with
-provenance. Jobs now run exactly once per submission (atomic claim), can be retried
-safely, and recover from a dead worker. 267 backend tests pass. Redis is still absent
+provenance. Jobs run exactly once per submission (atomic claim), can be retried
+safely, and recover from a dead worker. Phase 2 leads intelligence is now usable end
+to end in the browser: the standalone Leads table, business profiles with per-service
+qualification, the 12-stage CRM board, notes and tags all connect to real endpoints
+against PostgreSQL (browser-verified). 277 backend tests pass. Redis is still absent
 on this machine, so the Celery queued path is configured and tested but not live-run;
 the inline execution path is fully exercised.
 
@@ -31,8 +34,8 @@ This file uses the master prompt's Phase 0–11 numbering. The mapping to
 | 0 | Repository audit and stabilisation | **Complete** — baseline committed at `0efa064` |
 | 1 | Infrastructure, database and background execution | **Complete for PostgreSQL.** Job claim/retry/stale-recovery and worker readiness are **Tested** (7 new tests). Redis and SearXNG still absent, so the Celery queued path is configured but not live-run |
 | 2 | Authentication and authorization | **Complete** — includes the mandatory two-user isolation proof |
-| 3 | Discovery vertical slice + map discovery | **In Progress** — jobs, progress, cancel, provenance, SQL persistence and the geographic grid/map API are **Tested**; profiles, qualification, CRM and the standalone results table remain |
-| 4–11 | Leads UI, enrichment, CRM, Startup, Social, Automation, Analytics, Hardening | Not Started — discovery and map requirements documented; the next milestone is the standalone Leads table and CRM |
+| 3 | Discovery vertical slice + map discovery | **Complete** — jobs, progress, cancel, provenance, SQL persistence, the geographic grid/map API, and the browser UI (Leads table, profiles, qualification, CRM board, service catalog) are all implemented and verified |
+| 4–11 | Startup, Social, Automation, Analytics, Hardening and the remaining phases | Not Started — the next milestone is Phase 3 Startup Intelligence |
 
 ## 1. Security review findings (2026-11-02)
 
@@ -89,15 +92,16 @@ helpers.
 
 | Gate | Result |
 |---|---|
-| `pytest` | **173 passed** (146 previous + 13 authentication + 14 authorization) |
+| `pytest` | **277 passed** |
 | `ruff check` | All checks passed |
-| `mypy app` | No issues in 65 source files |
+| `mypy app` | No issues in 79 source files |
 | `eslint` / `tsc --noEmit` | Clean |
-| `next build` | Succeeds; routes `/`, `/dashboard`, `/login` prerendered |
+| `next build` | Succeeds; routes `/`, `/dashboard`, `/leads`, `/leads/[id]`, `/leads/crm`, `/leads/map`, `/leads/services`, `/login` |
 | `alembic upgrade head` from empty | 4 revisions applied to a scratch database, 37 tables created |
 | `alembic check` on that schema | **No new upgrade operations detected** |
 | Schema audit query | 37/37 tables have a primary key; 15 CHECK constraints, 37 FKs, 146 indexes |
 | Live HTTP smoke test | register 201 → login 200 → session 200 → businesses 200 → **anonymous 401** → **shortlist without CSRF 403** → logout 200 → **session after logout 401** |
+| Browser mutation smoke test | qualify 200 (score/status/evidence rendered) → note 201 → shortlist 200 → stage move 200, all against real PostgreSQL |
 
 Runtime note: the suite now takes about four minutes because the auth and
 authorization tests hit a real database and real Argon2 hashing. That is the cost of
@@ -215,6 +219,11 @@ address.
    `scripts/devdb.ps1`, with the reason written down.
 3. **The dashboard looked dead when opened at `127.0.0.1:3000`.** Different origin from
    `localhost:3000`, so CORS blocked the API. Both are allowed by default now.
+4. **Every browser mutation failed with "Failed to fetch".** `allow_headers` in the
+   CORS middleware omitted `X-CSRF-Token`, so the preflight for any state-changing
+   request was rejected while GETs worked. Adding the header unblocked qualify,
+   shortlist, note, tag and stage moves — invisible to the backend tests because
+   `TestClient` does not run a browser CORS preflight.
 
 None of these three were visible to the previous 139 tests, and two were invisible to
 `alembic check` as well — which is the argument for asserting integrity against the

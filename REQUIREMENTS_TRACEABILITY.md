@@ -50,12 +50,12 @@ verified by hand, and the backend behind every control is covered.
 |---|---|---|---|---|
 | 1 | Open and securely access the platform | `modules/auth` | **Tested** | Register, login, logout, session; 13 authentication tests + live HTTP smoke test |
 | 2 | Discover businesses using supported sources | `modules/discovery/adapters` | **Implemented** | SearXNG + Overpass adapters written against the `DiscoveryAdapter` contract; **Tested** with mocked transports (17 tests). Not yet run against a live instance |
-| 3 | View results in tables and on a map | frontend leads screens | Not Started | Phase 2a (table) / 2b (map) |
-| 4 | Research individual business profiles | `modules/businesses` | Not Started | Phase 2a |
+| 3 | View results in tables and on a map | **Tested** | Standalone Leads table (`/leads`) with filters, pagination, shortlist and CSV export; Leaflet map explorer with pins/clustering. Browser-verified against real PostgreSQL; backend covered by tests |
+| 4 | Research individual business profiles | **Tested** | `/leads/[id]` shows overview, contacts with verification state, provenance, CRM stage/activity, notes and tags — all wired to real endpoints. Browser-verified |
 | 5 | Filter and deduplicate discovered businesses | `shared/normalization`, `modules/deduplication` | **Tested** | 13 normalisation + 10 deduplication tests. Confirmed auto-merges; probable/possible become a review backlog |
-| 6 | Evaluate businesses against configurable services | `shared/signals`, `shared/scoring`, `services_catalog` | **Tested** | Deterministic evaluator (12 tests) + canonical signal vocabulary. Storage models implemented, not yet exercised against a database |
+| 6 | Evaluate businesses against configurable services | `shared/signals`, `shared/scoring`, `services_catalog` | **Tested** | Deterministic evaluator (12 tests) + canonical signal vocabulary. Qualification endpoint exercised end to end: score, status, evidence and missing signals render in the browser from real stored opportunities |
 | 7 | Shortlist promising opportunities | `modules/crm/service.py`, `modules/businesses` | **Tested** | Shortlist endpoint with ownership enforcement, stage history and activity; cross-owner shortlist rejected |
-| 8 | Manage shortlisted businesses through a CRM pipeline | `modules/crm` | Implemented | Per-owner default pipeline with the 12 documented stages, stage moves recorded with history. Kanban UI is Phase 6 |
+| 8 | Manage shortlisted businesses through a CRM pipeline | `modules/crm` | **Tested** | Per-owner default pipeline with the 12 documented stages, stage moves recorded with history; kanban board (`/leads/crm`) renders the 12 columns and moves cards. Browser-verified |
 | 9 | Export data to CSV or Excel | `modules/exports/csv_export.py` | **Implemented** | CSV writer **Tested** (13 tests) incl. spreadsheet-formula neutralisation. Excel export and job persistence pending the database |
 | 10 | See job status, source health and processing errors | `modules/health`, `discovery/pipeline.py`, `modules/sources` | In Progress | Readiness + per-source failure reporting in `PipelineReport` are **Tested**. Job rows and Source Manager UI need the database |
 
