@@ -57,3 +57,26 @@ def test_region_must_be_iso_alpha2() -> None:
 
 def test_log_level_is_normalised() -> None:
     assert Settings(_env_file=None, log_level="debug").log_level == "DEBUG"
+
+
+def test_env_file_is_found_regardless_of_working_directory() -> None:
+    """Regression: `env_file=".env"` resolved against the cwd, so the backend ran
+    on defaults whenever it was started from anywhere but the repo root —
+    including pytest. Configuration that loads sometimes looks applied and is not."""
+    from app.core.config import _env_files
+
+    candidates = _env_files()
+    assert candidates, "no environment file candidates configured"
+    for candidate in candidates:
+        assert candidate.is_absolute(), f"{candidate} is relative and cwd-dependent"
+    # The repo root copy is the canonical location for this project.
+    assert (candidates[0].parent.name == "sparkxflow-nexus"), candidates
+
+
+def test_default_hosts_are_literal_loopback_addresses() -> None:
+    """`localhost` may resolve to ::1 on Windows while the development server is
+    bound to 127.0.0.1, producing a timeout that looks like an outage."""
+    settings = Settings(_env_file=None)
+    assert "127.0.0.1" in settings.database_url
+    assert "localhost" not in settings.database_url
+    assert "127.0.0.1" in settings.redis_url

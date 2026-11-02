@@ -7,6 +7,21 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+def _env_files() -> tuple[Path, ...]:
+    """Absolute candidate paths for the environment file.
+
+    A relative `env_file=".env"` resolves against the *current working
+    directory*, so the backend silently ran on defaults whenever it was started
+    from anywhere other than the repo root — pytest from `backend/` included.
+    Configuration that loads sometimes is worse than configuration that is
+    missing, because it looks applied.
+    """
+    here = Path(__file__).resolve()
+    backend_dir = here.parents[2]  # .../sparkxflow-nexus/backend
+    repo_root = backend_dir.parent  # .../sparkxflow-nexus
+    return (repo_root / ".env", backend_dir / ".env")
+
+
 class Settings(BaseSettings):
     """Application settings, loaded from environment variables.
 
@@ -15,7 +30,7 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(
         env_prefix="SPARKX_",
-        env_file=".env",
+        env_file=_env_files(),
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -25,14 +40,17 @@ class Settings(BaseSettings):
     api_v1_prefix: str = "/api/v1"
     public_base_url: str = "http://localhost:8000"
 
-    database_url: str = "postgresql+asyncpg://sparkx:sparkx@localhost:5432/sparkxflow"
+    # 127.0.0.1 rather than `localhost`: Windows may resolve that name to ::1
+    # first, and a server bound to the IPv4 loopback is then "unreachable" with
+    # nothing actually wrong.
+    database_url: str = "postgresql+asyncpg://sparkx:sparkx@127.0.0.1:5432/sparkxflow"
     database_echo: bool = False
     db_pool_size: int = 5
     db_max_overflow: int = 10
 
-    redis_url: str = "redis://localhost:6379/0"
-    celery_broker_url: str = "redis://localhost:6379/1"
-    celery_result_backend: str = "redis://localhost:6379/2"
+    redis_url: str = "redis://127.0.0.1:6379/0"
+    celery_broker_url: str = "redis://127.0.0.1:6379/1"
+    celery_result_backend: str = "redis://127.0.0.1:6379/2"
     # No-broker development path (docs/RUNBOOK-DOCKER.md section 3.2). Blocks the
     # caller, so it must never be on in production.
     run_jobs_synchronously: bool = False

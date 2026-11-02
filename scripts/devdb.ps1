@@ -99,24 +99,73 @@ if (-not (Test-Path $data)) {
     if ($LASTEXITCODE -ne 0) { throw "initdb failed" }
 }
 
+$confPath = Join-Path $data "postgresql.conf"
+$tuningMarker = "# sparkxflow development tuning"
+
+if (Test-Path $confPath) {
+    $conf = Get-Content -Raw -Path $confPath
+    if ($conf -notlike "*$tuningMarker*") {
+        # On a 16 GB machine with little free RAM, PostgreSQL can fail to remap
+        # its static shared-memory segment after an unclean client termination
+        # ("could not reserve shared memory region ... error code 487"), leaving
+        # a postmaster that listens but serves nothing. A smaller segment is far
+        # easier to place. Development sizing only - production uses the
+        # container image and its own configuration.
+        $tuning = @"
+
+$tuningMarker
+# Sized for a 16 GB development machine. Reverted by deleting these lines.
+shared_buffers = 64MB
+effective_cache_size = 128MB
+max_connections = 40
+wal_buffers = 2MB
+"@
+        Add-Content -Path $confPath -Value $tuning
+        Write-Host "Applied development shared-memory tuning to postgresql.conf" -ForegroundColor Cyan
+    }
+}
+
 if (-not (Test-Running -Bin $bin)) {
     & "$bin\pg_ctl.exe" -D $data -l $logfile -w -t 60 start `
         -o "-p $port -c listen_addresses=127.0.0.1"
     if ($LASTEXITCODE -ne 0) { throw "pg_ctl start failed; see $logfile" }
 }
 
-# Checked rather than blindly created, so repeat starts stay quiet.
-$exists = & "$bin\psql.exe" -h 127.0.0.1 -p $port -U $user -d postgres -Atc `
-    "SELECT 1 FROM pg_database WHERE datname = '$dbname'"
-if (-not $exists) {
-    & "$bin\createdb.exe" -h 127.0.0.1 -p $port -U $user -O $user $dbname
-    if ($LASTEXITCODE -ne 0) { throw "createdb failed" }
-    Write-Host "Created database $dbname" -ForegroundColor Green
+# A postmaster can survive a crash and come back unable to serve any connection.
+# Detect that here instead of letting every later command time out against it.
+function Test-Serving {
+    param([string]$Bin)
+    & "$Bin\pg_ctl.exe" -D $data status *> $null
+    if ($LASTEXITCODE -ne 0) { return $false }
+    Push-Location $backend
+    try {
+        $probe = python -m uv run python (Join-Path $root "scripts\devdb_probe.py") 2>&1 |
+            ForEach-Object { "$_".Trim() }
+        return ($probe -contains "serving")
+    } finally {
+        Pop-Location
+    }
 }
 
-& "$bin\psql.exe" -h 127.0.0.1 -p $port -U $user -d $dbname -qc "CREATE EXTENSION IF NOT EXISTS pgcrypto"
-& "$bin\psql.exe" -h 127.0.0.1 -p $port -U $user -d $dbname -qc "CREATE EXTENSION IF NOT EXISTS pg_trgm"
+if (-not (Test-Serving -Bin $bin)) {
+    Write-Host "PostgreSQL is listening but not serving; restarting the cluster." -ForegroundColor Yellow
+    & "$bin\pg_ctl.exe" -D $data stop -m immediate *> $null
+    Start-Sleep -Seconds 3
+    & "$bin\pg_ctl.exe" -D $data -l $logfile -w -t 60 start `
+        -o "-p $port -c listen_addresses=127.0.0.1"
+    if (-not (Test-Serving -Bin $bin)) {
+        throw "PostgreSQL restarted but still is not serving. Check $logfile"
+    }
+}
 
-$version = & "$bin\psql.exe" -h 127.0.0.1 -p $port -U $user -d $dbname -Atc "SELECT version()"
-Write-Host "PostgreSQL ready: $version" -ForegroundColor Green
+# Database creation and extensions go through asyncpg, not psql. The CLI
+# inherits console stdin and blocks indefinitely when it wants a password, which
+# is how this script hung after a reboot while the server was already healthy.
+Push-Location $backend
+try {
+    python -m uv run python (Join-Path $root "scripts\devdb_bootstrap.py")
+    if ($LASTEXITCODE -ne 0) { throw "devdb bootstrap failed" }
+}
+finally { Pop-Location }
+
 Write-Host "Connection string: postgresql+asyncpg://$user@127.0.0.1:$port/$dbname"
