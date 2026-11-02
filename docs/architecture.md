@@ -187,6 +187,28 @@ Do not store large raw HTML pages or exports directly inside ordinary relational
 
 Do not assume public OSM tile infrastructure provides unlimited production usage. Use an appropriate provider or self-hosted alternative if usage grows.
 
+**Binding constraints on map work.**
+
+- No Google Maps Platform dependency. Nothing in the design may require a Google API
+  key, Google geocoding, or Google's place data. If a paid or keyed provider is
+  added later it is one more adapter behind the same contract, never a precondition
+  of the map layer.
+- Tiles, geocoding and Overpass endpoints are shared public infrastructure. All three
+  are used through a single request path per job, with declared per-user and
+  per-source rate limits, backoff on `429`/`504`, and attribution where the provider
+  asks for it.
+- Geocoding (place name → coordinates) is a distinct concern from discovery
+  (coordinates → businesses). It is behind its own adapter interface so a self-hosted
+  geocoder, Nominatim within its usage policy, or a future paid service can be
+  substituted without touching the discovery pipeline. A geocoded result is stored
+  with the area it produced, so a saved area does not depend on re-geocoding the same
+  string to the same place tomorrow.
+- The map library is a client-side concern only. Every map action has an API
+  equivalent, so the table view remains fully usable if the map fails to load.
+- Geometry the user draws is treated as untrusted input: validated, bounded, and
+  normalised server-side before any provider is contacted. The client's tile count is
+  advisory; the server recomputes it.
+
 # 4. Backend Architecture
 
 ## 4.1 Modular Monolith
@@ -351,6 +373,7 @@ Example endpoint groups:
 /api/v1/analytics
 /api/v1/reports
 /api/v1/search
+/api/v1/search-areas
 /api/v1/imports
 /api/v1/exports
 ```
@@ -377,6 +400,32 @@ Example:
   "message": "Discovery job queued"
 }
 ```
+
+**Discovery and area endpoints.**
+
+The job endpoints below are live; `search-areas` and the `bbox` parameter are the
+specified contract for the map work and are not built yet — current status is in
+`REQUIREMENTS_TRACEABILITY.md`.
+
+```text
+POST   /api/v1/discovery/jobs              create and dispatch a job (area or text query)
+GET    /api/v1/discovery/jobs              the caller's jobs, newest first
+GET    /api/v1/discovery/jobs/{id}         status, observed counters, per-source report
+GET    /api/v1/discovery/jobs/{id}/logs    what the job said, in order
+POST   /api/v1/discovery/jobs/{id}/cancel  stop between units of work
+GET    /api/v1/businesses?bbox=...         owner-scoped records inside a viewport
+POST   /api/v1/search-areas                save a drawn or resolved area
+GET    /api/v1/search-areas                the caller's saved areas
+DELETE /api/v1/search-areas/{id}           remove a saved area
+```
+
+Job responses expose only observed numbers — records returned, stored, rejected,
+merged, and per-source outcomes including failures. There is no estimated-ETA field,
+and a `blocked` job (no worker available) is distinct from a `failed` one.
+
+Map geometry reaches the server as JSON, never as a query string fragment appended to
+provider syntax. `GET /api/v1/businesses?bbox=...` is read-only and owner-scoped; area
+writes require the same CSRF protection as every other state change.
 
 # 7. Background Job Architecture
 
@@ -615,6 +664,144 @@ flowchart TD
 Store raw records separately from normalized business or startup entities.
 
 Every record must retain source attribution and retrieval timestamps.
+
+## 9.4 Geographic Discovery and Map Data Flow
+
+Map-based discovery is the discovery pipeline driven by a geometry instead of a text
+query. Everything before and after the pipeline stays the same: normalisation,
+validation, deduplication, provenance and ownership rules are shared, so a business
+found by drawing a polygon and a business found by keyword are indistinguishable in
+storage.
+
+### Area representation
+
+One normalised area object is used whether the user typed "Indiranagar, Bengaluru",
+picked a centre and radius, or drew a polygon.
+
+```text
+area = {
+  shape_type:        circle | rectangle | polygon | administrative
+  center:            {lat, lng}          (circle)
+  radius_m:          integer             (circle)
+  bbox:              [west, south, east, north]   (all shapes, derived)
+  polygon:           [[lat, lng], ...]   (polygon, closed ring, min 3 vertices)
+  admin:             {country, state, city, locality}
+  geocode:           {query, resolved_at, provider, external_id} | null
+}
+```
+
+Server-side rules before anything is sent to a provider:
+
+- Coordinates are validated to `[-90, 90]` / `[-180, 180]`, and the bounding box must
+  be ordered (`west <= east`, `south <= north`).
+- Vertex count, radius and total area each have hard ceilings. A request beyond a
+  ceiling is refused with the reason and a suggested smaller unit; it is never
+  silently clipped, because a truncated search reads as an empty market.
+- An administrative selection resolves to an area through the geocoding adapter and
+  is then treated as any other area. The resolved geometry is stored with the area so
+  a saved area is reproducible without re-geocoding.
+- Geometry is data, never code. It is passed to the database as bound parameters, and
+  it is never interpolated into a query language. The Overpass tag whitelist and the
+  existing QL construction rules cover the query side.
+
+### Grid tiling for regions larger than one request
+
+A source request has a maximum area it can honestly cover. Anything bigger is divided
+into a regular lat/lng grid of tiles sized so each tile fits inside that limit.
+
+- Tile geometry is **deterministic**: the same parent area and the same tile size
+  always produce the same tiles, in the same order, with the same identity. That is
+  what lets a re-run skip completed work instead of re-asking for everything.
+- Each tile becomes one `job_batches` row carrying its bounds and its own counters,
+  so per-tile progress, failure and retry are first-class state rather than a log
+  line to infer them from.
+- Tiles are processed sequentially per source, with bounded concurrency across
+  sources only. Overpass throttles by IP and rejects concurrent heavy queries; a
+  fan-out of tiles against a shared public instance is a denial of service on
+  infrastructure nobody is paying for.
+- A tile that fails is recorded with its failure classification and the job continues.
+  A job whose tiles all fail is `failed`; a job where some succeeded is `completed`
+  with the failures named. Neither outcome is rounded up to look better.
+- Cancellation is honoured between tiles. Records already stored stay stored.
+- A tile returning exactly the provider's element cap is treated as truncated, not
+  complete: the tile is subdivided and re-run, or reported as needing a smaller tile.
+
+```mermaid
+flowchart TD
+    A[Map UI: drawn or resolved area] --> B[Validate and normalise geometry]
+    B --> C[Persist search area]
+    C --> D[Create discovery job]
+    D --> E{Fits one request?}
+    E -->|Yes| F[Single query unit]
+    E -->|No| G[Split into deterministic tiles]
+    G --> H[Tile queue, one batch per tile]
+    F --> I[Source adapter per unit]
+    H --> I
+    I --> J[Normalize, Validate, Dedupe, Score]
+    J --> K[Store business + provenance]
+    K --> L[Progress from real counters]
+    L --> M[Bbox query for the map]
+    M --> N[Pins, clusters, table rows]
+```
+
+### Adapter contract for geographic sources
+
+Adapters declare what geometry they can accept, so the planner can route work and the
+UI can promise only what a source can deliver:
+
+```python
+class DiscoveryAdapter:
+    # existing contract
+    async def discover(self, query): ...
+    async def health_check(self): ...
+    def get_capabilities(self): ...
+
+    # geographic declarations
+    supports_area_queries: bool          # accepts a polygon / bbox directly
+    supported_shapes: tuple[str, ...]    # e.g. ("circle", "rectangle", "polygon")
+    max_area_km2: float                  # before tiling is required
+    max_elements_per_request: int
+    requires_category: bool
+```
+
+Overpass is the area-capable source: it answers "what is inside this shape". SearXNG
+is not — it answers keyword and locality-text queries, so a geographic job using it
+degrades to the administrative labels (city, locality) rather than pretending a
+polygon was searched. The capabilities the source declares decide which parts of the
+user's request were actually honoured, and that is surfaced to the user.
+
+This is also why the platform is not Overpass-only: an unmapped local business is
+invisible to OSM by construction, and a map that shows only what volunteers mapped
+will systematically under-report exactly the small businesses the product is for.
+
+### Serving the map
+
+- Pins come from an owner-scoped, filter-scoped query bounded by the current
+  viewport, not by loading the whole result set into the browser.
+- The response carries only what a pin and its preview need: identifier, coordinates,
+  name, category, the availability flags the filters use, and the source reference.
+- Clustering is the client's job at zoom levels; the server never returns more than
+  the configured viewport limit, and when it hits that limit it says so, so a busy
+  area is not mistaken for a filtered one.
+- Records without usable coordinates are still results. They appear in the table, are
+  counted in the totals, and are reported as "unlocated" — they are not silently
+  dropped just because the map cannot draw them.
+- Coordinates are stored at the precision the source provided. A business is never
+  given a centroid it did not have in order to make a pin appear.
+
+### Deduplication across overlapping areas
+
+Overlapping tiles, adjacent searches and repeated runs all produce the same business
+more than once. Identity is decided by the shared deduplication rules — domain, phone,
+then normalised name with address — and never by coordinates alone. Two businesses in
+one building are real; two spellings of one business are real; a pin position is not an
+identifier.
+
+A confirmed merge transfers the losing record's provenance to the survivor, so a
+business found by three overlapping tiles carries three source rows and one business
+row. `job_batches` keeps the per-tile sighting, and the business keeps every
+attribution. A re-run of a saved area therefore reports "N known, M new", not M+N
+fresh leads.
 
 # 10. Enrichment Architecture
 
@@ -875,6 +1062,16 @@ Implement:
 
 Introduce a dedicated search engine only if actual usage and performance justify it.
 
+**Geographic filtering.** Reading "what is in this viewport or area" is a filter on
+stored coordinates, not a text search. Start with bounding-box comparisons on
+`latitude`/`longitude` with a composite index scoped by `owner_user_id`; a bbox is a
+correct pre-filter for any polygon because it can only over-include, and the polygon
+test is then applied to the small candidate set. PostGIS — with true geometry types,
+spatial indexes and `ST_Contains` — is introduced when measured pin density or area
+overlap makes the two-step approach insufficient, not before. Deferred spatial
+indexing must never become a reason to display fewer records than exist: the count
+shown next to a map is the count from the same query that produced the pins.
+
 # 18. File and Export Storage
 
 Use PostgreSQL for structured data and separate storage for larger artifacts.
@@ -1109,6 +1306,13 @@ The architecture is successfully implemented when:
 - Discovery adapters can be independently enabled or disabled.
 - Multiple discovery sources feed a shared processing pipeline.
 - Enrichment and deduplication preserve provenance.
+- A drawn or resolved area can drive a discovery job, and regions too large for one
+  request are tiled deterministically with per-tile progress, failure and retry.
+- Geographic sources declare the geometry they support; a source that cannot answer a
+  spatial question is not credited with having answered it.
+- Map rendering is viewport-bounded and owner-scoped, and its counts come from the
+  same query as its pins.
+- The map layer depends on no single keyed provider.
 - Service scoring is configurable.
 - Local and cloud workers follow compatible execution contracts.
 - AI can be disabled without breaking core functionality.

@@ -7,6 +7,52 @@ Format: decision, driver, alternatives rejected, consequence.
 
 ---
 
+## D-046 | Map-Based Business Discovery specified with JSON geometry, not PostGIS
+**Decision:** The approved map feature was written into all five governing documents.
+Geometry is stored as validated JSON on a new `search_areas` table, one `job_batches`
+row per grid tile, and `source_records.batch_id` for tile-level provenance. `rating`
+and `review_count` become explicit nullable columns on `businesses`. No keyed
+commercial map provider is assumed anywhere.
+**Driver:** The feature was approved as core Leads Intelligence but the documents
+carried only two sentences about it ("Custom map area", "Map Explorer" plus a 12-bullet
+feature list). Radius, drawing, tiling, map↔table sync, saved areas and per-tile
+progress had no specified behaviour, no data model and no acceptance criteria — which
+for a feature this size means it would have been invented under time pressure during
+implementation.
+**Rejected:**
+- PostGIS with a geometry column and GiST indexes now — it is the right answer at
+  scale and the wrong answer while nothing has measured pin density; a bounding-box
+  pre-filter plus containment is sufficient and reversible. Deferred, as the schema
+  document already deferred it.
+- Storing geometry inside `searches.query_config` — it duplicates the shape per
+  search, so a corrected area would leave every past search holding a stale copy.
+- Reusing `search_presets` for areas — a preset is "how I search", an area is "where",
+  and merging them would make a saved polygon unlistable without loading each config.
+- Adding rating/reviews to the `enrichment` JSONB — the requirement names them as
+  filter dimensions, and a filter that cannot be indexed or distinguished from
+  absence is not a filter.
+**Consequence:** The map feature is now buildable against written acceptance criteria.
+Two documents (`database-schema.md`, `implementation-roadmap.md`) gained forward
+requirements the current code does not meet, so `REQUIREMENTS_TRACEABILITY.md` records
+the feature mostly as Not Started — the documentation is ahead of the build by design.
+
+## D-045 | A discovery job commits before its inline run, and reports only observed counts
+**Decision:** `runner.dispatch()` commits the job row before scheduling the inline
+execution as a background task. Progress counts only records that reached the end of
+the pipeline (stored or rejected); cancellation is re-read at checkpoints, not per
+record. A job with no reachable broker is marked `blocked`, not left `queued`.
+**Driver:** The first live run returned 201 and then logged `discovery_job_missing`:
+the background task started in its own session and could not see a job row the request
+transaction had not committed yet. Uncommitted work is invisible to the runner, which
+is exactly the worker's situation on the real Celery path.
+**Rejected:** Running the job inside the request (a large sweep would hang the caller
+and the API would claim a finished job that was still running); sharing the request
+session with the runner (a job must survive its own request); estimating progress from
+elapsed time.
+**Consequence:** Jobs survive their request. Progress can be honest — `completed` with
+a named failing source, `cancelled` with partial results kept, `blocked` with the
+reason and the dev-mode fix in the message.
+
 ## D-044 | Failed attempts are audited in their own transaction
 **Decision:** `record_audit()` joins the caller's transaction; `record_attempt()` opens
 its own and commits before the caller raises.

@@ -129,6 +129,32 @@ Deliver the first genuinely usable business-discovery and lead-management workfl
 - OpenStreetMap-based geographic functionality.
 - Search configuration and saved presets.
 
+**Map-Based Business Discovery**
+- Store a drawn or resolved area: circle (centre + radius), rectangle, polygon, and
+  administrative (country → state → city → locality) scopes.
+- Validate and bound geometry server-side before any provider is contacted; refuse an
+  oversized area with a reason and a smaller workable unit rather than clipping it.
+- Deterministic grid tiling for regions larger than one request, one `job_batches` row
+  per tile with its bounds, tile identity, source, and counters.
+- Tile queue with bounded concurrency, per-tile retry, cancel between tiles, and
+  resume that skips tiles already done.
+- Truncation detection: a tile returning the provider's element cap is subdivided or
+  reported, never presented as a complete answer.
+- Adapter capability declarations for geometry support, so a source that cannot answer
+  a spatial question is not credited with having answered one.
+- Viewport-bounded, owner-scoped pin query, with unlocated records still counted.
+- Map Explorer: pins, clustering, marker preview with source and retrieval time.
+- Area drawing tools with editable, closable and deletable shapes, plus tile grid
+  overlay showing per-tile state by icon and text as well as colour.
+- Map ↔ results table shared state: filters, sort, selection, bulk actions, export.
+- Map filters on the dimensions the data supports: category, rating, review count,
+  website availability, phone availability — each distinguishing absent from known-missing.
+- Deduplication across overlapping and repeated areas using the shared identity rules,
+  merging provenance rather than creating second leads.
+- Saved areas: create, list, rename, delete, re-run, and see job history per area.
+- Live job progress on the map from observed counters, with named source failures.
+- Export the current map selection, producing the same rows the table would export.
+
 **Processing**
 - Data normalization.
 - Duplicate detection.
@@ -177,6 +203,21 @@ A user can:
 8. Move it through CRM stages.
 9. Export selected records.
 10. Review search and job history.
+11. Draw a rectangle or polygon, or pick a radius, and start a real discovery job over
+    exactly that area.
+12. Watch a large region progress tile by tile, see which tiles failed and why, retry
+    one tile, and cancel the rest without losing what was already stored.
+13. See discovered businesses as pins, clustered at low zoom, with each pin naming the
+    source and retrieval time behind it.
+14. Filter, select and bulk-act on the same records from the map and the table, and
+    export the shared selection.
+15. Save an area, come back later, re-run it, and see new businesses as new rather
+    than as repeat discoveries of the same ones.
+
+An empty map must always be explained by the sources that were asked, never
+presented as evidence that no businesses exist in the area. Map discovery must not
+depend on a keyed commercial map provider, and its request volume must stay within
+the declared limits for shared public infrastructure.
 
 This phase must produce a real, end-to-end usable Leads Intelligence workflow. It must not rely on fake scraping results.
 

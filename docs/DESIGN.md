@@ -335,10 +335,13 @@ The discovery screen should contain:
 - Keyword input.
 - Industry selector.
 - Location input.
+- Administrative cascade: country, state, city, locality.
 - Geographic radius.
+- Area drawing entry: rectangle, polygon, or a saved area chosen from a list.
 - Source selection.
 - Advanced filters.
 - Save Search Preset action.
+- Save Area action, keeping the drawn shape itself, not only its text label.
 
 ### Discovery controls
 
@@ -393,6 +396,142 @@ Recommended layout:
 - Clear selected-business state.
 
 Do not overcrowd the map with every available filter simultaneously.
+
+### Area definition
+
+Three ways to say *where*, all producing the same job payload:
+
+- **Administrative cascade.** Country → State → City → Locality selects each level.
+  Country is required; each deeper level is optional. The control shows only the
+  levels the current selection makes meaningful, and never offers "Localities"
+  before a city is chosen.
+- **Centre and radius.** The user drops or drags a centre marker and picks a radius
+  chip (1 / 3 / 5 / 10 / 25 km) or types one. The circle redraws live and its
+  approximate area in km² is shown, so the scale of the request is visible before
+  it is sent.
+- **Drawn shape.** A toolbar offers Rectangle and Polygon. Rectangle is drag-to-draw
+  and re-editable by its corners. Polygon places a vertex per click, rubber-bands the
+  next edge, closes on the first vertex or on double-click, and shows the running
+  vertex count. Both shapes expose handles to move and resize, and a control to
+  delete and start again.
+
+A draft shape is visually distinct from a saved area. If the shape is larger than
+the allowed limit for a single job, say so on the shape itself — "too large for one
+request; will be split into N tiles" — with the option to proceed or narrow it.
+Never accept an oversized area and quietly search part of it.
+
+### Tiled areas on the map
+
+When a region is grid-divided, the tiles are drawn as a light grid over the shape.
+Each tile carries its state by colour and by an icon, never by colour alone:
+pending, running, done, failed, empty. Hovering a tile shows records returned and
+the error text if it failed. A failed tile stays visible after the job ends; the
+user can re-run just that tile.
+
+### Pins, clustering and selection
+
+- Pins are rendered per business, clustered above the configured zoom threshold with
+  a count badge; clicking a cluster zooms to its bounds instead of toggling a popup.
+- Cluster counts are the number of *records*, and the label distinguishes
+  "records" from "businesses" while a deduplication backlog exists.
+- One selected pin at a time for the preview; multi-select (for bulk actions and
+  export) uses the result panel, Shift-click on pins, or rectangle selection over
+  the visible viewport.
+- Selected pins keep a persistent visual state that survives filtering, panning and
+  switching to the table view.
+- Beyond a few thousand visible records, render the viewport only. The record count
+  in the panel remains the true total, so a partial render never reads as fewer
+  results.
+
+### Marker preview
+
+A compact popover on pin click:
+
+- Name, category, locality or address.
+- Website availability and phone availability as present-or-absent, never as a guess.
+- Rating and review count where a collected source supplied them.
+- Source name and retrieval time, as a link to the provenance detail.
+- Actions: open profile, shortlist, add to selection, exclude from results.
+
+The popover is small and non-modal. Anything longer-lived belongs in the profile or
+the side panel.
+
+### Filters
+
+The filter panel filters *collected* results, and only offers a field when at least
+one enabled source can produce it:
+
+- Category (multi-select).
+- Rating, minimum threshold.
+- Review count, minimum threshold.
+- Website: has one / missing / unknown — three states, because "unknown" is not
+  evidence of absence.
+- Phone: has one / missing / unknown.
+
+Filtering changes the pins, the result panel, the table and the export selection at
+once. The active filter set is shown as removable chips above the map. Filters never
+mutate stored records.
+
+### Discovery progress
+
+While a job runs, the map shows a persistent, non-blocking progress strip:
+
+- Status text: `Running — 12 of 40 tiles`.
+- Live counters from observed work: sources contacted, records returned, stored,
+  rejected, duplicates merged.
+- Per-source lines, including failures with the reason the source gave.
+- Cancel, which stops after the current tile and keeps stored results.
+
+No percentage bar that moves on a timer. If nothing is known yet, the strip says so.
+
+### Map and results table as one view
+
+- A **Map | Table** segmented control switches the primary surface; **Split** shows
+  both, map on the left, table on the right, sharing one result set.
+- Filters, sort, selection and viewport ownership are shared state. Selecting a pin
+  highlights and scrolls to its row; selecting a row centres and opens its pin.
+- "Recenter on results" frames every record in the current filter set.
+- The table's bulk-action bar and the map's selection actions call the same
+  endpoints, so a shortlist done from the map is visible in the table immediately.
+
+### Saved areas
+
+Saved areas appear in a side list with name, shape type, category, and when they were
+last run. From the list a user can load the area onto the map, re-run discovery, view
+its job history, rename it, or delete it. Loading a saved area restores its shape and
+administrative context exactly as drawn.
+
+### Map Explorer workflows
+
+1. **Discover a locality.** Open Map Explorer → search "Indiranagar, Bengaluru" →
+   confirm the resolved area and its bounds → pick category *cafe* → Start
+   discovery → watch tiles complete → inspect pins → shortlist three → export the
+   selection.
+2. **Work a commercial strip.** Draw a rectangle along the road → radius and area
+   shown → run discovery over just that shape → filter to "no website" → those are
+   the outreach candidates.
+3. **A whole city.** Choose city-level administrative scope, which exceeds one
+   request → the app states the tile count and the expected request volume → the
+   user proceeds or narrows → the job runs, and one throttled tile is retried alone.
+4. **Return next week.** Open the saved area → re-run → new businesses are marked
+   as new sightings; known ones are not counted as fresh discoveries.
+5. **Triage from the table.** Filter the table to "phone missing", select 40 rows,
+   switch to the map to see where they cluster, and choose the densest cluster to
+   work first.
+
+### States the map must handle
+
+- **Loading tiles**: pins from completed tiles appear while others are pending.
+- **Empty**: "No records found by *these* sources in this area", with a link to
+  source coverage — never a blank map with no explanation.
+- **Partial source failure**: which sources answered, which did not, and what that
+  means for coverage.
+- **Provider refusal or throttling**: the source's own reason, the retry option, and
+  the reminder that the limit exists to keep shared infrastructure usable.
+- **Map library unavailable**: the table view still works; the map control is
+  disabled with a reason rather than showing an empty pane.
+- **Accessibility**: every map action has a table-view equivalent, drawing tools are
+  keyboard-operable, and pin state is conveyed by text and icon as well as colour.
 
 ## 6.4 Business Profile
 
@@ -1053,6 +1192,13 @@ The design is considered successfully implemented when:
 - Global search returns grouped results.
 - Discovery forms work.
 - Map Explorer displays real business locations.
+- An area can be drawn, saved, and re-opened exactly as drawn.
+- Rectangle, polygon, and radius selection each start a real discovery job.
+- Tiled jobs show per-tile state, including failed tiles, and cancel between tiles.
+- Map and table share one filter set, one selection, and one export.
+- Marker previews name the source and retrieval time of the record.
+- An area with no results explains which sources were asked, rather than showing an
+  empty map as if the market were empty.
 - Business profiles show collected information and provenance.
 - Results tables support filtering and bulk operations.
 - CRM supports stage changes.

@@ -1,10 +1,19 @@
 # SparkXFlow Nexus — Project Status
 
-**Last updated:** 2026-11-02 (Phase 2 session)
-**Current phase:** **Phase 2 complete and verified.** Phase 3 (discovery vertical slice)
-is next and is largely unblocked.
-**Overall status:** Authentication, authorization, ownership enforcement and real SQL
-persistence are implemented and proven with two separate users. 173 tests pass.
+**Last updated:** 2026-11-02 (Phase 3 session, map-discovery documentation)
+**Current phase:** **Phase 3 — discovery vertical slice, in progress.** Job management
+with observed progress is built and tested; the map layer is now specified but unbuilt.
+**Overall status:** Authentication and ownership enforcement are proven with two
+separate users. Discovery jobs run against real PostgreSQL and persist businesses with
+provenance. 189 tests pass. Redis and SearXNG are still absent.
+
+### Documentation change (2026-11-02)
+
+Map-Based Business Discovery was approved as core Leads Intelligence but was barely
+specified. It now has written requirements, UI behaviour, architecture, a data model
+and acceptance criteria across the five governing documents — see `DECISIONS.md` D-046
+and the dedicated section of `REQUIREMENTS_TRACEABILITY.md`. **The documentation is
+deliberately ahead of the build:** almost every capability in it is Not Started.
 
 ### Phase mapping
 
@@ -18,8 +27,8 @@ This file uses the master prompt's Phase 0–11 numbering. The mapping to
 | 0 | Repository audit and stabilisation | **Complete** — baseline committed at `0efa064` |
 | 1 | Infrastructure and database foundation | **Complete for PostgreSQL.** Redis and SearXNG still absent |
 | 2 | Authentication and authorization | **Complete** — includes the mandatory two-user isolation proof |
-| 3 | Discovery vertical slice | **In Progress** — pipeline, adapters and SQL store exist; job management and the UI table/profile/export wiring remain |
-| 4–11 | Leads UI, enrichment, CRM, Startup, Social, Automation, Analytics, Hardening | Not Started |
+| 3 | Discovery vertical slice | **In Progress** — jobs, progress, cancel, provenance and SQL persistence are **Tested**; the results UI, profiles and export wiring remain |
+| 4–11 | Leads UI, enrichment, CRM, Startup, Social, Automation, Analytics, Hardening | Not Started — map discovery requirements now documented, none built |
 
 ## 1. Security review findings (2026-11-02)
 
@@ -317,10 +326,10 @@ background jobs and SearXNG.
 Target: **Source → Discover → Normalize → Database → Table → Profile → Shortlist → CSV
 Export**, running end to end for a signed-in user with real collected data.
 
-1. Discovery job management: create a job, dispatch through `TaskDispatcher`, track
-   progress from real processed counts, support cancel and honest failure reporting.
-2. Wire `run_pipeline` to `SqlBusinessStore` inside a job, persisting `source_records`
-   with bounded payloads and `expires_at`.
+1. ~~Discovery job management~~ **Done** — create, dispatch, progress from observed
+   counts, cancel, honest failure and `blocked` reporting. 14 tests.
+2. ~~Wire `run_pipeline` to `SqlBusinessStore` inside a job~~ **Done** — businesses,
+   contacts and `source_records` with `job_id`, bounded payloads and `expires_at`.
 3. Overpass live test — public endpoint, no container needed. Record how many real
    businesses come back for a Bengaluru query. This is the D4 measurement.
 4. SearXNG live test once an instance exists; until then the Source Manager shows it as
@@ -330,6 +339,24 @@ Export**, running end to end for a signed-in user with real collected data.
    research history, CRM block, actions.
 7. Shortlist and export wired to the existing endpoints with CSRF.
 8. Duplicate review queue surfaced in the UI (probable and possible pairs).
+
+### Map-Based Business Discovery — documented 2026-11-02, not yet built
+
+Nothing below is implemented. The order matters: the D4 measurement in item 3 decides
+whether the tile budgets designed in `architecture.md` §9.4 are even the right shape,
+so it must come before the map work, not after it.
+
+9. `search_areas` table + migrations (schema §7.6), with server-side geometry
+   validation and the size ceilings (integrity rules 16–19).
+10. Area-capable API: accept `area_id` on `POST /discovery/jobs`, add `GET /businesses?bbox=`.
+11. Deterministic grid planner writing one `job_batches` row per tile, with truncation
+    detection and per-tile retry/resume.
+12. Leaflet Map Explorer: pins, clustering, marker preview with source and retrieval time.
+13. Drawing tools (radius, rectangle, polygon) and the tile-state overlay.
+14. Shared filter/selection state between map and table; phone-availability filter is
+    missing from the businesses API and must be added for the map filters to work.
+15. `rating` / `review_count` columns, written only from source-reported values.
+16. `source_records.batch_id` so provenance names the tile, not just the job.
 
 ### Completed in Phase 2, carried forward
 

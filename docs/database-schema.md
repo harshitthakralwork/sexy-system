@@ -75,6 +75,11 @@ erDiagram
     SEARCHES ||--o{ DISCOVERY_JOBS : starts
     DISCOVERY_JOBS ||--o{ SOURCE_RECORDS : collects
 
+    USERS ||--o{ SEARCH_AREAS : saves
+    SEARCH_AREAS ||--o{ SEARCHES : scopes
+    DISCOVERY_JOBS ||--o{ JOB_BATCHES : divides_into
+    JOB_BATCHES ||--o{ SOURCE_RECORDS : collects
+
     BUSINESSES ||--o{ BUSINESS_CONTACTS : has
     BUSINESSES ||--o{ BUSINESS_OPPORTUNITIES : evaluated_for
     SERVICES ||--o{ BUSINESS_OPPORTUNITIES : evaluates
@@ -296,10 +301,15 @@ Individual search requests.
 | id | UUID |
 | owner_user_id | UUID |
 | preset_id | UUID, nullable |
+| area_id | UUID, nullable |
 | module | VARCHAR(50) |
 | query_config | JSONB |
 | execution_status | VARCHAR(30) |
 | created_at | TIMESTAMPTZ |
+
+`area_id` is set when the search was scoped by a drawn or resolved geographic area.
+The area is referenced, never copied into `query_config`: a saved area that is
+renamed or corrected must not leave stale geometry behind in every past search.
 
 ## 7.3 discovery_jobs
 
@@ -334,6 +344,10 @@ Tracks smaller batches within large jobs.
 | id | UUID |
 | job_id | UUID |
 | batch_number | INTEGER |
+| unit_kind | VARCHAR(30) |
+| tile_key | VARCHAR(64), nullable |
+| source_id | UUID, nullable |
+| bounds | JSONB, nullable |
 | status | VARCHAR(30) |
 | records_expected | INTEGER |
 | records_processed | INTEGER |
@@ -341,6 +355,18 @@ Tracks smaller batches within large jobs.
 | started_at | TIMESTAMPTZ |
 | completed_at | TIMESTAMPTZ |
 | error_details | JSONB |
+
+For geographic jobs, one batch is one unit of work: a single tile against a single
+source. `unit_kind` says which (`tile`, `single_query`, `keyword`, `source_probe`).
+
+`tile_key` is a deterministic identity derived from the parent area and the tile
+geometry, and it is what makes a re-run of a saved area able to tell "already done"
+from "never asked". It is stable by construction, so it is unique per
+(`job_id`, `tile_key`, `source_id`) rather than per user.
+
+`bounds` stores the geometry actually requested for that unit. Storing it means a
+report can say which part of a region failed, and a retry re-sends the same question
+instead of a slightly different one.
 
 ## 7.5 job_logs
 
@@ -355,6 +381,55 @@ Tracks smaller batches within large jobs.
 
 Avoid logging passwords, tokens, secrets, or unnecessary personal information.
 
+## 7.6 search_areas
+
+A geographic scope a user drew, resolved, or saved — the "where" of a map discovery
+job, kept so it can be re-opened, re-run, and compared over time.
+
+| Field | Type | Description |
+|---|---|---|
+| id | UUID | Primary key |
+| owner_user_id | UUID | Owner |
+| module | VARCHAR(50) | Leads, startups |
+| name | VARCHAR(150) | User-facing label |
+| shape_type | VARCHAR(20) | circle, rectangle, polygon, administrative |
+| center_latitude | NUMERIC(10,7), nullable | Circle centre |
+| center_longitude | NUMERIC(10,7), nullable | Circle centre |
+| radius_m | INTEGER, nullable | Circle radius in metres |
+| bbox_west | NUMERIC(10,7) | Derived bounding box, ordered |
+| bbox_south | NUMERIC(10,7) | Derived bounding box |
+| bbox_east | NUMERIC(10,7) | Derived bounding box |
+| bbox_north | NUMERIC(10,7) | Derived bounding box |
+| polygon | JSONB, nullable | Closed ring of `[lat, lng]` pairs, minimum 3 vertices |
+| area_km2 | NUMERIC(12,4) | Derived size, validated against the tile ceiling |
+| admin_country | VARCHAR(100), nullable | Administrative context as selected |
+| admin_state | VARCHAR(100), nullable | Administrative context as selected |
+| admin_city | VARCHAR(150), nullable | Administrative context as selected |
+| admin_locality | VARCHAR(150), nullable | Administrative context as selected |
+| categories | JSONB | Categories the area was saved with, as a list |
+| geocode | JSONB, nullable | `{query, resolved_at, provider, external_id}` when a place name produced this geometry |
+| last_run_at | TIMESTAMPTZ, nullable | Most recent job against this area |
+| created_at | TIMESTAMPTZ | Creation |
+| updated_at | TIMESTAMPTZ | Update |
+
+Design rules:
+
+- One area is referenced by many searches, and many jobs follow from those searches.
+  Storing the geometry once, here, is why re-running a saved area asks the same
+  question rather than a nearby different one.
+- Coordinates are stored at the precision the schema already uses for business
+  locations, and no new coordinate convention is introduced.
+- The bounding box is derived and stored so a viewport query can pre-filter without
+  recomputing geometry per row. The polygon stays authoritative for exact containment.
+- Geometry is stored as JSON, not as a spatial type. This is deliberate while PostGIS
+  is deferred: it keeps the tile planner, the API, and the map in plain data, and it
+  avoids a spatial extension the MVP does not yet need. If PostGIS is introduced, a
+  generated geography column is added here rather than a parallel geometry table.
+- `owner_user_id` scopes every read. A saved area is not discoverable by another user,
+  including by direct identifier.
+- An area is metadata about a request, not a business record. It carries no contact
+  data and is never the source of a pin's coordinates.
+
 ---
 
 # 8. Raw Discovery Data
@@ -368,6 +443,7 @@ Stores original records collected from sources before normalization.
 | id | UUID | Primary key |
 | source_id | UUID | Originating source |
 | job_id | UUID | Discovery job |
+| batch_id | UUID, nullable | Unit of work that produced it |
 | owner_user_id | UUID | Owner |
 | module | VARCHAR(50) | Leads, startups, social |
 | external_id | VARCHAR(255) | Provider identifier |
@@ -380,6 +456,11 @@ Stores original records collected from sources before normalization.
 | created_at | TIMESTAMPTZ | Creation |
 
 Raw records are temporary processing records, not the durable business database.
+
+`batch_id` is what makes geographic provenance specific: a tile that returned 40
+records can be identified, re-run alone, or excluded from a coverage statement,
+without re-deriving which part of the region produced each row. It is nullable because
+non-geographic jobs and imported records have no tile.
 
 ## 8.2 source_record_links
 
@@ -424,6 +505,8 @@ Central business entity.
 | latitude | NUMERIC(10,7) | Latitude |
 | longitude | NUMERIC(10,7) | Longitude |
 | website_status | VARCHAR(30) | Available, missing, inaccessible, unknown |
+| rating | NUMERIC(3,2), nullable | Reported rating, only when a permitted source supplied it |
+| review_count | INTEGER, nullable | Reported review count, only when a permitted source supplied it |
 | lifecycle_status | VARCHAR(30) | Active, archived, deleted |
 | first_discovered_at | TIMESTAMPTZ | First discovery |
 | last_researched_at | TIMESTAMPTZ | Last research |
@@ -432,6 +515,13 @@ Central business entity.
 | deleted_at | TIMESTAMPTZ, nullable | Soft deletion |
 
 Do not assume missing website information means a business has no website. Distinguish missing, inaccessible, and unknown.
+
+`rating` and `review_count` exist as nullable columns so a map filter can name the
+dimension it is filtering on, and so "no rating reported" stays distinguishable from
+"rated zero". They are populated only when a collected source actually reported
+them; nothing in the product computes, infers, or borrows a rating into these fields.
+A location with no coordinates is not given a centroid to make it appear on a map:
+`latitude` and `longitude` stay null and the record is reported as unlocated.
 
 ## 9.2 business_contacts
 
@@ -1249,6 +1339,14 @@ Implement the following constraints:
 13. Valid scoring ranges.
 14. No self-referencing competitor relationship.
 15. No duplicate suppression-list entries per owner.
+16. Search area geometry is valid and bounded: ordered bounding box, coordinates
+    within range, a closed polygon ring with at least three vertices, a positive
+    radius for a circle, and `area_km2` within the configured ceiling.
+17. A job batch of kind `tile` has bounds that lie inside its parent area's bounds.
+18. A batch's tile identity is unique within a job and source, so a re-run cannot
+    record the same unit twice as if it were new work.
+19. `searches.area_id`, `job_batches.source_id`, and `source_records.batch_id`
+    reference rows owned by the same user, directly or through their job.
 
 Do not impose a global unique constraint on phone numbers or email addresses across businesses: shared numbers, agencies, chains, and multiple contacts may legitimately exist.
 
@@ -1289,6 +1387,23 @@ Create indexes for common access patterns.
 - `status`
 - `owner_user_id`
 - `created_at`
+
+### Search areas
+
+- `owner_user_id`, `module`
+- `bbox_west, bbox_south, bbox_east, bbox_north` for viewport pre-filtering
+- `shape_type`
+
+A viewport query filters on the stored bounding box first, then applies exact
+containment to the small candidate set. If PostGIS is later justified, a GiST index on
+a generated geography column replaces the two-step approach; the plain-coordinate
+index stays until measurements say otherwise.
+
+### Businesses map reads
+
+- Composite `(owner_user_id, latitude, longitude)` for bounded pin queries.
+- Coordinates are nullable by design: a record with no coordinates is a real result
+  that the map cannot draw, and it must remain countable in the table.
 
 ### Source records
 
@@ -1382,6 +1497,7 @@ Do not implement every advanced table before the MVP works.
 - Source configurations.
 - Source health checks.
 - Search presets.
+- Search areas.
 - Searches.
 - Discovery jobs.
 - Job batches.
@@ -1405,6 +1521,12 @@ Do not implement every advanced table before the MVP works.
 - Audit logs.
 - Import and export jobs.
 
+Map-based discovery is part of this MVP scope, so `search_areas`, the tile columns on
+`job_batches`, and `source_records.batch_id` land with it. PostGIS and spatial index
+extensions do not: bounding-box columns and ordinary indexes serve the MVP's viewport
+queries, and a spatial extension is introduced only when measured pin density or
+containment work justifies it.
+
 ### Build in later phases
 
 - Startup research tables.
@@ -1427,6 +1549,13 @@ The database design is considered correctly implemented when:
 - Relationships use appropriate foreign keys.
 - User ownership is enforced.
 - Business and startup records retain source attribution.
+- A saved search area can be re-opened and re-run with exactly the geometry that was
+  drawn, and its administrative context survives.
+- Each unit of geographic work (tile) is identifiable, re-runnable, and linkable to
+  the raw records it produced.
+- Records produced by overlapping tiles resolve to one business with every source
+  attribution retained.
+- A job can report progress from stored counters rather than from a timer.
 - Raw records are separate from normalized entities.
 - Duplicate candidates can be reviewed.
 - Confirmed merges preserve history.

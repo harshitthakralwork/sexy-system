@@ -216,6 +216,107 @@ Users can search by:
 
 The product should support both map-based discovery and traditional search results.
 
+### 7.1.1 Map-Based Business Discovery
+
+Map-based discovery is a core Leads Intelligence capability, not a visual extra.
+It exists because a locality, a commercial street or an industrial area is how the
+user actually thinks about a market, and because a shape on a map is a more precise
+request than a city name.
+
+**Location selection.** Users must be able to define *where* in three ways, all
+feeding the same discovery job:
+
+1. Administrative narrowing — country, then state, then city, then locality. Each
+   level above country is optional, and a search must be usable at any level.
+2. Centre plus radius — pick a point and choose a radius from a preset list
+   (for example 1, 3, 5, 10, 25 km) or enter one.
+3. Drawn area — draw a rectangle by dragging, or a polygon by placing vertices on
+   the map. A polygon needs a minimum of three vertices and must be closable,
+   editable and clearable before the search runs.
+
+**Category selection.** A business category (or several) must be selectable
+alongside the area, and the category list must reflect what the chosen sources can
+actually answer. A category a source cannot honour must not be silently accepted.
+
+**Discovery for a selected area.** Choosing an area and starting discovery must run
+one job over that area, and the user must be able to select several areas and
+discover across all of them in one action.
+
+**Grid-based discovery for larger regions.** An area bigger than a single source
+request can honestly cover is divided into a geographic grid of tiles, and each tile
+is processed as a discrete unit of work. Requirements:
+
+- Tiles are queued and processed with bounded concurrency, not fired all at once.
+- Per-tile state (pending, running, done, failed) is visible to the user.
+- One failed tile must not fail the region; it is reported and retried or skipped.
+- A job can be cancelled between tiles and keeps everything already stored.
+- Tiling must be reproducible: re-running the same area must recognise what was
+  already found and add to it rather than duplicate it.
+- Regions beyond the supported tile limit are refused with an explanation, never
+  quietly truncated — a user must not conclude "there are no businesses here" from
+  a search that was never actually run over the whole area.
+
+**Map display.** Discovered businesses appear as map pins. Requirements:
+
+- Pins cluster at low zoom so thousands of records stay readable and the browser
+  stays responsive.
+- Clicking a pin shows a compact preview: name, category, address or locality,
+  website and phone availability, rating and review count where the data exists,
+  and the source that produced the record.
+- The preview opens the full business profile, shortlists the business, or adds it
+  to the current selection.
+- Map display and source coverage must agree. If a source has no data for an area,
+  an empty map is presented as "nothing found by the sources used", never as
+  "no businesses exist here".
+
+**Selection synchronisation with the results table.** The map and the table are two
+views of one result set:
+
+- Filtering either view filters the other.
+- Selecting a pin highlights its table row and brings it into view; selecting a row
+  highlights and centres its pin.
+- Bulk selection works from both sides, and the count of selected records is always
+  visible.
+- Switching between map and table view must not lose filters, selection or position.
+
+**Map result filters.** Where the underlying data exists, users can filter the pins
+by category, rating, review count, website availability and phone availability.
+A filter on a field no collected source can supply is not offered — and where a
+field is only sometimes present, the filter must distinguish "absent" from
+"known to be missing".
+
+**Deduplication across overlapping areas.** Adjacent or overlapping searches will
+find the same business repeatedly. The same identifiers used everywhere else —
+domain, phone, and normalised name with address — decide identity, not proximity on
+a map. Two businesses at one coordinate are a real possibility (a shared building,
+a market), and two businesses with the same name in different localities are
+equally real. A record already known to the user is presented as an existing record
+with a new sighting, not as a second lead.
+
+**Saved jobs and saved areas.** Both must be persistable:
+
+- A saved search area keeps its shape, its administrative context and its category,
+  and can be re-opened on the map and re-run.
+- A saved discovery job keeps its query, its status history, its per-source results
+  and its record counts, so a region's coverage can be compared over time.
+- Saved areas and saved jobs belong to the user who created them.
+
+**Progress and attribution while running.** During a run the user must see, from
+real observed counts and not a timer: sources contacted, areas or tiles completed,
+records returned, records stored, records rejected, and duplicates merged. When it
+finishes, every displayed business carries the source and retrieval time that
+produced it, and the run's failed sources are named.
+
+**Export.** Users can export the current selection, the current filtered set, or all
+results of a job. Exported rows carry the same source attribution the map shows, and
+a selection made on the map exports the same records the table would export.
+
+**Collection limits.** Map discovery reaches shared public infrastructure. Radius,
+tile size, tiles per job, elements per request and requests per minute are all
+bounded, and the bounds are enforced by the product rather than left to the user's
+good judgement. A user who asks for more than the limits allow gets a clear
+explanation and a smaller workable unit, never a silently reduced search.
+
 ### 7.2 Business Research
 
 Where publicly accessible and permitted, collect:
@@ -283,6 +384,10 @@ Maintain four distinct result categories:
 
 Users must be able to apply filters without losing the original collected information.
 
+The map and the results table read from these same categories. A filter applied in
+one view is in force in the other, and a record selected on the map is the same
+record the table would select.
+
 ### 7.6 CRM
 
 Default pipeline:
@@ -328,6 +433,7 @@ Support:
 - JSON.
 - Bulk import with field mapping.
 - Selected or filtered exports.
+- Export of the current map selection, producing the same rows as the table.
 - Background processing for large datasets.
 - Duplicate detection.
 - Optional Google Sheets integration.
@@ -559,6 +665,14 @@ The initial architecture is based on:
 | Search | PostgreSQL full-text search initially |
 | Search discovery | Self-hosted SearXNG and other permitted providers |
 
+Map work uses Leaflet with OpenStreetMap-compatible tiles, and geographic discovery
+uses Overpass/OSM as a **supplementary** source alongside search-based and
+website-based discovery — never as the only source. Google Maps Platform APIs are
+not assumed available, and no design may depend on a paid map key or on free OSM
+infrastructure providing unlimited usage. Public tiles and public Overpass
+instances are shared resources: request volume, area size and result counts stay
+within declared limits, and attribution is preserved wherever a provider asks for it.
+
 Architecture style: Modular Monolith with separate background workers.
 
 Deployment direction: Vercel for the frontend and Railway for backend/workers initially, with Render as an alternative. Deployment choices must be validated against free-tier availability and current limits before implementation.
@@ -604,6 +718,12 @@ Required safeguards:
 
 Only collect information through permitted public access or authorized integrations.
 
+Geographic discovery is subject to the same rule. Areas a user draws or requests are
+validated and bounded before any provider is contacted, requests are throttled per
+user, and a saved area or a saved job is visible only to its owner. Refusals,
+throttling and bot protection from a source are reported to the user as they are;
+the product does not work around them.
+
 Do not implement credential abuse, unauthorized private endpoint access, authentication bypass, or CAPTCHA/anti-bot circumvention.
 
 ## 18. Backup and Monitoring Requirements
@@ -642,6 +762,8 @@ Track:
 - Exportable user data.
 - Graceful degradation when external sources fail.
 - No dependency on a single AI or discovery provider.
+- Large result sets remain usable on a map through clustering and bounded rendering, not by silently dropping records.
+- Tiled geographic jobs resume per tile, so an interrupted region continues where it stopped instead of re-requesting everything.
 
 ## 20. Development Priorities
 
@@ -660,6 +782,7 @@ Track:
 
 - Business discovery.
 - Map interface.
+- Map-based business discovery: area drawing, grid jobs, pins, and map-table sync.
 - Search and filters.
 - Business profiles.
 - Enrichment.
@@ -717,6 +840,8 @@ The first meaningful SparkXFlow release should allow a user to:
 8. Manage shortlisted businesses through a CRM pipeline.
 9. Export data to CSV or Excel.
 10. See job status, source health, and processing errors.
+11. Draw or choose an area on the map, run discovery over it, and watch real progress and per-source results.
+12. Use the map and the results table as one selection, then export exactly what is selected.
 
 A working, reliable Leads Intelligence MVP takes priority over a large collection of unfinished features.
 

@@ -6,6 +6,43 @@ In Progress · Blocked · Deferred.
 
 ---
 
+## 2026-11-02 (Phase 3) — Discovery jobs, and map discovery written down
+
+### Backend
+
+- **Discovery jobs** — `POST /api/v1/discovery/jobs` creates a job, registers the
+  source in the registry, runs the pipeline and persists through `SqlBusinessStore`.
+  Progress counts only records that reached the end (stored or rejected); cancellation
+  is honoured between units of work and keeps what is already stored.
+- **Honest outcomes** — `completed` with a named partial failure, `failed` when no
+  source answered, `cancelled` mid-run, `blocked` when no worker exists, each with the
+  reason the source gave. Per-source outcomes and counters are stored on the job.
+- **Source registry** — adapters self-register from their declared capabilities,
+  including their limitations, so provenance has something real to point at.
+- **Celery task** added for the same job body, so the queued and inline paths cannot
+  drift apart.
+- **Bug:** a `model_validator` failure returned 500. Pydantic attaches the raising
+  `ValueError` as `ctx`, which is not JSON — the error envelope now strips
+  non-serialisable context instead of crashing on it.
+- **Bug:** `.env` was overriding what two dispatcher tests claimed to prove about
+  defaults; they now suppress the env file and assert the code default.
+
+### Documentation
+
+Map-Based Business Discovery — approved as core, previously specified as one bullet
+and a feature list — now has functional requirements, UI behaviour and workflows,
+geographic architecture, a data model, and roadmap tasks with acceptance criteria. See
+D-046 for the rejected alternatives and `REQUIREMENTS_TRACEABILITY.md` for what is and
+is not built. **No map code was written.**
+
+### Verification
+
+| Gate | Result |
+|---|---|
+| `pytest` | **189 passed** (was 175; +14 discovery job tests) |
+| `ruff` / `mypy` | Clean, 70 files |
+| Migration | `3f56cd53b45a` applied to real PostgreSQL 18.6 |
+
 ## 2026-11-02 (Phase 2) — Authentication, authorization, SQL store, two-user proof
 
 ### Backend

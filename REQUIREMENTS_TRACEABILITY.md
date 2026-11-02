@@ -9,6 +9,38 @@ covers the behaviour, not because a file with the right name exists.
 
 ---
 
+## Map-Based Business Discovery (approved core feature, documented 2026-11-02)
+
+Specified in `PRD.md` §7.1.1, `DESIGN.md` §6.2–6.3, `architecture.md` §3.4/§6/§9.4/§17,
+`database-schema.md` §3/§7.2/§7.4/§7.6/§8.1/§9.1/§20/§21/§24/§25, and
+`implementation-roadmap.md` §5. Statuses here describe **code**, not the documents.
+
+| Capability | Status | Evidence |
+|---|---|---|
+| Search by country/state/city/locality + category | Not Started | `DiscoveryQuery` carries `country`, `category` and `place_name`, but nothing resolves an administrative cascade into geometry |
+| Radius selection | Implemented in the API, no UI | `POST /api/v1/discovery/jobs` accepts centre + `radius_km` (bounded `0 < r <= 50`, validated against the Overpass ceiling); `LocationSpec` enforcement is **Tested** in the adapter tests, an end-to-end radius job is not |
+| Rectangle and polygon drawing | Not Started | Frontend has no map library installed; `search_areas` table does not exist |
+| Save/load search areas | Not Started | `search_areas` is specified in `database-schema.md` §7.6, with no migration written |
+| Grid tiling for large regions | Not Started | `job_batches` exists as a model with no tile columns and no writer; the planner is unwritten |
+| Per-tile progress, retry, resume | Partial | Job-level progress and cancel are **Tested** (14 tests in `tests/test_discovery_jobs.py`); per-tile granularity is the missing layer |
+| Discovery job over an area | Not Started | `POST /api/v1/discovery/jobs` accepts keywords, category and a centre/radius payload today; area ids are not accepted |
+| Overpass geographic adapter | Implemented, live-unverified | Query builder, tag whitelist, coordinate/radius validation and element cap are **Tested** against mocked transports; no real endpoint has been called yet |
+| SearXNG as a non-spatial source | Implemented, live-unverified | Adapter **Tested** with mocks; per §9.4 it must degrade to administrative text, which is not implemented |
+| Pins, clustering, marker preview | Not Started | Sidebar exposes "Map Explorer" as a disabled control; nothing renders |
+| Map ↔ table sync | Not Started | The businesses API filters and paginates but accepts no `bbox`, so there is no viewport query to share |
+| Map filters (rating, reviews) | Not Started | `rating` / `review_count` columns are specified but not migrated. Of the required dimensions, `website_status` is already an owner-scoped filter on the businesses API; **phone availability is not**, and neither is rating or review count |
+| Dedup across overlapping searches | Partial | Identity rules (domain, then phone, never name alone) and provenance-preserving merges are **Tested**; nothing yet exercises them across two geographic units |
+| Provenance per tile | Not Started | `source_records.job_id` is written and **Tested**; `batch_id` does not exist |
+| Live job progress with named failures | **Tested** | `discovery_jobs.report` carries per-source outcomes and counters; a failed source yields `failed`, and a partial one `completed` with the failure named |
+| Export the current selection | Partial | CSV export with formula neutralisation is **Tested** end-to-end; exporting a *map* selection waits on the map |
+| Bounds, throttles, no keyed provider | Partial | Keyword/page/radius/element caps are **Tested** at the adapter level, and job creation is CSRF-gated (**Tested**). The 10-jobs-per-5-minutes limit is implemented but has no test yet. No per-user geographic request quota exists |
+
+**Honest limits.** Nothing in this feature has been demonstrated against a live map
+provider. The two things that would falsify the plan fastest are (1) how many usable
+Indian business records Overpass actually returns for a Bengaluru radius, which is the
+pending D4 measurement, and (2) whether tile counts stay inside a public instance's
+tolerance. Both must be measured before the UI work in this section is scheduled.
+
 ## MVP definition of done (PRD section 21)
 
 | # | Requirement | Where it lands | Status | Evidence |
