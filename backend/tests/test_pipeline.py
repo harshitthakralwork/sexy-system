@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 import pytest
 
+from app.modules.deduplication.service import Candidate, compare
 from app.modules.discovery.adapters.base import (
     AdapterCapabilities,
     DiscoveredItem,
@@ -65,10 +66,13 @@ class StubAdapter:
 
 
 def search_item(url: str, title: str, **extra: object) -> DiscoveredItem:
+    """A search hit, shaped the way the SearXNG adapter shapes one: the result URL
+    is both provenance and the business's claimed website."""
     return DiscoveredItem(
         external_id=None,
         source_url=url,
         title_hint=title,
+        website_hint=url,
         raw_data={"content": "A cafe", **(extra if extra else {})},
     )
 
@@ -229,7 +233,10 @@ def test_normalize_never_invents_a_name_from_a_url() -> None:
     """A slug like "spark-coffee-bengaluru" is evidence about a page, not a
     business name. Inventing one here would create an unfalsifiable record."""
     item = DiscoveredItem(
-        external_id=None, source_url="https://example.com/spark-coffee", raw_data={}
+        external_id=None,
+        source_url="https://example.com/spark-coffee",
+        website_hint="https://example.com/spark-coffee",
+        raw_data={},
     )
     business = normalize_item(item, source_slug="searxng", retrieved_at=RETRIEVED)
 
@@ -238,12 +245,47 @@ def test_normalize_never_invents_a_name_from_a_url() -> None:
     assert validate(business).accepted is True
 
 
+def test_where_a_record_was_found_is_never_its_website() -> None:
+    """D4 regression, from a real run: 16 distinct Hisar hospitals collapsed into
+    3 because the OpenStreetMap page each was found on became their shared domain,
+    and a shared domain is a confirmed-duplicate identity key.
+
+    A record with no website of its own keeps no website. That is the honest
+    answer, and it is also the only one that keeps neighbouring businesses apart.
+    """
+    first = normalize_item(
+        DiscoveredItem(
+            external_id="node/1",
+            source_url="https://www.openstreetmap.org/node/1",
+            raw_data={"name": "Khetarpaul Hospital"},
+        ),
+        source_slug="overpass",
+        retrieved_at=RETRIEVED,
+    )
+    second = normalize_item(
+        DiscoveredItem(
+            external_id="node/2",
+            source_url="https://www.openstreetmap.org/node/2",
+            raw_data={"name": "Savant Hospital"},
+        ),
+        source_slug="overpass",
+        retrieved_at=RETRIEVED,
+    )
+
+    assert first.normalized_domain is None
+    assert second.normalized_domain is None
+    assert first.website_url is None
+    # Not a pair at all: nothing identifies them as one business.
+    assert compare(Candidate("a", first.dedup_key()), Candidate("b", second.dedup_key())) is None
+
+
 def test_an_unparseable_url_warns_but_does_not_discard_the_lead() -> None:
     """Regression: treating a warning as a rejection silently throws away usable
     businesses — the opposite of what validation is for."""
     item = DiscoveredItem(
         external_id=None,
         source_url="https://localhost:8080/weird-path",
+        website_hint="https://localhost:8080/weird-path",
         title_hint="Spark Coffee",
         raw_data={},
     )
@@ -261,6 +303,7 @@ async def test_warning_flagged_records_are_counted_and_stored() -> None:
     item = DiscoveredItem(
         external_id=None,
         source_url="https://localhost:9/weird",
+        website_hint="https://localhost:9/weird",
         title_hint="Weird Cafe",
         raw_data={},
     )

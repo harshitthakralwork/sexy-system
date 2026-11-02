@@ -214,6 +214,12 @@ class SearxngAdapter:
                     external_id=str(entry.get("id")) if entry.get("id") is not None else None,
                     source_url=entry.get("url"),
                     title_hint=entry.get("title"),
+                    # A search result's URL is a claim about the business's own
+                    # site, which is why it goes in `website_hint` and not merely
+                    # into provenance: it is the strongest identity signal a
+                    # keyword hit carries. Provenance still records it as a
+                    # search-result URL, never as a verified website.
+                    website_hint=entry.get("url"),
                     raw_data=entry,
                 )
             )

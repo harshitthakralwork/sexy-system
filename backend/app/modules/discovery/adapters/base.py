@@ -111,6 +111,13 @@ class DiscoveredItem:
     Nothing here is normalised or judged. Normalisation is the pipeline's job,
     and keeping it out of adapters is what lets a second source be added without
     re-deciding what a "business" is.
+
+    `website_hint` is the only place a source may say "this URL is the business's
+    own web presence". It is deliberately not filled in from `source_url`: an
+    OpenStreetMap element page is where the record lives, never the shop's
+    website, and treating it as one gave every unmapped business the same domain
+    and collapsed distinct leads into one (found by D4's live run). A source that
+    has no such claim leaves it None and the business keeps no website.
     """
 
     external_id: str | None
@@ -119,6 +126,7 @@ class DiscoveredItem:
     title_hint: str | None = None
     latitude: float | None = None
     longitude: float | None = None
+    website_hint: str | None = None
 
 
 @dataclass(frozen=True)

@@ -52,7 +52,7 @@ export const navigation: NavSection[] = [
     items: [
       { label: "Leads Dashboard", href: "/leads", icon: Radar, available: false },
       { label: "Discover Businesses", href: "/leads/discover", icon: Compass, available: false },
-      { label: "Map Explorer", href: "/leads/map", icon: MapPinned, available: false },
+      { label: "Map Explorer", href: "/leads/map", icon: MapPinned, available: true },
       { label: "Raw Results", href: "/leads/raw", icon: ListChecks, available: false },
       { label: "Qualified Leads", href: "/leads/qualified", icon: CheckSquare, available: false },
       { label: "CRM Pipeline", href: "/leads/crm", icon: FolderKanban, available: false },

@@ -81,6 +81,12 @@ export const api = {
       body,
       headers: csrf ? { "X-CSRF-Token": csrf } : undefined,
     }),
+  put: <T>(path: string, body?: unknown, csrf?: string | null) =>
+    request<T>(API_BASE, path, {
+      method: "PUT",
+      body,
+      headers: csrf ? { "X-CSRF-Token": csrf } : undefined,
+    }),
   delete: <T>(path: string, csrf?: string | null) =>
     request<T>(API_BASE, path, {
       method: "DELETE",

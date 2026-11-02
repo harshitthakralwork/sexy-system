@@ -259,7 +259,11 @@ def test_normalized_business_import_is_exercised() -> None:
     """Kept honest: the store consumes NormalizedBusiness objects produced by the
     pipeline, so a drift in that shape fails here rather than at runtime."""
     item = DiscoveredItem(
-        external_id="x", source_url="https://cafe.in", title_hint="Cafe", raw_data={}
+        external_id="x",
+        source_url="https://cafe.in",
+        website_hint="https://cafe.in",
+        title_hint="Cafe",
+        raw_data={},
     )
     business: NormalizedBusiness = normalize_item(
         item, source_slug="searxng", retrieved_at=RETRIEVED, default_region="IN"

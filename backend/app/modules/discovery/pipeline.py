@@ -124,17 +124,29 @@ def normalize_item(
 ) -> NormalizedBusiness:
     """Turn one raw hit into a business candidate, recording how each field arose.
 
-    For a search hit the URL is where we *found* the business, not proof of its
-    website, so it is stored as a claimed website with that caveat in provenance.
-    Names are never invented from a URL slug.
+    The URL we found a record at is provenance, never identity. D4 caught this the
+    hard way: adopting `item.source_url` as the business's website meant every
+    Overpass element without a `website` tag took `openstreetmap.org` as its domain,
+    and 16 distinct hospitals in one square kilometre collapsed into 3 — the shared
+    domain being a confirmed-duplicate identity key. Names are never invented from a
+    URL slug either, for the same reason.
     """
     raw: dict[str, Any] = dict(item.raw_data or {})
     name = sanitize_text(raw.get("name") or item.title_hint, max_length=MAX_NAME_LENGTH)
-    website = raw.get("website")
-    website_origin = "source_record"
-    if not website and item.source_url:
-        website = item.source_url
+    # A website is only ever claimed by the record itself: its own `website` tag,
+    # an explicit profile URL, or the source's `website_hint` (a search result
+    # pointing at the business's site). The URL a record was *found at* is
+    # provenance, and using it as identity made every unmapped OSM element share
+    # openstreetmap.org and merge 16 hospitals into 3.
+    website = raw.get("website") or raw.get("profile_url") or item.website_hint
+    if raw.get("website"):
+        website_origin = "source_record"
+    elif raw.get("profile_url"):
+        website_origin = "profile_url"
+    elif item.website_hint:
         website_origin = "search_result_url"
+    else:
+        website_origin = None
 
     website = sanitize_text(website, max_length=MAX_URL_LENGTH)
     normalized_domain = normalize_domain(website) if website else None
@@ -162,7 +174,7 @@ def normalize_item(
         ),
         field_provenance={
             "name": f"{source_slug}:{'osm_tags' if raw.get('name') else 'page_title'}",
-            "website": f"{source_slug}:{website_origin}",
+            "website": f"{source_slug}:{website_origin}" if website_origin else "not_observed",
             "email": f"{source_slug}:source_record" if email else "not_observed",
             "phone": f"{source_slug}:source_record" if phone else "not_observed",
         },
