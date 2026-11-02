@@ -15,6 +15,7 @@ import asyncio
 import json
 import uuid
 from collections.abc import Callable
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
@@ -23,9 +24,10 @@ from sqlalchemy import func, select
 
 from app.core.database import session_scope
 from app.modules.businesses.models import Business
-from app.modules.discovery.adapters.base import AccessDeniedError
+from app.modules.discovery.adapters.base import AccessDeniedError, DiscoveredItem
 from app.modules.discovery.models import DiscoveryJob, JobBatch, SearchArea, SourceRecord
 from app.modules.discovery.schemas import query_from_config
+from app.modules.discovery.store_sql import SqlBusinessStore
 from app.shared.geo import area_to_payload
 from tests.conftest import Session
 from tests.discovery_doubles import (
@@ -468,6 +470,91 @@ def test_the_same_source_record_found_twice_stays_one_business(
     detail = session_account.api.get(f"/api/v1/businesses/{rose[0]['id']}").json()
     # One business, one named source, two sightings underneath it.
     assert set(detail["source_slugs"]) == {"overpass"}
+
+
+def test_sixteen_real_hospitals_store_as_sixteen_businesses(
+    session_account: Session,
+) -> None:
+    """The D4 regression, against the names a live Hisar query actually returned.
+
+    Those 16 records once stored as 3, because every one of them had the same
+    derived domain — the OpenStreetMap page they were found on. Replaying them
+    through the real pipeline and the real store keeps that from coming back.
+    """
+    owner_id = uuid.UUID(session_account.user_id)
+    names = [
+        "Khetarpaul Hospital",
+        "Savant Hospital",
+        "Churamani Multispeciality Charitable Hospital",
+        "Gobind Nursing Home",
+        "Sharma Nursing Home",
+        "Dr Ravi Vermas Hospital",
+        "Hisar Children Hospital",
+        "Satija Hospital",
+        "Aabhari Plastic Surgery Center",
+        "Ravi Janana Hospital",
+        "Dr Menon ENT Hospital",
+        "Bimal Jain Children Hospital",
+        "Sunil Hospital",
+        "Dr Narender Sharma Hospital",
+        "Narayani Hospital",
+        "Ashok Hospital",
+    ]
+
+    async def run() -> tuple[int, int, int]:
+        from app.modules.deduplication.service import Candidate, find_duplicates
+        from app.modules.discovery.pipeline import normalize_item, validate
+
+        when = datetime.now(UTC)
+        collected = []
+        for index, name in enumerate(names):
+            business = normalize_item(
+                DiscoveredItem(
+                    external_id=f"node/{900000 + index}",
+                    source_url=f"https://www.openstreetmap.org/node/{900000 + index}",
+                    raw_data={"name": name, "city": "Hisar"},
+                ),
+                source_slug="overpass",
+                retrieved_at=when,
+            )
+            if validate(business).accepted:
+                collected.append(business)
+
+        candidates = [
+            Candidate(ref=business.fingerprint, key=business.dedup_key())
+            for business in collected
+        ]
+        auto = [pair for pair in find_duplicates(candidates) if pair.auto_mergable]
+
+        async with session_scope() as session:
+            store = SqlBusinessStore(session, owner_user_id=owner_id, job_id=None)
+            for business in collected:
+                await store.upsert(business)
+            stored = int(
+                await session.scalar(
+                    select(func.count())
+                    .select_from(Business)
+                    .where(Business.owner_user_id == owner_id, Business.deleted_at.is_(None))
+                )
+                or 0
+            )
+            records = int(
+                await session.scalar(
+                    select(func.count())
+                    .select_from(SourceRecord)
+                    .where(SourceRecord.owner_user_id == owner_id)
+                )
+                or 0
+            )
+            await session.commit()
+        return len(auto), stored, records
+
+    auto_merges, stored, records = asyncio.run(run())
+
+    assert len(names) == 16
+    assert auto_merges == 0, "no two distinct hospitals may be a confirmed duplicate"
+    assert stored == 16
+    assert records == 16
 
 
 # ------------------------------------------------------------------- viewport

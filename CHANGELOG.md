@@ -6,6 +6,59 @@ In Progress · Blocked · Deferred.
 
 ---
 
+## 2026-11-02 (Map Intelligence) — D4 measurement, the bug it caught, and the map
+
+### Live measurement (D4)
+
+`scripts/d4_overpass_probe.py` ran controlled queries against the public Overpass
+interpreter. Hisar, 5 km: **80 hospitals** (all named, all located, **2 with a
+phone**, 8 with a website), 4 hotels, 2 restaurants, 0 gyms, 0 grocery shops.
+Latency 36–45 s per successful query; **7 of 12 queries failed** with 502/504 or
+an error page served under HTTP 200. Defaults (25 km² tiles, 40 per job, one
+subdivision, 90 s timeout) were set from that, not from arithmetic.
+
+### Defects found only by running it
+
+- **Overpass QL the interpreter had never accepted.** The union block omitted the
+  inner semicolon and the category was used as a tag *key*, so `cafe` matched
+  nothing and the real endpoint answered `parse error: ';' expected`. Every
+  mocked test had passed.
+- **16 businesses stored as 3.** A record's provenance URL became its
+  `normalized_domain`; a shared domain is a confirmed-duplicate key, so hospitals
+  found on the same site merged, with their provenance folded in. Now identity
+  requires a website the record itself declares (`website_hint`, set per source).
+- **An inverted viewport bbox returned everything.** It parsed, failed validation
+  quietly and the filter was dropped — an unbounded read behind a map control.
+- **A circle re-ran as its own square.** Jobs stored only the bounding box, so a
+  saved 3 km search silently widened. Geometry now round-trips as drawn.
+- **Floating-point noise cost a row of tiles.** A region fitting exactly 4×4 was
+  planned as 5×5 and, near the limit, refused.
+
+### Backend
+
+`search_areas` (validated, bounded, owner-scoped CRUD), deterministic grid tiling
+with one batch per tile × source, truncation detection and subdivision, viewport
+pin queries that report what they left out, selected-row export that names the
+ids it refused, and source-record identity so a node seen in two tiles is one
+business.
+
+### Frontend
+
+Map Intelligence at `/leads/map`: Leaflet with OSM attribution, radius / rectangle /
+polygon drawing wired to real jobs, tile-state overlay, pixel-grid clustering,
+marker previews that say "no rating reported" when nothing reported one, live job
+and per-tile progress, saved areas, and one selection shared by pins and list.
+
+### Verification
+
+| Gate | Result |
+|---|---|
+| `pytest` | **261 passed**, 0 skipped (was 189) |
+| `ruff` / `mypy` | Clean, 73 files |
+| `tsc` / `eslint` / `next build` | Clean |
+| Live source | One 1 km Hisar job stored 16 real records; a 3 km job failed on `ReadError` and reported it |
+| Browser | Pins, selection sync and marker preview verified against the live records |
+
 ## 2026-11-02 (Phase 3) — Discovery jobs, and map discovery written down
 
 ### Backend

@@ -7,6 +7,23 @@ Format: decision, driver, alternatives rejected, consequence.
 
 ---
 
+## D-047 | Where a record was found is never the record's website
+**Decision:** `DiscoveredItem` carries an explicit `website_hint`. The SearXNG adapter
+sets it to the result URL; the Overpass adapter never does. `normalized_domain` — a
+confirmed-duplicate identity key — is derived only from a website the record itself
+declares.
+**Driver:** D4's live run returned 16 hospitals inside one kilometre of Hisar and
+stored 3. Each record's provenance URL (`openstreetmap.org/node/…`) had become its
+domain, so all of them shared an identity key and 13 were auto-merged.
+**Rejected:** using the source URL but excluding `openstreetmap.org` (a blocklist of
+aggregator domains is a moving target, and the next source's URL is just as
+unqualifiable); keeping the merge and demoting domain to a *probable* key (would
+weaken a control that is correct for genuine websites, which D4 showed only 10% of
+records have).
+**Consequence:** unmapped businesses now have no website rather than a borrowed one,
+`website_status` stays `unknown` until a crawl actually checks it, and the map's
+"no rating reported" is true instead of inherited from a source page.
+
 ## D-046 | Map-Based Business Discovery specified with JSON geometry, not PostGIS
 **Decision:** The approved map feature was written into all five governing documents.
 Geometry is stored as validated JSON on a new `search_areas` table, one `job_batches`

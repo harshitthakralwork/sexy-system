@@ -425,6 +425,33 @@ tile-size/latency curve beyond 5 km, and truncation frequency. They need either 
 healthier moment on the public instance or a self-hosted one — which needs Docker
 or a second native install, both still unavailable here.
 
+### The live run found a data-loss bug (same day)
+
+Running a real job through the API — `amenity=hospital`, 1 km circle at Hisar —
+returned **16 records and stored 3**. The OpenStreetMap page each record was found
+on had become every business's `normalized_domain`, and a shared domain is a
+confirmed-duplicate identity key: 13 distinct hospitals were folded into 3 with
+their provenance merged, silently. Mocked tests had passed for weeks because the
+fixtures never produced two records from the same source.
+
+Fixed by making the claim explicit per source (`DiscoveredItem.website_hint`,
+set by the search adapter, never by Overpass). Verified live again after the fix:
+`duplicates_merged` 13 → **0**, all 16 records processed. Locked in by
+`test_sixteen_real_hospitals_store_as_sixteen_businesses`, which replays the
+captured names through the pipeline and the real store.
+
+Also observed live, and now reported rather than hidden: the 3 km job failed with
+`overpass: 4 of 4 unit(s) failed — unexpected — ReadError`, stored nothing, and
+left the reason on the job row. Failure paths are real, not decorative.
+
+### Map Intelligence — verified in the browser (2026-11-02)
+
+Signed in as the operator at `/leads/map`: Leaflet renders OSM tiles with
+attribution; the viewport query returned the 3 real Hisar hospitals persisted by
+the live job; clicking a result row selected its pin and opened the marker preview
+("hospital · website unknown · no phone reported · no rating reported"). Choosing
+no area leaves *Start discovery* disabled rather than running an unbounded query.
+
 ## 10. Status vocabulary
 
 Not Started · In Progress · Implemented · Tested · Blocked · Deferred (with reason)

@@ -17,29 +17,32 @@ Specified in `PRD.md` §7.1.1, `DESIGN.md` §6.2–6.3, `architecture.md` §3.4/
 
 | Capability | Status | Evidence |
 |---|---|---|
-| Search by country/state/city/locality + category | Not Started | `DiscoveryQuery` carries `country`, `category` and `place_name`, but nothing resolves an administrative cascade into geometry |
-| Radius selection | Implemented in the API, no UI | `POST /api/v1/discovery/jobs` accepts centre + `radius_km` (bounded `0 < r <= 50`, validated against the Overpass ceiling); `LocationSpec` enforcement is **Tested** in the adapter tests, an end-to-end radius job is not |
-| Rectangle and polygon drawing | Not Started | Frontend has no map library installed; `search_areas` table does not exist |
-| Save/load search areas | Not Started | `search_areas` is specified in `database-schema.md` §7.6, with no migration written |
-| Grid tiling for large regions | Not Started | `job_batches` exists as a model with no tile columns and no writer; the planner is unwritten |
-| Per-tile progress, retry, resume | Partial | Job-level progress and cancel are **Tested** (14 tests in `tests/test_discovery_jobs.py`); per-tile granularity is the missing layer |
-| Discovery job over an area | Not Started | `POST /api/v1/discovery/jobs` accepts keywords, category and a centre/radius payload today; area ids are not accepted |
-| Overpass geographic adapter | Implemented, live-unverified | Query builder, tag whitelist, coordinate/radius validation and element cap are **Tested** against mocked transports; no real endpoint has been called yet |
+| Category + geometry search | **Tested** | `POST /discovery/jobs` accepts `category` (OSM `key=value`) with circle/rectangle/polygon geometry; the administrative cascade (country → state → city → locality) is still Not Started — it needs a geocoder, which is not wired `DiscoveryQuery` carries `country`, `category` and `place_name`, but nothing resolves an administrative cascade into geometry |
+| Radius selection | **Tested** | `POST /api/v1/discovery/jobs` accepts centre + `radius_km` (bounded `0 < r <= 50`, validated against the Overpass ceiling); `LocationSpec` enforcement is **Tested** in the adapter tests, an end-to-end radius job is not |
+| Rectangle and polygon drawing | Implemented, manually verified | Leaflet drawing in `components/map/map-canvas.tsx`; geometry is re-validated server-side. Verified in the browser, not covered by an automated frontend test — there is no frontend test runner in this project yet
+| Save/load search areas | **Tested** | `search_areas` migrated (`2c1d3459383d`) with geometry CHECK constraints; CRUD is owner-scoped and cross-owner reads/updates/deletes return 404 in `test_map_discovery.py` |
+| Grid tiling for large regions | **Tested** | `shared/geo.py` + `discovery/tiles.py`: deterministic non-overlapping partition, stable keys, refusal with the tile count when over the limit; 30 unit tests plus an end-to-end 16-tile job |
+| Per-tile progress, retry, resume | **Tested** | One `job_batches` row per tile × source with bounds, counters, truncation flag and retry count; `open_batch` reuses a tile by its deterministic key instead of inserting a second row |
+| Truncation and subdivision | **Tested** (unit) | `last_capped` → batch `truncated` → quarters the tile, bounded by `discovery_max_tile_depth`; the job names the capped units. Never exercised live: no public query came near a cap |
+| Discovery job over an area | **Tested** | `POST /discovery/jobs` accepts an ad-hoc geometry or a saved `area_id` (never both), stores the resolved shape on the search row, and runs it — verified end to end against live Overpass |
+| Overpass geographic adapter | **Live-verified** | Query builder, `key=value` tags, `nwr` + `out center`, tag whitelist, radius/element caps. A real 1 km Hisar query returned 16 hospitals; the pre-D4 query shape was rejected by the live interpreter as a parse error, and two tests now pin the shape Query builder, tag whitelist, coordinate/radius validation and element cap are **Tested** against mocked transports; no real endpoint has been called yet |
 | SearXNG as a non-spatial source | Implemented, live-unverified | Adapter **Tested** with mocks; per §9.4 it must degrade to administrative text, which is not implemented |
-| Pins, clustering, marker preview | Not Started | Sidebar exposes "Map Explorer" as a disabled control; nothing renders |
-| Map ↔ table sync | Not Started | The businesses API filters and paginates but accepts no `bbox`, so there is no viewport query to share |
-| Map filters (rating, reviews) | Not Started | `rating` / `review_count` columns are specified but not migrated. Of the required dimensions, `website_status` is already an owner-scoped filter on the businesses API; **phone availability is not**, and neither is rating or review count |
-| Dedup across overlapping searches | Partial | Identity rules (domain, then phone, never name alone) and provenance-preserving merges are **Tested**; nothing yet exercises them across two geographic units |
-| Provenance per tile | Not Started | `source_records.job_id` is written and **Tested**; `batch_id` does not exist |
+| Pins, clustering, marker preview | Implemented, manually verified | Pixel-grid clustering and marker previews render real stored records; browser-verified against live Hisar data. No automated frontend test Sidebar exposes "Map Explorer" as a disabled control; nothing renders |
+| Map ↔ table sync | Implemented | The map's own results panel shares filters, selection and export with the pins; the standalone Leads results table (Phase 4) does not yet share that state The businesses API filters and paginates but accepts no `bbox`, so there is no viewport query to share |
+| Map filters | Implemented for what exists | Website status, phone availability and category filter real stored data and are **Tested**; `rating`/`review_count` columns exist but nothing populates them yet, so no rating filter is offered `rating` / `review_count` columns are specified but not migrated. Of the required dimensions, `website_status` is already an owner-scoped filter on the businesses API; **phone availability is not**, and neither is rating or review count |
+| Dedup across overlapping searches | **Tested** | Identity now includes the source record id, so one OSM node seen in two tiles or two re-runs is one business with every sighting kept. D4 caught the opposite failure: 16 hospitals stored as 3 Identity rules (domain, then phone, never name alone) and provenance-preserving merges are **Tested**; nothing yet exercises them across two geographic units |
+| Provenance per tile | **Tested** | `source_records.job_id` and `batch_id` are both written; a tile's records can be named, re-run or excluded from a coverage claim |
 | Live job progress with named failures | **Tested** | `discovery_jobs.report` carries per-source outcomes and counters; a failed source yields `failed`, and a partial one `completed` with the failure named |
-| Export the current selection | Partial | CSV export with formula neutralisation is **Tested** end-to-end; exporting a *map* selection waits on the map |
-| Bounds, throttles, no keyed provider | Partial | Keyword/page/radius/element caps are **Tested** at the adapter level, and job creation is CSRF-gated (**Tested**). The 10-jobs-per-5-minutes limit is implemented but has no test yet. No per-user geographic request quota exists |
+| Export the current selection | **Tested** | `POST /businesses/export/selected` returns the picked rows with provenance, refuses cross-owner ids and reports how many were skipped; CSRF required |
+| Bounds, throttles, no keyed provider | **Tested** | Job-creation rate limit now covered; per-user geographic request quotas beyond it are still Not Started Keyword/page/radius/element caps are **Tested** at the adapter level, and job creation is CSRF-gated (**Tested**). The 10-jobs-per-5-minutes limit is implemented but has no test yet. No per-user geographic request quota exists |
 
-**Honest limits.** Nothing in this feature has been demonstrated against a live map
-provider. The two things that would falsify the plan fastest are (1) how many usable
-Indian business records Overpass actually returns for a Bengaluru radius, which is the
-pending D4 measurement, and (2) whether tile counts stay inside a public instance's
-tolerance. Both must be measured before the UI work in this section is scheduled.
+**Honest limits.** The live path is now demonstrated: a real Overpass query stored
+real Hisar businesses and the browser drew them as pins, and the failures are real
+too (the 3 km job died on a `ReadError` and reported it). What is still unproven at
+scale is Delhi/Gurugram coverage, the tile-size curve beyond 5 km, and truncation
+frequency — the public instance refused enough queries that these are recorded as
+blocked, not as measured. The map has no automated frontend tests; its behaviour was
+verified by hand, and the backend behind every control is covered.
 
 ## MVP definition of done (PRD section 21)
 
@@ -134,11 +137,11 @@ Startup Intelligence tables · Social Intelligence tables.
 
 ## Known gaps to close before they become expensive
 
-1. **D4 has no measured basis yet.** Nothing verifies that SearXNG or Overpass
-   actually return usable Indian business records. Both adapters are tested against
-   mocked transports, which proves the code and not the data. Phase 2a exists to
-   measure this; if the counts are thin, D4 must be revisited before UI work
-   multiplies the mistake.
+1. **D4 is partly measured, and it already changed the code.** A live Overpass query
+   returned 16 real Hisar hospitals and exposed an identity bug that had been
+   silently destroying records (see `PROJECT_STATUS.md` section 9). SearXNG remains
+   unmeasured — no instance exists here — and Delhi/Gurugram coverage plus the tile
+   curve are blocked on a saturated public endpoint, not on our code.
 2. ~~`signal_key` has no defined vocabulary~~ **Closed** —
    `app/shared/signals.py` now defines the contract, with the rule that a signal is an
    observation and `None` never becomes `False`. The starter list covers identity,

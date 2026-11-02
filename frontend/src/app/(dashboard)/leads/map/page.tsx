@@ -55,12 +55,16 @@ export default function MapIntelligencePage() {
   );
 
   const pins = useQuery({
-    queryKey: ["viewport", viewport, filters, jobId],
+    queryKey: ["viewport", viewport, filters, category, jobId],
     enabled: Boolean(viewport),
     queryFn: () => {
       if (!viewport) throw new Error("no viewport");
       const params = new URLSearchParams({ bbox: viewport.join(",") });
-      if (category.trim()) params.set("category", category.trim());
+      // The query category is OSM syntax (amenity=hospital); what gets stored on a
+      // business is the value (hospital). Filtering on the query string would
+      // match nothing and read as an empty area.
+      const storedCategory = category.split("=").pop()?.trim();
+      if (storedCategory) params.set("category", storedCategory);
       if (filters.websiteStatus) params.set("website_status", filters.websiteStatus);
       if (filters.hasPhone) params.set("has_phone", filters.hasPhone);
       return api.get<ViewportResponse>(`/businesses/viewport?${params.toString()}`);
