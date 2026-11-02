@@ -281,6 +281,11 @@ class SocialSearchTrack(Base, OwnedMixin, UUIDPrimaryKeyMixin, TimestampMixin):
     geography: Mapped[str | None] = mapped_column(String(150), nullable=True)
     date_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     date_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Per-platform extras a track needs beyond the shared vocabulary: feed URLs for
+    # RSS, subreddit names for Reddit, an instance host for Mastodon, etc.
+    source_config: Mapped[dict] = mapped_column(
+        JSONType, nullable=False, default=dict, server_default=text("'{}'::jsonb")
+    )
     frequency_config: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
     max_results_per_run: Mapped[int] = mapped_column(
         Integer, nullable=False, default=50, server_default=text("50")

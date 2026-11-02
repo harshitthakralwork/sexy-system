@@ -35,6 +35,7 @@ def make_celery() -> Celery:
             "sparkxflow.retention.*": {"queue": "scheduled"},
             "sparkxflow.maintenance.*": {"queue": "scheduled"},
             "sparkxflow.automation.*": {"queue": "automation"},
+            "sparkxflow.social.*": {"queue": "social"},
         },
         # Scheduled work runs from a separate `celery beat` process; the schedule
         # is data here so the worker image and the beat image stay in lockstep.
@@ -45,6 +46,10 @@ def make_celery() -> Celery:
             },
             "tick-schedules": {
                 "task": "sparkxflow.automation.tick_schedules",
+                "schedule": 60.0,
+            },
+            "tick-social-tracks": {
+                "task": "sparkxflow.social.tick_tracks",
                 "schedule": 60.0,
             },
         },

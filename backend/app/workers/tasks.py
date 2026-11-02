@@ -62,3 +62,19 @@ def tick_schedules_task() -> int:
     from app.modules.automation.service import run_due_schedules
 
     return asyncio.run(run_due_schedules())
+
+
+@celery_app.task(name="sparkxflow.social.run_track")
+def social_run_track_task(run_id: str) -> str:
+    """Worker entry point for a queued social intelligence track run."""
+    from app.modules.social.tracks import execute_track_run
+
+    return asyncio.run(execute_track_run(uuid.UUID(run_id)))
+
+
+@celery_app.task(name="sparkxflow.social.tick_tracks")
+def social_tick_tracks_task() -> int:
+    """Worker entry point for the scheduled social-track sweep."""
+    from app.modules.social.tracks import run_due_tracks
+
+    return asyncio.run(run_due_tracks())
