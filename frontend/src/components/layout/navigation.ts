@@ -1,6 +1,8 @@
 import {
   BarChart3,
+  Bookmark,
   Briefcase,
+  Building2,
   CalendarClock,
   CheckSquare,
   Compass,
@@ -17,6 +19,7 @@ import {
   Settings,
   Shield,
   Sparkles,
+  Target,
   Users,
   Workflow,
   type LucideIcon,
@@ -72,6 +75,16 @@ export const navigation: NavSection[] = [
     title: "Social Intelligence",
     items: [
       { label: "Social Research", href: "/social", icon: Globe, available: true },
+    ],
+  },
+  {
+    title: "Social & Demand Intelligence",
+    items: [
+      { label: "Intelligence Overview", href: "/intelligence", icon: LayoutDashboard, available: true },
+      { label: "Demand Intelligence", href: "/intelligence/demand", icon: Target, available: true },
+      { label: "Business Intelligence", href: "/intelligence/business", icon: Building2, available: true },
+      { label: "Discovery Tracks", href: "/intelligence/tracks", icon: Radar, available: true },
+      { label: "Saved Items", href: "/intelligence/saved", icon: Bookmark, available: true },
     ],
   },
   {

@@ -736,3 +736,108 @@ export interface SendResult {
   error: string | null;
 }
 
+// --- Social & Demand Intelligence Engine ------------------------------------
+
+export interface IntelligenceResult {
+  id: string;
+  platform_id: string;
+  platform_slug: string | null;
+  external_id: string;
+  content_type: string;
+  title: string | null;
+  snippet: string | null;
+  content_text: string | null;
+  content_url: string | null;
+  canonical_url: string | null;
+  published_at: string | null;
+  discovered_at: string | null;
+  retrieval_status: string | null;
+  track_type: string | null;
+  classification: string | null;
+  confidence_score: number | null;
+  classification_method: string | null;
+  matched_terms: string[];
+  evidence: Record<string, unknown>[];
+  needs_review: boolean;
+  source_attribution: Record<string, unknown>[];
+  author_username: string | null;
+  collected_at: string;
+}
+
+export interface IntelligenceList {
+  items: IntelligenceResult[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface Track {
+  id: string;
+  name: string;
+  track_type: string;
+  keywords: string[];
+  exact_phrases: string[];
+  excluded_terms: string[];
+  hashtags: string[];
+  platforms: string[];
+  language: string | null;
+  geography: string | null;
+  source_config: Record<string, unknown>;
+  frequency_config: Record<string, unknown> | null;
+  max_results_per_run: number;
+  is_enabled: boolean;
+  is_paused: boolean;
+  next_run_at: string | null;
+  last_run_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TrackList {
+  items: Track[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface DiscoveryRun {
+  id: string;
+  track_id: string | null;
+  status: string;
+  trigger_type: string;
+  started_at: string | null;
+  finished_at: string | null;
+  sources_attempted: string[];
+  queries_attempted: number;
+  results_returned: number;
+  stored_new: number;
+  duplicates: number;
+  review_flagged: number;
+  classification_counts: Record<string, number>;
+  error_summary: string | null;
+  duration_ms: number | null;
+  created_at: string;
+}
+
+export interface DiscoveryRunList {
+  items: DiscoveryRun[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface TrackRun {
+  run_id: string;
+  status: string;
+}
+
+export interface SavedItem {
+  id: string;
+  content_id: string;
+  note: string | null;
+  tags: string[];
+  converted_business_id: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
