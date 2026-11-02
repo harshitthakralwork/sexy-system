@@ -166,8 +166,15 @@ class Tag(Base, UUIDPrimaryKeyMixin):
 
 
 class BusinessTag(Base):
+    """The composite primary key *is* the uniqueness rule here.
+
+    A separate UniqueConstraint over the same two columns was removed after
+    `alembic check` flagged drift: autogenerate folds it into the key at table
+    creation but keeps reporting it as missing, which would have left a
+    migration that never converges.
+    """
+
     __tablename__ = "business_tags"
-    __table_args__ = (UniqueConstraint("business_id", "tag_id", name="uq_business_tag"),)
 
     business_id: Mapped[uuid.UUID] = mapped_column(
         UUIDType, ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, primary_key=True

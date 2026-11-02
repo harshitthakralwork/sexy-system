@@ -33,6 +33,11 @@ dev = [
     "ruff>=0.6",
     "mypy>=1.11",
     "types-beautifulsoup4>=4.12",
+    # A real PostgreSQL for local development and integration tests, installable
+    # without administrator rights. Dev-only: production still runs the container
+    # image. The binaries are a third-party repackaging, so they must never reach
+    # a runtime dependency set.
+    "postgresql-binaries>=18.0",
 ]
 
 [tool.uv]

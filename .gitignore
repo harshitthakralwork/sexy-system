@@ -40,6 +40,10 @@ tmp/
 .DS_Store
 Thumbs.db
 
+# --- Local development database (never commit a data directory) ---
+backend/.devdb/
+.devdb/
+
 # --- Local databases / dumps ---
 *.sqlite3
 *.dump

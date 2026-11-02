@@ -7,6 +7,72 @@ Format: decision, driver, alternatives rejected, consequence.
 
 ---
 
+## D-040 · Integrity is asserted against the database, not the model
+**Decision:** `tests/test_database_schema.py` queries `pg_constraint` and attempts real
+writes, asserting every table has a primary key, foreign keys reject dangling rows,
+composite keys reject duplicates, CHECK constraints reject invented enum values, and
+`timestamptz`/JSONB round-trip correctly.
+**Driver:** D-039. Nothing in the previous 139-test suite could have seen a missing
+primary key, because every schema test worked from SQLAlchemy metadata — the same
+document that was wrong.
+**Rejected:** Trusting `alembic check` (it reported no drift while the key was absent);
+a metadata-only assertion (proves the model, not the database).
+**Consequence:** These tests skip when no PostgreSQL is reachable, so the suite still
+runs on a bare machine — but a skip is not a pass, and the skip reason names the
+missing dependency.
+
+## D-039 · Alembic autogenerate is a draft that must be read, and a defect is repaired forward
+**Decision:** `0002` created `business_tags` with a UNIQUE constraint over the same two
+columns as its declared composite primary key — and **no primary key at all**.
+Autogenerate then reported "no drift" in either direction. Fixed by a forward
+migration (`7c41d0b52ae3`) that adds the key, not by editing `0002`.
+**Driver:** Observed live. A table without a primary key is unreplicable, unmergeable
+and free to accumulate duplicates. Editing an already-applied migration would leave
+this database and its history describing different schemas.
+**Rejected:** Rewriting `0002`; leaving the redundant unique constraint in the model
+(it was the trigger); silently accepting "no drift" as proof of correctness.
+**Consequence:** Verified by rebuilding from an empty database: 37 tables, zero without
+a primary key. Rule adopted: after any autogenerate that creates a table whose primary
+key and a unique constraint share columns, read the DDL.
+
+## D-038 · Development PostgreSQL comes from a pip wheel, not an installer
+**Decision:** `postgresql-binaries` (dev extra) supplies real PostgreSQL 18.6 binaries;
+`scripts/devdb.ps1` runs `initdb`/`pg_ctl` against a gitignored `backend/.devdb` data
+directory, listening on 127.0.0.1 only with trust authentication.
+**Driver:** Docker Desktop and the EDB installer both need administrator rights and a
+reboot. The roadmap and the master prompt both require a documented native fallback
+rather than stalling Phase 1.
+**Rejected:** SQLite (the prompt explicitly refuses SQLite-only testing as proof of
+PostgreSQL behaviour, and JSONB/`gen_random_uuid`/`pg_trgm` are not portable); waiting
+for an elevated session.
+**Consequence:** Migrations, integrity constraints and asyncpg behaviour are now
+genuinely testable. Two caveats that must not be forgotten: these are third-party
+repackaged binaries, so they stay out of every runtime dependency set and production
+still uses the container image; and the postmaster must be started with its `bin`
+directory on `PATH`, or every backend dies with `0xC0000142` while the server still
+reports "ready to accept connections".
+
+## D-037 · Both loopback spellings are first-class CORS origins
+**Decision:** Default `cors_origins` includes `http://localhost:3000` **and**
+`http://127.0.0.1:3000`.
+**Driver:** Observed during preview: a dashboard opened at `127.0.0.1:3000` could not
+read the API because the browser treats it as a different origin from `localhost:3000`,
+and the failure looked like a dead backend rather than a blocked request.
+**Rejected:** Telling the operator to always use one spelling; wildcard `*` (refused in
+production by D-009-class validation, since session cookies are credentialed).
+
+## D-036 · Master prompt phases govern sequencing; the five documents govern detail
+**Decision:** The master prompt's Phase 0–11 sequence supersedes the roadmap document's
+Phase 0–6 numbering. Mapping: prompt 0→roadmap 0; prompt 1→roadmap 1 (infrastructure);
+prompt 2→roadmap 1 (authentication); prompt 3–5→roadmap 2 (Leads MVP, split into
+slice/enrichment); prompt 6→roadmap 2 (CRM); prompt 7→roadmap 5 (Startup);
+prompt 8→roadmap 3 (Social); prompt 9→roadmap 4 (Automation); prompt 10→roadmap
+§11 analytics; prompt 11→roadmap deployment.
+**Driver:** Two authoritative phase lists now exist. Numbering them differently without
+a map guarantees the tracking documents drift apart.
+**Consequence:** `PROJECT_STATUS.md` speaks in master-prompt phases and cites the
+roadmap section for requirements detail.
+
 ## D-035 · Two URL policies, deliberately asymmetric
 **Decision:** `validate_service_base_url()` permits loopback and plain http;
 `validate_discovered_target()` refuses every non-public address unless explicitly

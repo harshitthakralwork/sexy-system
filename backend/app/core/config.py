@@ -47,7 +47,12 @@ class Settings(BaseSettings):
     cookie_secure: bool = False
     cookie_samesite: str = "lax"
 
-    cors_origins: list[str] = Field(default_factory=lambda: ["http://localhost:3000"])
+    # Both loopback spellings, because a browser at http://127.0.0.1:3000 is a
+    # different origin from http://localhost:3000 and would otherwise be silently
+    # blocked by CORS — which surfaces as a dashboard stuck on "checking".
+    cors_origins: list[str] = Field(
+        default_factory=lambda: ["http://localhost:3000", "http://127.0.0.1:3000"]
+    )
 
     searxng_base_url: str = "http://localhost:8080"
     searxng_timeout_seconds: float = 20.0

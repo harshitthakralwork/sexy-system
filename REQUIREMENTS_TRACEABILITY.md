@@ -13,7 +13,7 @@ covers the behaviour, not because a file with the right name exists.
 
 | # | Requirement | Where it lands | Status | Evidence |
 |---|---|---|---|---|
-| 1 | Open and securely access the platform | `modules/auth` | Not Started | Phase 1. Models exist (`users`, `user_sessions`); Argon2 hashing and token digests implemented and used by nothing yet |
+| 1 | Open and securely access the platform | `modules/auth` | Not Started — **unblocked** | Primitives **Tested** (Argon2id, hashed session tokens, anti-enumeration); models exist. Endpoints are Phase 2's critical path now that a database runs |
 | 2 | Discover businesses using supported sources | `modules/discovery/adapters` | **Implemented** | SearXNG + Overpass adapters written against the `DiscoveryAdapter` contract; **Tested** with mocked transports (17 tests). Not yet run against a live instance |
 | 3 | View results in tables and on a map | frontend leads screens | Not Started | Phase 2a (table) / 2b (map) |
 | 4 | Research individual business profiles | `modules/businesses` | Not Started | Phase 2a |
@@ -55,7 +55,7 @@ covers the behaviour, not because a file with the right name exists.
 
 | Rule | Status | Evidence |
 |---|---|---|
-| Migrations for every schema change | Implemented | Alembic configured async-aware; `0001_extensions` revision |
+| Migrations for every schema change | **Tested** | Alembic async-aware; 4 revisions applied to a real PostgreSQL 18.6, verified by rebuilding from an empty database (37 tables, `alembic check` clean) |
 | Never hardcode credentials | Tested | `.env` git-ignored, `.env.example` only; compose reads secrets from env |
 | Never fake successful operations | Implemented | No seeded/demo data; dashboard renders an empty state instead of numbers |
 | Do not silently ignore failures | Tested | Synchronous dispatcher raises on an unknown task instead of no-op |
@@ -111,11 +111,11 @@ Startup Intelligence tables · Social Intelligence tables.
    `app/shared/signals.py` now defines the contract, with the rule that a signal is an
    observation and `None` never becomes `False`. The starter list covers identity,
    website, activity and freshness; extend it as enrichment lands.
-3. **Auth is implemented but unexercised.** Hashing and session helpers pass no
-   integration test because no database exists yet.
+3. ~~Auth is implemented but unexercised~~ **Unblocked** — a real PostgreSQL is running;
+   the endpoints and their integration tests are Phase 2 work, not a missing dependency.
 4. **The in-memory store is not the real store.** `BusinessStore` is a protocol; the
-   SQLAlchemy implementation must be written when a database can test it, not before.
-   Until then "Store" in the pipeline means "kept in process memory".
+   SQLAlchemy implementation is now writable and testable. Until it exists, "Store" in
+   the pipeline means "kept in process memory" — records do not survive a restart.
 5. **Live network verification has not happened.** The first real SearXNG and Overpass
    calls will be the first test of the error taxonomies against actual failures such as
    bot protection and instance throttling.
