@@ -199,6 +199,7 @@ class JobOut(BaseModel):
     total_records: int
     processed_records: int
     failed_records: int
+    retry_count: int
     area_id: uuid.UUID | None = None
     created_at: datetime
     started_at: datetime | None

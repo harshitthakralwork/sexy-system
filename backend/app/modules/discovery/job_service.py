@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import JobStateError, NotFoundError
@@ -13,6 +13,13 @@ from app.modules.discovery.models import DiscoveryJob, JobBatch, JobLog, Search
 JOB_TYPE_DISCOVERY = "discovery"
 MODULE_LEADS = "leads"
 TERMINAL_STATUSES = frozenset({"completed", "failed", "cancelled", "blocked"})
+# Statuses a worker may transition into `running`. `failed` and `blocked` are here
+# so a retry is just a re-dispatch; `paused` is reserved for a future pause control.
+RUNNABLE_STATUSES = frozenset({"queued", "blocked", "failed", "paused"})
+# A job in these states may be reset and re-run. `completed` is deliberately
+# absent: re-running a sweep that already ran would re-query shared infrastructure
+# for nothing, so the operator is told to start a new search instead.
+RETRYABLE_STATUSES = frozenset({"failed", "blocked", "cancelled"})
 
 
 async def create_job(
@@ -66,6 +73,94 @@ async def get_job(
     return job
 
 
+async def claim_job(session: AsyncSession, job_id: uuid.UUID) -> DiscoveryJob | None:
+    """Atomically move a runnable job into `running`, or return None.
+
+    The guard is the UPDATE itself. Two workers that both see a `queued` job race
+    to run it; only one UPDATE matches a row still in a runnable status, so the
+    loser gets None and must not execute the work again. Returning None for
+    `completed`/`cancelled`/`running` is what makes a duplicate Celery delivery —
+    or a re-submitted retry — a no-op instead of a double sweep.
+    """
+    now = datetime.now(UTC)
+    result = await session.execute(
+        update(DiscoveryJob)
+        .where(DiscoveryJob.id == job_id, DiscoveryJob.status.in_(RUNNABLE_STATUSES))
+        .values(status="running", started_at=func.coalesce(DiscoveryJob.started_at, now))
+        .returning(DiscoveryJob.id)
+    )
+    await session.commit()
+    if result.scalar_one_or_none() is None:
+        return None
+    return await session.get(DiscoveryJob, job_id)
+
+
+async def reset_for_retry(
+    session: AsyncSession, job_id: uuid.UUID, owner_user_id: uuid.UUID
+) -> DiscoveryJob:
+    """Put a terminal job back in the queue, preserving its history.
+
+    Counters and timestamps reset so the retry reports only its own run; the
+    previous report is overwritten by the new one, and past runs remain visible
+    in the job log and audit trail. Records already stored are kept — a retry
+    re-asks the sources and merges, it does not un-run the first attempt.
+    """
+    job = await get_job(session, job_id, owner_user_id)
+    if job.status == "completed":
+        raise JobStateError(
+            "A completed job has nothing to retry; start a new search instead",
+            details={"job_id": str(job_id), "status": job.status},
+        )
+    if job.status not in RETRYABLE_STATUSES:
+        raise JobStateError(
+            f"A {job.status} job cannot be retried",
+            details={"job_id": str(job_id), "status": job.status},
+        )
+    job.status = "queued"
+    job.retry_count += 1
+    job.error_details = None
+    job.started_at = None
+    job.completed_at = None
+    job.celery_task_id = None
+    job.progress_percent = 0
+    job.total_records = 0
+    job.processed_records = 0
+    job.failed_records = 0
+    await add_log(session, job.id, "info", f"Retry #{job.retry_count} requested")
+    await session.flush()
+    return job
+
+
+async def recover_stale_jobs(session: AsyncSession, *, stale_after_seconds: int) -> int:
+    """Mark jobs a dead worker left in `running` as failed, so they can be retried.
+
+    Only jobs with a `started_at` older than the window are touched: a sweep that
+    is merely long-running keeps its `running` status. The threshold is measured
+    from job start, not last progress, so the window must exceed the longest
+    legitimate job — the default is hours, not minutes.
+    """
+    cutoff = datetime.now(UTC) - timedelta(seconds=stale_after_seconds)
+    rows = (
+        await session.scalars(
+            select(DiscoveryJob).where(
+                DiscoveryJob.status == "running",
+                DiscoveryJob.started_at.is_not(None),
+                DiscoveryJob.started_at < cutoff,
+            )
+        )
+    ).all()
+    for job in rows:
+        job.status = "failed"
+        job.error_details = {
+            "reason": "Worker lost: no completion observed within the stale window",
+            "stale": True,
+        }
+        mark_finished(job)
+        await add_log(session, job.id, "error", "Marked failed: worker lost (stale running job)")
+    await session.flush()
+    return len(rows)
+
+
 async def list_jobs(
     session: AsyncSession, owner_user_id: uuid.UUID, *, limit: int, offset: int
 ) -> tuple[list[DiscoveryJob], int]:
@@ -102,11 +197,6 @@ async def add_log(
     metadata: dict[str, Any] | None = None,
 ) -> None:
     session.add(JobLog(job_id=job_id, level=level, message=message, metadata_=metadata or {}))
-
-
-def mark_running(job: DiscoveryJob) -> None:
-    job.status = "running"
-    job.started_at = job.started_at or datetime.now(UTC)
 
 
 def mark_finished(job: DiscoveryJob) -> None:

@@ -129,6 +129,20 @@ as hostile input. They are recorded here so they cannot be dropped later.
 | Security headers / CSP | Not specified | Not Started — Phase 11 |
 | Dependency vulnerability triage | Not specified | Not Started — 16 moderate npm advisories still untriaged |
 
+## Background execution (Phase 1, implemented 2026-11-02)
+
+| Capability | Status | Evidence |
+|---|---|---|
+| Job submission without blocking the API | **Tested** (inline) / configured (queued) | Inline dispatch runs the job after the response; the Celery path publishes to a broker. The queued path is not live-run here — no Redis on this machine |
+| Worker processes the job | Configured, live-unverified | `sparkxflow.discovery.run_job` is the shared entry point for both the Celery worker and the inline runner; the inline path is fully exercised by tests |
+| Exactly-once execution | **Tested** | `claim_job` transitions with `UPDATE … RETURNING`; a duplicate delivery returns `None` and `runner.execute` refuses to re-run (`test_job_lifecycle.py`) |
+| Progress and final status persisted | **Tested** | `discovery_jobs` counters/report, `job_batches`, `job_logs` |
+| Failed tasks retried safely | **Tested** | `POST /discovery/jobs/{id}/retry` re-queues failed/blocked/cancelled; refused for completed (409); cross-owner is 404 |
+| Recovery after worker restart | **Tested** (logic) | `recover_stale_jobs` fails `running` jobs older than `stale_job_after_seconds`; broker-side redelivery comes from `acks_late` + `visibility_timeout`; live crash redelivery unverified without Redis |
+| Duplicate job prevention | **Tested** | The atomic claim is the prevention — a re-delivered task is a no-op |
+| Scheduled job execution | Configured, live-unverified | Celery beat schedule (`recover-stale-jobs` every 10 min) + `beat` compose service; needs a beat process |
+| Health/readiness: DB, Redis, workers | **Tested** | `/health/ready` reports `database`, `redis`, `worker` individually |
+
 ## Deferred (with reason — see IMPLEMENTATION_PLAN.md section 7)
 
 Hybrid worker dispatch and heartbeats · Google Sheets two-way sync · cloud browser

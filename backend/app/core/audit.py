@@ -28,6 +28,7 @@ SENSITIVE_ACTIONS = frozenset(
         "crm.stage_change",
         "discovery.job_created",
         "discovery.job_cancelled",
+        "discovery.job_retried",
         "export.create",
         "source.configure",
         "source.enable",

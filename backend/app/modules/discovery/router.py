@@ -208,6 +208,42 @@ async def cancel_job(
     return _job_out(job)
 
 
+@router.post("/jobs/{job_id}/retry", response_model=JobOut)
+async def retry_job(
+    request: Request,
+    job_id: uuid.UUID,
+    background: BackgroundTasks,
+    session: AsyncSessionDep,
+    user: CurrentUser,
+    _csrf: None = Csrf,
+) -> JobOut:
+    """Re-queue a failed, blocked or cancelled job.
+
+    A completed job is refused — re-running a sweep that already ran would
+    re-query shared infrastructure for nothing. Records stored by the previous
+    attempt are kept; the retry merges, it does not un-run history.
+    """
+    allowed, retry_after = get_rate_limiter().check("discovery_job_retry", str(user.id), JOB_RULE)
+    if not allowed:
+        raise TooManyRequestsError(
+            "Too many retries requested. Try again later.",
+            headers={"Retry-After": str(int(retry_after))},
+            details={"retry_after_seconds": int(retry_after)},
+        )
+    job = await job_service.reset_for_retry(session, job_id, user.id)
+    dispatch_mode = await runner.dispatch(session, job, background)
+    await record_audit(
+        session,
+        action="discovery.job_retried",
+        owner_user_id=user.id,
+        entity_type="discovery_job",
+        entity_id=job.id,
+        ip_address=client_ip(request),
+        metadata={"dispatch": dispatch_mode, "retry_count": job.retry_count},
+    )
+    return _job_out(job)
+
+
 @router.post("/areas", response_model=SearchAreaOut, status_code=status.HTTP_201_CREATED)
 async def create_area(
     request: Request,

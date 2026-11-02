@@ -6,6 +6,51 @@ In Progress · Blocked · Deferred.
 
 ---
 
+## 2026-11-02 (Background execution) — jobs run exactly once, retry safely, recover
+
+Phase 1 of full product completion. The queued-execution path (Celery + Redis)
+already existed; this milestone closes the correctness gaps around it.
+
+### What changed
+
+- **Idempotent claim.** `job_service.claim_job` moves a job `queued/blocked/failed`
+  → `running` with a single `UPDATE … RETURNING`; a duplicate Celery delivery or a
+  re-submitted retry gets `None` and does not sweep the region twice. `runner.execute`
+  now claims before running instead of reading and trusting the row.
+- **Retry endpoint.** `POST /discovery/jobs/{id}/retry` re-queues a `failed`,
+  `blocked` or `cancelled` job — never a `completed` one (re-querying shared
+  infrastructure for nothing). Counters/timestamps reset; prior history stays in
+  the job log and audit trail; `retry_count` is exposed on `JobOut`.
+- **Stale-job recovery.** `job_service.recover_stale_jobs` marks jobs left in
+  `running` past `stale_job_after_seconds` (default 6 h) as failed with a
+  `stale` flag, so a worker that died mid-run leaves a retryable row instead of
+  one stuck "running" forever. Published on a Celery beat schedule
+  (`sparkxflow.maintenance.recover_stale_jobs`, every 10 min) and directly
+  callable.
+- **Worker readiness.** `/health/ready` now reports a third component, `worker`:
+  `inline (API process)` under `SPARKX_RUN_JOBS_SYNCHRONOUSLY`, otherwise a
+  Celery ping with a named failure when no worker answers.
+- **Beat service.** `docker-compose.yml` gains a `beat` service running the
+  schedule the worker executes.
+
+### Verification
+
+- 7 new tests in `tests/test_job_lifecycle.py`: duplicate delivery is a no-op,
+  claim hands a job to exactly one worker, a failed job retries and runs again,
+  retrying a completed job is refused (409), cross-user retry is 404, stale
+  running jobs are failed, recent running jobs are untouched. 267 backend tests
+  pass; ruff and mypy clean.
+
+### Blocked
+
+- **Redis/Celery live path not exercised.** This machine has no Docker or Redis,
+  so the worker actually consuming a queued job, broker-redelivery after a crash,
+  and beat firing on schedule are verified by configuration and tests only. The
+  inline (synchronous) execution path is fully exercised. Live verification of the
+  queued path is blocked on a Redis instance.
+
+---
+
 ## 2026-11-02 (Map Intelligence) — D4 measurement, the bug it caught, and the map
 
 ### Live measurement (D4)

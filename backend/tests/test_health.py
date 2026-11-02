@@ -19,7 +19,7 @@ def test_readiness_reports_each_dependency_individually(client: TestClient) -> N
     assert response.status_code == 200
     body = response.json()
     names = {component["name"] for component in body["components"]}
-    assert {"database", "redis"} <= names
+    assert {"database", "redis", "worker"} <= names
     assert body["status"] in {"ok", "degraded"}
 
 

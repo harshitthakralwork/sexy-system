@@ -38,3 +38,11 @@ def run_discovery_job(job_id: str) -> str:
     from app.modules.discovery.runner import execute
 
     return asyncio.run(execute(uuid.UUID(job_id)))
+
+
+@celery_app.task(name="sparkxflow.maintenance.recover_stale_jobs")
+def recover_stale_jobs_task() -> int:
+    """Worker entry point for the scheduled stale-job recovery pass."""
+    from app.workers.maintenance import recover_stale_jobs
+
+    return asyncio.run(recover_stale_jobs())

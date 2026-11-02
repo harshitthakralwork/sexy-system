@@ -109,6 +109,11 @@ class Settings(BaseSettings):
     export_dir: Path = Path("var/exports")
     retention_raw_days: int = 15
     retention_enrichment_days: int = 15
+    # A job whose worker died mid-run leaves a row stuck in `running`. The
+    # maintenance pass marks such rows failed after this long without completion,
+    # so they can be retried instead of looking busy forever. Generous on purpose:
+    # a legitimate tiled sweep can run for well over an hour.
+    stale_job_after_seconds: int = 6 * 3600
 
     @field_validator("log_level")
     @classmethod
@@ -207,6 +212,13 @@ class Settings(BaseSettings):
     def _bounded_retention(cls, value: int) -> int:
         if value < 1:
             raise ValueError("retention days must be at least 1")
+        return value
+
+    @field_validator("stale_job_after_seconds")
+    @classmethod
+    def _bounded_stale_window(cls, value: int) -> int:
+        if not 300 <= value <= 7 * 24 * 3600:
+            raise ValueError("stale_job_after_seconds must be between 300 and 604800")
         return value
 
     @field_validator("password_min_length")

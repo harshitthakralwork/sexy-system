@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from redis.asyncio import from_url
@@ -37,6 +39,30 @@ async def _check_redis(settings: Settings) -> ComponentState:
         await client.aclose()
 
 
+async def _check_worker(settings: Settings) -> ComponentState:
+    """Report whether jobs have somewhere to run.
+
+    In the inline model the API process *is* the worker, so it is always ready.
+    In the queued model readiness means at least one Celery worker answered a
+    ping, which is probed off the event loop because it does blocking I/O.
+    """
+    if settings.run_jobs_synchronously:
+        return ComponentState(name="worker", ok=True, detail="inline (API process)")
+
+    from app.workers.celery_app import celery_app
+
+    def ping() -> dict | None:
+        return celery_app.control.inspect(timeout=2).ping()
+
+    try:
+        result = await asyncio.to_thread(ping)
+    except Exception as exc:  # noqa: BLE001 - readiness must report, not raise
+        return ComponentState(name="worker", ok=False, detail=type(exc).__name__)
+    if not result:
+        return ComponentState(name="worker", ok=False, detail="no worker responding")
+    return ComponentState(name="worker", ok=True, detail=f"{len(result)} worker(s) responding")
+
+
 @router.get("/live", response_model=LiveResponse)
 async def live() -> LiveResponse:
     """Process is up. No dependency checks."""
@@ -60,6 +86,7 @@ async def ready(
             detail=None if database_ok else "PostgreSQL is not reachable",
         ),
         await _check_redis(settings),
+        await _check_worker(settings),
     ]
     all_ok = all(component.ok for component in components)
     return ReadyResponse(status="ok" if all_ok else "degraded", components=components)

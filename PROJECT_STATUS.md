@@ -1,11 +1,15 @@
 # SparkXFlow Nexus — Project Status
 
-**Last updated:** 2026-11-02 (Phase 3 session, map-discovery documentation)
-**Current phase:** **Phase 3 — discovery vertical slice, in progress.** Job management
-with observed progress is built and tested; the map layer is now specified but unbuilt.
+**Last updated:** 2026-11-02 (background-execution milestone)
+**Current phase:** **Full product completion, in progress.** Phase 1 (background
+execution) is implemented and tested; work continues through the remaining phases in
+order.
 **Overall status:** Authentication and ownership enforcement are proven with two
 separate users. Discovery jobs run against real PostgreSQL and persist businesses with
-provenance. 189 tests pass. Redis and SearXNG are still absent.
+provenance. Jobs now run exactly once per submission (atomic claim), can be retried
+safely, and recover from a dead worker. 267 backend tests pass. Redis is still absent
+on this machine, so the Celery queued path is configured and tested but not live-run;
+the inline execution path is fully exercised.
 
 ### Documentation change (2026-11-02)
 
@@ -25,10 +29,10 @@ This file uses the master prompt's Phase 0–11 numbering. The mapping to
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Repository audit and stabilisation | **Complete** — baseline committed at `0efa064` |
-| 1 | Infrastructure and database foundation | **Complete for PostgreSQL.** Redis and SearXNG still absent |
+| 1 | Infrastructure, database and background execution | **Complete for PostgreSQL.** Job claim/retry/stale-recovery and worker readiness are **Tested** (7 new tests). Redis and SearXNG still absent, so the Celery queued path is configured but not live-run |
 | 2 | Authentication and authorization | **Complete** — includes the mandatory two-user isolation proof |
-| 3 | Discovery vertical slice | **In Progress** — jobs, progress, cancel, provenance and SQL persistence are **Tested**; the results UI, profiles and export wiring remain |
-| 4–11 | Leads UI, enrichment, CRM, Startup, Social, Automation, Analytics, Hardening | Not Started — map discovery requirements now documented, none built |
+| 3 | Discovery vertical slice + map discovery | **In Progress** — jobs, progress, cancel, provenance, SQL persistence and the geographic grid/map API are **Tested**; profiles, qualification, CRM and the standalone results table remain |
+| 4–11 | Leads UI, enrichment, CRM, Startup, Social, Automation, Analytics, Hardening | Not Started — discovery and map requirements documented; the next milestone is the standalone Leads table and CRM |
 
 ## 1. Security review findings (2026-11-02)
 

@@ -437,12 +437,18 @@ async def execute(job_id: uuid.UUID, *, settings: Settings | None = None) -> str
     """Run one discovery job against the real sources and the real database."""
     active = settings or get_settings()
     async with session_scope() as session:
-        job = await session.get(DiscoveryJob, job_id)
+        # Claiming is the idempotency guard: a duplicate delivery of a job that is
+        # already running or finished fails to claim and returns without re-running.
+        job = await job_service.claim_job(session, job_id)
         if job is None:
-            logger.warning("discovery_job_missing", job_id=str(job_id))
-            return "missing"
-        if job.status == "cancelled":
-            return "cancelled"
+            existing = await session.get(DiscoveryJob, job_id)
+            if existing is None:
+                logger.warning("discovery_job_missing", job_id=str(job_id))
+                return "missing"
+            logger.info(
+                "discovery_job_not_claimable", job_id=str(job_id), status=existing.status
+            )
+            return "already_running" if existing.status == "running" else existing.status
 
         config = await job_service.query_config(session, job)
         request_model, area = query_from_config(config)
@@ -463,8 +469,6 @@ async def execute(job_id: uuid.UUID, *, settings: Settings | None = None) -> str
             f"Started: {len(queue)} unit(s) across {len(slugs)} source(s) — "
             f"{area_service.describe_area(area) if area else 'no geometry'}",
         )
-        job_service.mark_running(job)
-        await session.commit()
 
         store = SqlBusinessStore(session, owner_user_id=job.owner_user_id, job_id=job.id)
         tracker = JobTracker(session, job, counters)
