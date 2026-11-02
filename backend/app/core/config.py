@@ -105,6 +105,15 @@ class Settings(BaseSettings):
     social_max_query_terms: int = 10
     social_user_agent: str = "sparkxflow-nexus/0.1 (local research tool)"
 
+    # Priority-2 key-free connectors (Phase 6). Each is optional at runtime: a
+    # disabled or unreachable source is reported honestly, never faked.
+    stackoverflow_base_url: str = "https://api.stackexchange.com"
+    bluesky_base_url: str = "https://public.api.bsky.app"
+    mastodon_base_url: str = "https://mastodon.social"
+    social_timeout_seconds: float = 20.0
+    # Confidence at or above which a new demand result raises an in-app alert.
+    social_alert_confidence_threshold: int = 80
+
     # Email sending (Automation Engine). SMTP is the first adapter because it is
     # testable without credentials; Gmail OAuth stays credential-gated. Secrets
     # live in the environment, referenced by `secret_reference` in the database.
@@ -204,11 +213,18 @@ class Settings(BaseSettings):
             raise ValueError("reddit_timeout_seconds must be between 1 and 60")
         return value
 
-    @field_validator("hn_timeout_seconds", "rss_timeout_seconds")
+    @field_validator("hn_timeout_seconds", "rss_timeout_seconds", "social_timeout_seconds")
     @classmethod
     def _bounded_social_timeout(cls, value: float) -> float:
         if not 1.0 <= value <= 60.0:
             raise ValueError("social source timeout must be between 1 and 60")
+        return value
+
+    @field_validator("social_alert_confidence_threshold")
+    @classmethod
+    def _bounded_alert_threshold(cls, value: int) -> int:
+        if not 1 <= value <= 100:
+            raise ValueError("social_alert_confidence_threshold must be between 1 and 100")
         return value
 
     @field_validator("rss_max_entries_per_feed")

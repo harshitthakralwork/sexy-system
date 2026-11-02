@@ -377,3 +377,136 @@ def test_run_requires_platforms(session_account: Session) -> None:
         headers=session_account.csrf_headers(),
     )
     assert run.status_code == 409, run.text
+
+
+# --- Phase 6 integration: alerts, conversion, notifications, JSON export ----
+
+
+async def _content_id_async(owner: uuid.UUID, external_id: str) -> uuid.UUID:
+    async with session_scope() as session:
+        row = await session.scalar(
+            select(SocialContent).where(
+                SocialContent.owner_user_id == owner, SocialContent.external_id == external_id
+            )
+        )
+        assert row is not None
+        return row.id
+
+
+async def _run_demand_track_async(owner: uuid.UUID) -> tuple[uuid.UUID, uuid.UUID]:
+    track_id = await _make_track_async(owner, platforms=["hackernews"])
+    run_id = await _pending_run_async(owner, track_id)
+    await tracks.execute_track_run(run_id)
+    return track_id, run_id
+
+
+def test_high_confidence_alert_created_and_deduped(
+    session_account: Session, fake_sources: None
+) -> None:
+    from app.modules.notifications.models import Notification
+
+    owner = uuid.UUID(session_account.user_id)
+
+    async def scenario() -> tuple[int, int, int]:
+        await _run_demand_track_async(owner)
+        # hn1 classifies Agency Search ~70; threshold 50 alerts it, hn2 (tutorial) not.
+        first = await _alerts(owner, 50)
+        again = await _alerts(owner, 50)
+        async with session_scope() as session:
+            count = int(
+                await session.scalar(
+                    select(func.count())
+                    .select_from(Notification)
+                    .where(
+                        Notification.owner_user_id == owner,
+                        Notification.notification_type == "social.demand_high_confidence",
+                    )
+                )
+                or 0
+            )
+        return first, again, count
+
+    first, again, count = asyncio.run(scenario())
+    assert first >= 1
+    assert again == 0  # dedup: no second alert for the same content
+    assert count == first
+
+
+async def _alerts(owner: uuid.UUID, threshold: float) -> int:
+    async with session_scope() as session:
+        return await tracks.record_high_confidence_alerts(session, owner, threshold)
+
+
+def test_convert_creates_business_and_dedups(session_account: Session, fake_sources: None) -> None:
+    from app.modules.businesses.models import Business
+
+    owner = uuid.UUID(session_account.user_id)
+
+    async def scenario() -> tuple[uuid.UUID, uuid.UUID, int]:
+        await _run_demand_track_async(owner)
+        cid = await _content_id_async(owner, "hn1")
+        async with session_scope() as session:
+            biz1 = await tracks.convert_result_to_lead(session, owner, cid)
+        async with session_scope() as session:
+            biz2 = await tracks.convert_result_to_lead(session, owner, cid)
+        async with session_scope() as session:
+            count = int(
+                await session.scalar(
+                    select(func.count())
+                    .select_from(Business)
+                    .where(Business.owner_user_id == owner, Business.deleted_at.is_(None))
+                )
+                or 0
+            )
+        return biz1, biz2, count
+
+    biz1, biz2, count = asyncio.run(scenario())
+    assert biz1 == biz2  # domain dedup: no duplicate lead created
+    assert count == 1
+
+
+def test_convert_is_owner_scoped(
+    session_account: Session, make_account: Callable[[], Session], fake_sources: None
+) -> None:
+    from app.core.exceptions import NotFoundError
+
+    owner = uuid.UUID(session_account.user_id)
+    other = uuid.UUID(make_account().user_id)
+
+    async def scenario() -> None:
+        await _run_demand_track_async(owner)
+        cid = await _content_id_async(owner, "hn1")
+        async with session_scope() as session:
+            with pytest.raises(NotFoundError):
+                await tracks.convert_result_to_lead(session, other, cid)
+
+    asyncio.run(scenario())
+
+
+def test_json_export_and_notifications_over_http(
+    session_account: Session, fake_sources: None
+) -> None:
+    api = session_account.api
+    csrf = session_account.csrf_headers()
+    created = api.post(
+        "/api/v1/social/tracks",
+        json={
+            "name": "Agency demand",
+            "track_type": "demand",
+            "keywords": ["web development agency"],
+            "platforms": ["hackernews"],
+        },
+        headers=csrf,
+    )
+    api.post(f"/api/v1/social/tracks/{created.json()['id']}/run", headers=csrf)
+
+    js = api.get("/api/v1/social/results/export", params={"track_type": "demand", "format": "json"})
+    assert js.status_code == 200
+    assert js.headers["content-type"].startswith("application/json")
+    assert isinstance(js.json(), list)
+    assert any(row["platform"] == "hackernews" for row in js.json())
+
+    # Notifications endpoint is reachable and returns the caller's own alerts.
+    notes = api.get("/api/v1/social/notifications")
+    assert notes.status_code == 200
+    assert isinstance(notes.json(), list)

@@ -339,3 +339,22 @@ class SavedItemOut(BaseModel):
 
 class SavedItemOutWithResult(SavedItemOut):
     result: IntelligenceResultOut | None = None
+
+
+class NotificationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    notification_type: str
+    title: str
+    message: str
+    related_entity_type: str | None = None
+    related_entity_id: uuid.UUID | None = None
+    is_read: bool
+    created_at: datetime
+
+
+class ConvertResultOut(BaseModel):
+    content_id: uuid.UUID
+    business_id: uuid.UUID
+    message: str

@@ -112,13 +112,14 @@ def test_platform_catalogue_seeds_honestly(session_account: Session) -> None:
     listed = session_account.api.get("/api/v1/social/platforms")
     assert listed.status_code == 200
     body = listed.json()
-    # Reddit plus the three keyless connectors (Hacker News, RSS, SearXNG) are
-    # enabled; the five platforms with no permitted key-free access stay disabled.
-    assert len(body) == 9
+    # Reddit + five keyless connectors (Hacker News, RSS, SearXNG, Stack Overflow,
+    # Bluesky, Mastodon) are enabled; the five platforms with no permitted key-free
+    # access stay disabled and honestly labelled.
+    assert len(body) == 12
     by_slug = {row["slug"]: row for row in body}
     assert by_slug["reddit"]["is_enabled"] is True
     assert by_slug["reddit"]["adapter_key"] == "reddit"
-    for slug in ("hackernews", "rss", "searxng"):
+    for slug in ("hackernews", "rss", "searxng", "stackoverflow", "bluesky", "mastodon"):
         assert by_slug[slug]["is_enabled"] is True, slug
         assert by_slug[slug]["adapter_key"] == slug, slug
         assert by_slug[slug]["limitations"], slug

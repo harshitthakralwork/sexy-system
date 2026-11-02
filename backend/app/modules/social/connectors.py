@@ -586,9 +586,374 @@ class SearxngSocialAdapter:
             return HealthResult(status=HEALTH_FAILED, detail=type(exc).__name__)
 
 
+def _parse_iso_str(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    cleaned = value.strip().replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(cleaned)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
+
+
+class _HttpConnector:
+    """Shared plumbing for JSON connectors: a bounded client and error mapping."""
+
+    source_name = "source"
+
+    def __init__(
+        self,
+        base_url: str,
+        *,
+        endpoint: str,
+        user_agent: str,
+        timeout_seconds: float = 20.0,
+        client: httpx.AsyncClient | None = None,
+    ) -> None:
+        self._base_url = validate_service_base_url(base_url, field=f"{self.source_name} base_url")
+        self._endpoint = endpoint
+        self._user_agent = user_agent
+        self._timeout = timeout_seconds
+        self._client = client
+        self._owns_client = client is None
+        self.requests_made = 0
+
+    async def _get_client(self) -> httpx.AsyncClient:
+        if self._client is not None:
+            return self._client
+        self._client = httpx.AsyncClient(
+            timeout=self._timeout,
+            follow_redirects=False,
+            headers={"User-Agent": _bounded_user_agent(self._user_agent, self.source_name)},
+        )
+        return self._client
+
+    async def aclose(self) -> None:
+        if self._client is not None and self._owns_client:
+            await self._client.aclose()
+
+    async def _get_json(self, path: str, params: dict[str, Any]) -> Any:
+        client = await self._get_client()
+        response = await client.get(f"{self._base_url}{path}", params=params)
+        self.requests_made += 1
+        _raise_for_response(self.source_name, response)
+        try:
+            return response.json()
+        except ValueError as exc:
+            raise MalformedResponseError(
+                f"{self.source_name} replied with a non-JSON body"
+            ) from exc
+
+
+class StackOverflowAdapter(_HttpConnector):
+    """Stack Overflow questions via the public API — no key for low volume.
+
+    The API is anonymous-friendly but hard rate-limited without a key, and answers
+    only about Stack Overflow; that is stated in capabilities, not hidden.
+    """
+
+    source_name = "Stack Overflow"
+
+    def __init__(
+        self,
+        base_url: str,
+        *,
+        user_agent: str,
+        timeout_seconds: float = 20.0,
+        client: httpx.AsyncClient | None = None,
+    ) -> None:
+        super().__init__(
+            base_url,
+            endpoint="/2.3/search/advanced",
+            user_agent=user_agent,
+            timeout_seconds=timeout_seconds,
+            client=client,
+        )
+
+    @property
+    def capabilities(self) -> AdapterCapabilities:
+        return AdapterCapabilities(
+            adapter_key="stackoverflow",
+            name="Stack Overflow (public API)",
+            slug="stackoverflow",
+            category="social",
+            supported_query_types=("keyword",),
+            supported_filters=("sort", "tag"),
+            available_fields=("title", "link", "score", "answer_count", "creation_date", "tags"),
+            geographic_coverage="Global; English-language developer Q&A.",
+            access_requirements=("None for low volume; a key raises the rate limit",),
+            rate_limit_notes="Anonymous access is rate-limited (~300 req/day) by Stack Exchange.",
+            terms_notes="Public questions only, via the official API.",
+            max_results_per_query=50,
+        )
+
+    async def validate_config(self, config: dict[str, Any]) -> None:
+        if not str(config.get("q", "")).strip():
+            raise UnsupportedQueryError("Stack Overflow needs a non-empty 'q'")
+
+    async def search(self, config: dict[str, Any]) -> list[SocialResult]:
+        await self.validate_config(config)
+        params = {
+            "order": "desc",
+            "sort": config.get("sort", "new"),
+            "q": str(config["q"]).strip(),
+            "site": "stackoverflow",
+            "pagesize": min(int(config.get("limit", 25)), 50),
+        }
+        if config.get("tagged"):
+            params["tagged"] = str(config["tagged"])
+        payload = await self._get_json("/2.3/search/advanced", params)
+        items = payload.get("items") if isinstance(payload, dict) else None
+        if not isinstance(items, list):
+            raise MalformedResponseError("Stack Overflow response had no 'items' array")
+        results: list[SocialResult] = []
+        for q in items:
+            if not isinstance(q, dict) or q.get("question_id") is None:
+                continue
+            title = sanitize_text(q.get("title"))
+            body = sanitize_text(q.get("body"))
+            results.append(
+                SocialResult(
+                    external_id=str(q["question_id"]),
+                    content_url=q.get("link"),
+                    content_type="post",
+                    content_text="\n\n".join(part for part in (title, body) if part) or None,
+                    published_at=_iso(q.get("creation_date")),
+                    engagement={
+                        "score": q.get("score"),
+                        "answer_count": q.get("answer_count"),
+                        "tags": q.get("tags"),
+                    },
+                    raw_data=q,
+                )
+            )
+        return results
+
+    async def health_check(self) -> HealthResult:
+        started = time.perf_counter()
+        try:
+            payload = await self._get_json("/2.3/info", {"site": "stackoverflow"})
+            elapsed = int((time.perf_counter() - started) * 1000)
+            if isinstance(payload, dict) and "items" in payload:
+                return HealthResult(status=HEALTH_WORKING, response_time_ms=elapsed)
+            return HealthResult(HEALTH_DEGRADED, "Responding, but not a known shape", elapsed)
+        except AccessDeniedError as exc:
+            return HealthResult(status=HEALTH_FAILED, detail=exc.message)
+        except (httpx.HTTPError, MalformedResponseError, AdapterError) as exc:
+            return HealthResult(status=HEALTH_FAILED, detail=type(exc).__name__)
+
+
+class BlueskyAdapter(_HttpConnector):
+    """Bluesky public posts via the unauthenticated app.bsky search endpoint.
+
+    Only public posts are returned; the endpoint returns author handles, not private
+    data, and coverage is limited to what Bluesky's public search indexes.
+    """
+
+    source_name = "Bluesky"
+
+    def __init__(
+        self,
+        base_url: str,
+        *,
+        user_agent: str,
+        timeout_seconds: float = 20.0,
+        client: httpx.AsyncClient | None = None,
+    ) -> None:
+        super().__init__(
+            base_url,
+            endpoint="/xrpc/app.bsky.feed.searchPosts",
+            user_agent=user_agent,
+            timeout_seconds=timeout_seconds,
+            client=client,
+        )
+
+    @property
+    def capabilities(self) -> AdapterCapabilities:
+        return AdapterCapabilities(
+            adapter_key="bluesky",
+            name="Bluesky (public search)",
+            slug="bluesky",
+            category="social",
+            supported_query_types=("keyword",),
+            supported_filters=("sort",),
+            available_fields=("text", "uri", "indexedAt", "author"),
+            geographic_coverage="Global; public posts only.",
+            access_requirements=("None — the public search endpoint is unauthenticated",),
+            rate_limit_notes="Subject to Bluesky's public API limits.",
+            terms_notes="Public posts only; author handles, never private content.",
+            max_results_per_query=100,
+        )
+
+    async def validate_config(self, config: dict[str, Any]) -> None:
+        if not str(config.get("q", "")).strip():
+            raise UnsupportedQueryError("Bluesky needs a non-empty 'q'")
+
+    async def search(self, config: dict[str, Any]) -> list[SocialResult]:
+        await self.validate_config(config)
+        params = {
+            "q": str(config["q"]).strip(),
+            "limit": min(int(config.get("limit", 25)), 100),
+            "sort": config.get("sort", "latest"),
+        }
+        payload = await self._get_json("/xrpc/app.bsky.feed.searchPosts", params)
+        posts = payload.get("posts") if isinstance(payload, dict) else None
+        if not isinstance(posts, list):
+            raise MalformedResponseError("Bluesky response had no 'posts' array")
+        results: list[SocialResult] = []
+        for post in posts:
+            if not isinstance(post, dict):
+                continue
+            record = post.get("record") or {}
+            author = post.get("author") or {}
+            handle = author.get("handle")
+            rkey = str(post.get("uri", "")).rsplit("/", 1)[-1] or None
+            url = f"https://bsky.app/profile/{handle}/post/{rkey}" if handle and rkey else None
+            text = sanitize_text(record.get("text"))
+            results.append(
+                SocialResult(
+                    external_id=str(post.get("cid") or post.get("uri") or rkey or ""),
+                    content_url=url,
+                    content_type="post",
+                    content_text=text,
+                    published_at=_parse_iso_str(record.get("createdAt") or post.get("indexedAt")),
+                    engagement={
+                        "reposts": post.get("repostsCount"),
+                        "likes": post.get("likesCount"),
+                    },
+                    author_external_id=handle,
+                    author_username=handle,
+                    author_display_name=author.get("displayName"),
+                    author_profile_url=f"https://bsky.app/profile/{handle}" if handle else None,
+                    raw_data=post,
+                )
+            )
+        return results
+
+    async def health_check(self) -> HealthResult:
+        started = time.perf_counter()
+        try:
+            payload = await self._get_json(
+                "/xrpc/app.bsky.feed.searchPosts", {"q": "test", "limit": "1"}
+            )
+            elapsed = int((time.perf_counter() - started) * 1000)
+            if isinstance(payload, dict) and isinstance(payload.get("posts"), list):
+                return HealthResult(status=HEALTH_WORKING, response_time_ms=elapsed)
+            return HealthResult(HEALTH_DEGRADED, "Responding, but no posts array", elapsed)
+        except AccessDeniedError as exc:
+            return HealthResult(status=HEALTH_FAILED, detail=exc.message)
+        except (httpx.HTTPError, MalformedResponseError, AdapterError) as exc:
+            return HealthResult(status=HEALTH_FAILED, detail=type(exc).__name__)
+
+
+class MastodonAdapter(_HttpConnector):
+    """Mastodon statuses via a configurable instance's search endpoint.
+
+    Unauthenticated search support varies by instance and version; when an instance
+    refuses, this reports the refusal honestly rather than pretending coverage. The
+    instance host is user/operator configured (default public instance).
+    """
+
+    source_name = "Mastodon"
+
+    def __init__(
+        self,
+        base_url: str,
+        *,
+        user_agent: str,
+        timeout_seconds: float = 20.0,
+        client: httpx.AsyncClient | None = None,
+    ) -> None:
+        super().__init__(
+            base_url,
+            endpoint="/api/v2/search",
+            user_agent=user_agent,
+            timeout_seconds=timeout_seconds,
+            client=client,
+        )
+
+    @property
+    def capabilities(self) -> AdapterCapabilities:
+        return AdapterCapabilities(
+            adapter_key="mastodon",
+            name="Mastodon (instance search)",
+            slug="mastodon",
+            category="social",
+            supported_query_types=("keyword",),
+            supported_filters=("type",),
+            available_fields=("content", "url", "created_at", "account"),
+            geographic_coverage="Depends on the configured instance's visibility rules.",
+            access_requirements=("Unauthenticated search availability varies by instance",),
+            rate_limit_notes="Per-instance rate limits; a refused instance is reported as failed.",
+            terms_notes="Public toots only; no login automation or private access.",
+            max_results_per_query=40,
+        )
+
+    async def validate_config(self, config: dict[str, Any]) -> None:
+        if not str(config.get("q", "")).strip():
+            raise UnsupportedQueryError("Mastodon needs a non-empty 'q'")
+
+    async def search(self, config: dict[str, Any]) -> list[SocialResult]:
+        await self.validate_config(config)
+        params = {
+            "q": str(config["q"]).strip(),
+            "type": "statuses",
+            "resolve": "false",
+            "limit": min(int(config.get("limit", 20)), 40),
+        }
+        payload = await self._get_json("/api/v2/search", params)
+        statuses = payload.get("statuses") if isinstance(payload, dict) else None
+        if not isinstance(statuses, list):
+            raise MalformedResponseError("Mastodon response had no 'statuses' array")
+        results: list[SocialResult] = []
+        for s in statuses:
+            if not isinstance(s, dict) or s.get("id") is None:
+                continue
+            account = s.get("account") or {}
+            results.append(
+                SocialResult(
+                    external_id=str(s["id"]),
+                    content_url=s.get("url"),
+                    content_type="post",
+                    content_text=sanitize_text(s.get("content")),
+                    published_at=_parse_iso_str(s.get("created_at")),
+                    engagement={
+                        "replies": s.get("replies_count"),
+                        "favourites": s.get("favourites_count"),
+                        "reblogs": s.get("reblogs_count"),
+                    },
+                    author_external_id=account.get("acct") or account.get("username"),
+                    author_username=account.get("username"),
+                    author_display_name=account.get("display_name"),
+                    author_profile_url=account.get("url"),
+                    raw_data=s,
+                )
+            )
+        return results
+
+    async def health_check(self) -> HealthResult:
+        started = time.perf_counter()
+        try:
+            payload = await self._get_json("/api/v2/instance", {})
+            elapsed = int((time.perf_counter() - started) * 1000)
+            if isinstance(payload, dict) and payload.get("domain"):
+                return HealthResult(status=HEALTH_WORKING, response_time_ms=elapsed)
+            return HealthResult(HEALTH_DEGRADED, "Responding, but no instance domain", elapsed)
+        except AccessDeniedError as exc:
+            return HealthResult(status=HEALTH_FAILED, detail=exc.message)
+        except (httpx.HTTPError, MalformedResponseError, AdapterError) as exc:
+            return HealthResult(status=HEALTH_FAILED, detail=type(exc).__name__)
+
+
 ADAPTER_REGISTRY: dict[str, str] = {
     "reddit": "RedditAdapter",
     "hackernews": "HackerNewsAdapter",
     "rss": "RssAtomAdapter",
     "searxng": "SearxngSocialAdapter",
+    "stackoverflow": "StackOverflowAdapter",
+    "bluesky": "BlueskyAdapter",
+    "mastodon": "MastodonAdapter",
 }

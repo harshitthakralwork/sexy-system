@@ -28,7 +28,9 @@ from app.core.database import session_scope
 from app.core.exceptions import ConflictError, NotFoundError, ValidationFailedError
 from app.core.logging import get_logger
 from app.modules.automation.service import compute_next_run
+from app.modules.businesses.models import Business, BusinessSocialProfile
 from app.modules.discovery.adapters.base import AdapterError
+from app.modules.notifications.models import Notification
 from app.modules.social.adapters import SocialResult
 from app.modules.social.models import (
     SocialContent,
@@ -42,6 +44,7 @@ from app.modules.social.pipeline import ingest_results
 from app.modules.social.schemas import TrackCreateIn, TrackUpdateIn
 from app.modules.social.service import _build_adapter, ensure_platforms
 from app.modules.sources.registry import ensure_source
+from app.shared.normalization import normalize_domain, normalize_name
 from app.workers.dispatcher import SynchronousDispatcher, get_dispatcher
 from app.workers.tasks import register_task
 
@@ -224,6 +227,17 @@ def build_query(track: SocialSearchTrack, platform_slug: str) -> dict[str, Any]:
                 classification="unsupported_query",
             )
         return {"feed_urls": list(feeds)}
+    if platform_slug in ("stackoverflow", "bluesky", "mastodon"):
+        if not text:
+            raise AdapterError(
+                f"{platform_slug} track needs a keyword", classification="unsupported_query"
+            )
+        cfg = {"q": text, "limit": limit}
+        if platform_slug == "stackoverflow":
+            cfg["sort"] = track.source_config.get("sort", "new")
+            if track.source_config.get("tagged"):
+                cfg["tagged"] = track.source_config["tagged"]
+        return cfg
     raise AdapterError(
         f"No query builder for platform '{platform_slug}'", classification="unsupported_query"
     )
@@ -369,6 +383,9 @@ async def execute_track_run(run_id: uuid.UUID, *, settings: Settings | None = No
 
         track.last_run_at = finished
         track.next_run_at = _next_run_for(track, now=finished)
+        await record_high_confidence_alerts(
+            session, run.owner_user_id, float(active.social_alert_confidence_threshold)
+        )
         await session.commit()
         return run.status
 
@@ -591,3 +608,164 @@ async def list_saved(
         .offset(offset)
     )
     return list(rows), int(total or 0)
+
+
+# --- Integration: alerts, notifications, lead conversion --------------------
+
+
+async def record_high_confidence_alerts(
+    session: AsyncSession, owner_user_id: uuid.UUID, threshold: float
+) -> int:
+    """Create one in-app notification per new high-confidence demand result.
+
+    Deduplicated against notifications already raised for the same content, so a
+    re-run does not spam. No email is sent; this is the in-app-first alert.
+    """
+    rows = list(
+        await session.scalars(
+            select(SocialContent).where(
+                SocialContent.owner_user_id == owner_user_id,
+                SocialContent.track_type == "demand",
+                SocialContent.confidence_score.is_not(None),
+                SocialContent.confidence_score >= threshold,
+            )
+        )
+    )
+    created = 0
+    for content in rows:
+        already = await session.scalar(
+            select(Notification.id).where(
+                Notification.owner_user_id == owner_user_id,
+                Notification.notification_type == "social.demand_high_confidence",
+                Notification.related_entity_type == "social_content",
+                Notification.related_entity_id == content.id,
+            )
+        )
+        if already is not None:
+            continue
+        session.add(
+            Notification(
+                owner_user_id=owner_user_id,
+                notification_type="social.demand_high_confidence",
+                title=f"Demand signal: {content.classification}",
+                message=(
+                    (content.title or content.snippet or "")[:280]
+                    or "A high-confidence demand post was found."
+                ),
+                related_entity_type="social_content",
+                related_entity_id=content.id,
+            )
+        )
+        created += 1
+    if created:
+        await session.flush()
+    return created
+
+
+async def list_notifications(
+    session: AsyncSession, owner_user_id: uuid.UUID, *, limit: int, offset: int
+) -> tuple[list[Notification], int]:
+    where = Notification.owner_user_id == owner_user_id
+    total = await session.scalar(select(func.count()).select_from(Notification).where(where))
+    rows = await session.scalars(
+        select(Notification)
+        .where(where)
+        .order_by(Notification.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    return list(rows), int(total or 0)
+
+
+async def mark_notification_read(
+    session: AsyncSession, owner_user_id: uuid.UUID, notification_id: uuid.UUID
+) -> None:
+    notification = await session.get(Notification, notification_id)
+    if notification is None or notification.owner_user_id != owner_user_id:
+        raise NotFoundError("Notification not found")
+    notification.is_read = True
+    await session.flush()
+
+
+async def convert_result_to_lead(
+    session: AsyncSession, owner_user_id: uuid.UUID, content_id: uuid.UUID
+) -> uuid.UUID:
+    """Turn an eligible intelligence result into a Leads Intelligence business.
+
+    Dedups on owner + normalised domain so it can never mint a duplicate business,
+    and links the original social post as provenance. It refuses rather than
+    inventing a business when the record has no real entity to anchor.
+    """
+    content = await session.scalar(
+        select(SocialContent).where(
+            SocialContent.id == content_id, SocialContent.owner_user_id == owner_user_id
+        )
+    )
+    if content is None:
+        raise NotFoundError("Result not found")
+    anchor_url = content.canonical_url or content.content_url
+    if not anchor_url:
+        raise ConflictError("This result has no source URL to anchor a business entity")
+
+    domain = normalize_domain(anchor_url)
+    name = (content.title or "").strip() or (domain or "").split(".")[0]
+    if not name:
+        raise ConflictError("This result has no identifiable business name")
+
+    business: Business | None = None
+    if domain:
+        business = await session.scalar(
+            select(Business).where(
+                Business.owner_user_id == owner_user_id,
+                Business.normalized_domain == domain,
+                Business.deleted_at.is_(None),
+            )
+        )
+    if business is None:
+        business = await session.scalar(
+            select(Business).where(
+                Business.owner_user_id == owner_user_id,
+                Business.name == name,
+                Business.deleted_at.is_(None),
+            )
+        )
+    if business is None:
+        business = Business(
+            owner_user_id=owner_user_id,
+            name=name,
+            normalized_name=normalize_name(name) or name.lower(),
+            first_discovered_at=datetime.now(UTC),
+            website_status="unknown",
+            normalized_domain=domain,
+            website_url=anchor_url if domain else None,
+        )
+        session.add(business)
+        await session.flush()
+
+    platform = await session.get(SocialPlatform, content.platform_id)
+    link_exists = await session.scalar(
+        select(BusinessSocialProfile.id).where(
+            BusinessSocialProfile.business_id == business.id,
+            BusinessSocialProfile.profile_url == anchor_url,
+        )
+    )
+    if link_exists is None:
+        session.add(
+            BusinessSocialProfile(
+                business_id=business.id,
+                platform=(platform.slug if platform else "social"),
+                profile_url=anchor_url,
+                username=None,
+            )
+        )
+
+    saved = await session.scalar(
+        select(SocialSavedItem).where(
+            SocialSavedItem.owner_user_id == owner_user_id,
+            SocialSavedItem.content_id == content_id,
+        )
+    )
+    if saved is not None:
+        saved.converted_business_id = business.id
+    await session.flush()
+    return business.id

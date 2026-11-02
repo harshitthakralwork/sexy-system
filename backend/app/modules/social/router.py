@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response
+from fastapi.responses import JSONResponse
 
 from app.core.audit import client_ip, record_audit
 from app.core.config import get_settings
@@ -12,10 +13,12 @@ from app.modules.exports.csv_export import to_csv
 from app.modules.social import service, tracks
 from app.modules.social.models import SocialContent, SocialResearchQuery
 from app.modules.social.schemas import (
+    ConvertResultOut,
     DiscoveryRunListOut,
     DiscoveryRunOut,
     IntelligenceListOut,
     IntelligenceResultOut,
+    NotificationOut,
     SavedItemIn,
     SavedItemOut,
     SocialContentListOut,
@@ -515,6 +518,8 @@ async def export_results(
     track_type: str | None = Query(default=None, max_length=20),
     classification: str | None = Query(default=None, max_length=100),
     min_confidence: float | None = Query(default=None, ge=0, le=100),
+    saved_only: bool | None = Query(default=None),
+    format: str = Query(default="csv", pattern="^(csv|json)$"),
 ) -> Response:
     rows, _ = await tracks.list_intelligence(
         session,
@@ -522,6 +527,7 @@ async def export_results(
         track_type=track_type,
         classification=classification,
         min_confidence=min_confidence,
+        saved_only=saved_only,
         limit=500,
         offset=0,
     )
@@ -553,17 +559,61 @@ async def export_results(
         entity_type="export_job",
         ip_address=client_ip(request),
         metadata={
-            "format": "csv",
+            "format": format,
             "module": "social_intelligence",
             "record_count": len(export_rows),
         },
     )
+    if format == "json":
+        return JSONResponse(content=export_rows)
     body = to_csv(export_rows, columns=INTELLIGENCE_COLUMNS)
     return Response(
         content=body,
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="sparkxflow-intelligence.csv"'},
     )
+
+
+@router.post("/results/{content_id}/convert", response_model=ConvertResultOut, dependencies=[Csrf])
+async def convert_result(
+    content_id: uuid.UUID,
+    session: AsyncSessionDep,
+    user: CurrentUser,
+    request: Request,
+) -> ConvertResultOut:
+    business_id = await tracks.convert_result_to_lead(session, user.id, content_id)
+    await record_audit(
+        session,
+        action="social.item_converted",
+        owner_user_id=user.id,
+        entity_type="business",
+        entity_id=business_id,
+        ip_address=client_ip(request),
+        metadata={"from": "social_intelligence", "content_id": str(content_id)},
+    )
+    return ConvertResultOut(
+        content_id=content_id,
+        business_id=business_id,
+        message="Converted to a Leads business (an existing match was reused if found).",
+    )
+
+
+@router.get("/notifications", response_model=list[NotificationOut])
+async def list_notifications(
+    session: AsyncSessionDep,
+    user: CurrentUser,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> list[NotificationOut]:
+    rows, _ = await tracks.list_notifications(session, user.id, limit=limit, offset=offset)
+    return [NotificationOut.model_validate(row) for row in rows]
+
+
+@router.post("/notifications/{notification_id}/read", status_code=204, dependencies=[Csrf])
+async def mark_notification_read(
+    notification_id: uuid.UUID, session: AsyncSessionDep, user: CurrentUser
+) -> None:
+    await tracks.mark_notification_read(session, user.id, notification_id)
 
 
 @router.post("/results/{content_id}/save", response_model=SavedItemOut, dependencies=[Csrf])

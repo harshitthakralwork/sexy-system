@@ -22,9 +22,12 @@ from app.modules.discovery.adapters.base import (
 )
 from app.modules.social import service
 from app.modules.social.connectors import (
+    BlueskyAdapter,
     HackerNewsAdapter,
+    MastodonAdapter,
     RssAtomAdapter,
     SearxngSocialAdapter,
+    StackOverflowAdapter,
 )
 
 HN_BASE = "https://hn.algolia.com"
@@ -73,6 +76,9 @@ def test_factory_builds_each_keyless_connector() -> None:
     assert isinstance(service._build_adapter(settings, "hackernews"), HackerNewsAdapter)
     assert isinstance(service._build_adapter(settings, "rss"), RssAtomAdapter)
     assert isinstance(service._build_adapter(settings, "searxng"), SearxngSocialAdapter)
+    assert isinstance(service._build_adapter(settings, "stackoverflow"), StackOverflowAdapter)
+    assert isinstance(service._build_adapter(settings, "bluesky"), BlueskyAdapter)
+    assert isinstance(service._build_adapter(settings, "mastodon"), MastodonAdapter)
 
 
 def test_factory_rejects_unknown_adapter() -> None:
@@ -230,3 +236,109 @@ def test_searxng_capability_states_snippets_not_retrieval() -> None:
     adapter = _searxng_adapter({})
     assert "snippet" in adapter.capabilities.terms_notes.lower()
     assert adapter.capabilities.access_requirements  # says a running instance is required
+
+
+# --- Stack Overflow / Bluesky / Mastodon (Priority-2, key-free) ------------
+
+
+def test_stackoverflow_maps_questions() -> None:
+    payload = {
+        "items": [
+            {
+                "question_id": 7001,
+                "title": "Looking for a developer to build an app",
+                "link": "https://stackoverflow.com/q/7001",
+                "creation_date": 1700000000,
+                "score": 3,
+                "answer_count": 1,
+                "tags": ["web"],
+                "body": "<p>We need someone</p>",
+            },
+            {"title": "no id — skipped"},
+        ]
+    }
+    adapter = StackOverflowAdapter(
+        "https://api.stackexchange.com",
+        user_agent="test-agent",
+        client=_client(lambda r: httpx.Response(200, json=payload)),
+    )
+    results = asyncio.run(adapter.search({"q": "looking for developer"}))
+    assert len(results) == 1
+    assert results[0].external_id == "7001"
+    assert results[0].content_url == "https://stackoverflow.com/q/7001"
+    assert "Looking for a developer" in (results[0].content_text or "")
+    # body html is stripped, not stored raw
+    assert "<p>" not in (results[0].content_text or "")
+
+
+def test_stackoverflow_requires_query() -> None:
+    adapter = StackOverflowAdapter(
+        "https://api.stackexchange.com",
+        user_agent="test-agent",
+        client=_client(lambda r: httpx.Response(200, json={})),
+    )
+    with pytest.raises(UnsupportedQueryError):
+        asyncio.run(adapter.search({"q": "  "}))
+
+
+def test_bluesky_maps_posts() -> None:
+    payload = {
+        "posts": [
+            {
+                "cid": "abc",
+                "uri": "at://did:plc:x/app.bsky.feed.post/rkey1",
+                "indexedAt": "2026-11-01T09:00:00.000Z",
+                "record": {
+                    "text": "Anyone building automations for small biz?",
+                    "createdAt": "2026-11-01T09:00:00.000Z",
+                },
+                "author": {"handle": "dev.bsky.social", "displayName": "Dev"},
+                "repostsCount": 2,
+                "likesCount": 5,
+            }
+        ]
+    }
+    adapter = BlueskyAdapter(
+        "https://public.api.bsky.app",
+        user_agent="test-agent",
+        client=_client(lambda r: httpx.Response(200, json=payload)),
+    )
+    results = asyncio.run(adapter.search({"q": "automation"}))
+    assert len(results) == 1
+    assert results[0].external_id == "abc"
+    assert results[0].content_url == "https://bsky.app/profile/dev.bsky.social/post/rkey1"
+    assert results[0].author_username == "dev.bsky.social"
+    assert results[0].published_at is not None
+
+
+def test_mastodon_reports_refusal_honestly() -> None:
+    adapter = MastodonAdapter(
+        "https://mastodon.social",
+        user_agent="test-agent",
+        client=_client(lambda r: httpx.Response(401, text="")),
+    )
+    with pytest.raises(AdapterError):
+        asyncio.run(adapter.search({"q": "hiring developer"}))
+
+
+def test_mastodon_maps_statuses() -> None:
+    payload = {
+        "statuses": [
+            {
+                "id": "99",
+                "url": "https://mastodon.social/@ops/99",
+                "content": "<p>Need a website rebuilt</p>",
+                "created_at": "2026-11-01T10:00:00.000Z",
+                "account": {"username": "ops", "acct": "ops@mastodon.social", "url": "https://mastodon.social/@ops"},
+            }
+        ]
+    }
+    adapter = MastodonAdapter(
+        "https://mastodon.social",
+        user_agent="test-agent",
+        client=_client(lambda r: httpx.Response(200, json=payload)),
+    )
+    results = asyncio.run(adapter.search({"q": "website"}))
+    assert results[0].external_id == "99"
+    assert "<p>" not in (results[0].content_text or "")
+    assert results[0].author_username == "ops"

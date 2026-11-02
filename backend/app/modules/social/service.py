@@ -19,9 +19,12 @@ from app.modules.businesses.models import Business, BusinessSocialProfile
 from app.modules.discovery.adapters.base import AdapterError
 from app.modules.social.adapters import RedditAdapter, SocialAdapter, SocialResult
 from app.modules.social.connectors import (
+    BlueskyAdapter,
     HackerNewsAdapter,
+    MastodonAdapter,
     RssAtomAdapter,
     SearxngSocialAdapter,
+    StackOverflowAdapter,
 )
 from app.modules.social.models import (
     SocialContent,
@@ -108,6 +111,24 @@ def _build_adapter(settings: Settings, adapter_key: str) -> SocialAdapter:
             user_agent=settings.social_user_agent,
             timeout_seconds=settings.searxng_timeout_seconds,
             results_per_page=settings.searxng_results_per_page,
+        )
+    if adapter_key == "stackoverflow":
+        return StackOverflowAdapter(
+            settings.stackoverflow_base_url,
+            user_agent=settings.social_user_agent,
+            timeout_seconds=settings.social_timeout_seconds,
+        )
+    if adapter_key == "bluesky":
+        return BlueskyAdapter(
+            settings.bluesky_base_url,
+            user_agent=settings.social_user_agent,
+            timeout_seconds=settings.social_timeout_seconds,
+        )
+    if adapter_key == "mastodon":
+        return MastodonAdapter(
+            settings.mastodon_base_url,
+            user_agent=settings.social_user_agent,
+            timeout_seconds=settings.social_timeout_seconds,
         )
     raise SourceUnavailableError(adapter_key, "no adapter is registered for this platform")
 

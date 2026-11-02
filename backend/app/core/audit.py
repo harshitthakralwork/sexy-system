@@ -43,6 +43,7 @@ SENSITIVE_ACTIONS = frozenset(
         "social.track_run",
         "social.item_saved",
         "social.item_unsaved",
+        "social.item_converted",
         "automation.workflow_created",
         "automation.workflow_updated",
         "automation.workflow_deleted",

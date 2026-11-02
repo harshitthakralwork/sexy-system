@@ -97,6 +97,61 @@ PLATFORM_DEFINITIONS: tuple[dict[str, Any], ...] = (
         },
     },
     {
+        "slug": "stackoverflow",
+        "name": "Stack Overflow",
+        "adapter_key": "stackoverflow",
+        "is_enabled": True,
+        "capabilities": {
+            "access_method": "Public API (no key for low volume)",
+            "searchable": ["keyword"],
+            "available_fields": ["title", "link", "score", "answer_count", "creation_date", "tags"],
+            "content_types": ["post"],
+        },
+        "limitations": {
+            "access": "Anonymous access is rate-limited by Stack Exchange; a key raises the limit.",
+            "coverage": "Public questions only; relevant to technical/hiring demand.",
+            "filters": "Sort and tag only; no geographic filter.",
+            "requires": "None for basic use.",
+        },
+    },
+    {
+        "slug": "bluesky",
+        "name": "Bluesky",
+        "adapter_key": "bluesky",
+        "is_enabled": True,
+        "capabilities": {
+            "access_method": "Unauthenticated public search endpoint (app.bsky)",
+            "searchable": ["keyword"],
+            "available_fields": ["text", "uri", "indexedAt", "author handle"],
+            "content_types": ["post"],
+        },
+        "limitations": {
+            "access": "Public posts only; subject to Bluesky's public API limits.",
+            "coverage": "Whatever Bluesky's public search indexes; not exhaustive.",
+            "filters": "Sort only.",
+            "requires": "None.",
+        },
+    },
+    {
+        "slug": "mastodon",
+        "name": "Mastodon",
+        "adapter_key": "mastodon",
+        "is_enabled": True,
+        "capabilities": {
+            "access_method": "Configurable instance search endpoint (public toots)",
+            "searchable": ["keyword"],
+            "available_fields": ["content", "url", "created_at", "account"],
+            "content_types": ["post"],
+        },
+        "limitations": {
+            "access": "Unauthenticated search availability varies by instance; a "
+            "refusal is reported honestly rather than faked.",
+            "coverage": "Depends on the configured instance's visibility rules.",
+            "filters": "Type filter (statuses) only.",
+            "requires": "SPARKX_MASTODON_BASE_URL (defaults to a public instance).",
+        },
+    },
+    {
         "slug": "linkedin",
         "name": "LinkedIn",
         "adapter_key": "none",
