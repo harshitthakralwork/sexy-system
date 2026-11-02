@@ -46,8 +46,8 @@ export const navigation: NavSection[] = [
     title: "Overview",
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, available: true },
-      { label: "Analytics", href: "/analytics", icon: BarChart3, available: false },
-      { label: "Reports", href: "/reports", icon: FileText, available: false },
+      { label: "Analytics", href: "/analytics", icon: BarChart3, available: true },
+      { label: "Reports", href: "/analytics#saved-reports", icon: FileText, available: true },
       { label: "Global Search", href: "/search", icon: Search, available: true },
     ],
   },

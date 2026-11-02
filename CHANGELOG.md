@@ -6,6 +6,73 @@ In Progress · Blocked · Deferred.
 
 ---
 
+## 2026-11-03 (Master plan #27) — Analytics and Reports
+
+The next genuinely-incomplete roadmap task after Global Search. No new third-party
+dependency, no new framework, and the only new table is additive.
+
+### What changed
+
+- **New `analytics` module** — `app/modules/analytics/`. `GET /api/v1/analytics` runs nine
+  `GROUP BY` aggregates over the operator's own rows: leads by website status and by
+  lifecycle, CRM by stage (record joined to stage), opportunities by status, discovery jobs
+  by status, social results by classification / source platform / track type, and startups by
+  funding stage, plus `leads_total` from non-deleted businesses. Every surface that already
+  existed is counted through its own model — nothing is read from a fixture, and a surface
+  with no rows returns an empty list rather than a zero that looks like a finding.
+- **`saved_reports`** (migration `ef461cd22fb6`, additive) — name, description,
+  `report_type` CHECK-constrained to `analytics|leads|social|startups`, a `snapshot` JSONB
+  and `captured_at`. `POST/GET/DELETE /analytics/reports` plus
+  `/analytics/reports/{id}/export`. A report stores the summary **as it was at capture**, so
+  it does not silently drift when new leads arrive; that is asserted by test.
+- **CSV export** — `GET /analytics/export` flattens the same summary to
+  `section,key,count`, and a saved report exports its own snapshot. Audited as
+  `export.create`; the `report.saved` / `report.deleted` audit actions were added to the
+  registry so these writes are traceable like every other sensitive one.
+- **Frontend `/analytics`** — leads total, nine bucket cards whose bars are scaled from the
+  real counts (each card links to the surface it counts, reusing the Social engine's
+  classifications and the leads/CRM/startups rows), Export CSV, and a Saved reports panel to
+  capture / list / export / delete. The sidebar's Analytics entry is enabled, and Reports now
+  anchors to the saved-reports panel instead of pointing at a route that does not exist.
+- **`/api/v1/info`** reports `analytics` among enabled modules.
+- **Dashboard corrected — it was lying.** `/dashboard` had a "Leads Intelligence" panel
+  hard-coded to *"No businesses discovered yet — Discovery is being wired to the database"*,
+  written when that was true and never revisited. The operator now has 29 real leads, so the
+  screen asserted the opposite of the database. It reads the same `/analytics` aggregate as
+  the Analytics page — leads, discovery jobs, social results and startups, each linking to its
+  surface — and the "Nothing collected yet" state appears only when every one of those counts
+  is genuinely zero.
+
+### Tests + verification
+
+- 10 new tests (real PostgreSQL): empty account → no numbers; seeded quantities asserted
+  bucket-for-bucket; soft-deleted leads excluded from every lead figure; CRM and opportunity
+  counts produced through the product's own shortlist/qualify routes; CSV mirrors the JSON;
+  snapshot captured then proven non-drifting; unknown report type falls back, blank name 422;
+  POST without CSRF refused; list/pagination; and full cross-owner isolation on read, export
+  and delete.
+- Backend **388 passed**; ruff clean; mypy clean across 115 source files;
+  `alembic check` reports no drift at head `ef461cd22fb6`.
+- Frontend tsc / eslint / `next build` clean; `/analytics` prerenders.
+- **Browser-verified against the operator's real data**: 29 leads, 29 unknown-website,
+  29 active, CRM Qualified 1, opportunities candidate 1, jobs completed 6 + failed 4,
+  social classification 36 + 6 + 5 + 3 = 50, source hackernews 50, track demand 50,
+  startups 1. Saved "Milestone check 2026-11-03" (snapshot 29 leads), then exported both the
+  live and the report CSV over HTTP — 200, `text/csv`, 15 rows, `leads_total,,29` — and
+  confirmed `report.saved` and `export.create` landed in `audit_logs`.
+- **Dashboard browser-verified**: Leads 29 (active 29 · archived 0), Discovery jobs 10
+  (completed 6 · failed 4), Social results 50 (36 unclassified), Startups 1 — identical to
+  `/analytics`, beside the real system status (Database Up, Redis Down `TimeoutError`,
+  Worker Up, 13 modules mounted, AI disabled).
+
+Deferred honestly: no scheduled report generation, no PDF/Excel renderer, no time-series
+trends (a snapshot records one instant; charting across captures needs a reader over
+`captured_at`), and no startup side-by-side comparison. The `Content-Disposition` filename
+is not readable through a cross-origin fetch, which affects only a programmatic reader —
+clicking an export link still downloads with the right name.
+
+---
+
 ## 2026-11-03 (Master plan) — Global Search across every owned entity
 
 Returned to the original roadmap (after the Social & Demand Engine directive) with

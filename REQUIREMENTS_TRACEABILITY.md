@@ -157,7 +157,7 @@ Specified in `PRD.md` §8, `DESIGN.md` §7, `architecture.md` §14,
 | Competitor tracking | **Tested** | self-reference rejected (422), duplicate pair is 409, cross-owner is 404 |
 | Watchlists | **Tested** | create/list/delete, unique `(watchlist_id, startup_id)`, owner-scoped |
 | Founders, products, pricing | **Tested** | CRUD owner-scoped; cross-owner read/delete returns 404 |
-| Generate reports | Not Started | PRD §8 lists it under Watchlists and Reports; no report generation exists yet — Phase 7 (Analytics/Reports) |
+| Generate reports | **Tested** (saved reports) / Not Started (startup comparison) | `saved_reports` snapshots + CSV export cover startups (`startups_by_funding_stage`); side-by-side company comparison does not exist yet |
 | Compare companies / market segments | Not Started | PRD §8; no comparison view exists yet |
 | Ownership and CSRF on every write | **Tested** | all 21 routes use `CurrentUser` + CSRF; `test_another_user_cannot_read_or_delete` |
 | Startup detail pages and dashboard | Implemented, browser-verified | `/startups` (create/filter/paginate/delete) and `/startups/[id]` (overview PATCH, revenue, competitors, founders, products, research, watchlists) verified against real PostgreSQL |
@@ -242,16 +242,46 @@ to real status; sources are labelled Operational / Partial / Unavailable / Plann
 | Partial-source failure isolation (§11) | **Tested** | refused/unconfigured source → `completed_with_warnings`, other sources persist; never a fake success |
 | Scheduled execution (§11) | **Implemented** (live-queued unverified) | interval/cron `next_run_at` (reuses automation recurrence); Celery `tick_tracks` registered; Redis absent so inline only |
 | In-app alerts, no spam (§14) | **Tested** | high-confidence demand → `Notification`, deduped per content; no email required |
-| Existing modules still work + cross-user boundaries (§19) | **Tested** | 375-suite green incl. two-user isolation on tracks/results/save/convert |
+| Existing modules still work + cross-user boundaries (§19) | **Tested** | 388-test suite green incl. two-user isolation on tracks/results/save/convert |
 | No paid API/AI required; LinkedIn honest (§5,§19) | **Implemented** | keyless connectors only; LinkedIn/IG/FB/X disabled with real terms; snippets only via SearXNG, labelled `indexed_snippet` |
 
-**Engine — not built / deferred with reason.** A dedicated cross-entity **Global Search**
-module and full **Analytics/Reports** remain the master-plan phases (#26–#27) and are
-unbuilt; the engine exposes `GET /social/results?query=` for a future search to consume.
-SearXNG needs a running instance (absent here) and Reddit's public JSON returns 403 from
-this client — both reported honestly. Per-user source enable/disable is deliberately omitted
-(a user must not mutate shared source state); Sources is read-only. X, YouTube Data API and
-LinkedIn partner API connectors are unimplemented rather than faked.
+**Engine — deferred with reason.** SearXNG needs a running instance (absent here) and
+Reddit's public JSON returns 403 from this client — both reported honestly. Per-user source
+enable/disable is deliberately omitted (a user must not mutate shared source state); Sources
+is read-only. X, YouTube Data API and LinkedIn partner API connectors are unimplemented
+rather than faked.
+
+## Global Search (master-plan #26, implemented 2026-11-03)
+
+| Requirement | Status | Evidence |
+|---|---|---|
+| One query across every owned entity | **Tested** | `GET /api/v1/search` groups businesses, startups, social results, saved items and tracks; a single query reaches all seeded surfaces |
+| Reuse existing module queries, not a second search engine | **Implemented** | calls `list_businesses`, `list_startups`, `list_intelligence` and the track query; no duplicated filtering |
+| Results are actionable | **Implemented, browser-verified** | each hit carries `kind`/`id`/`url`; `/search` links to the lead, startup or intelligence view |
+| No fabricated ranking or totals | **Implemented** | the only aggregate is the sum of the group totals the per-entity queries actually returned |
+| Owner isolation | **Tested** | a second account finds 0 of another user's rows |
+
+**Not built:** Postgres full-text/tsvector and relevance ranking. Search is ILIKE, matching
+the convention every other module already uses.
+
+## Analytics and Reports (master-plan #27, implemented 2026-11-03)
+
+| Requirement | Status | Evidence |
+|---|---|---|
+| Dashboard metrics are real | **Tested** | nine `GROUP BY` surfaces over the operator's rows; a fresh account gets empty lists, not zeros (`test_analytics_is_empty_before_any_data`) |
+| Counts are exact, not sampled | **Tested** | seeded quantities asserted bucket-for-bucket (`test_analytics_buckets_count_exactly_the_seeded_rows`) |
+| Soft-deleted leads excluded | **Tested** | `deleted_at` removes a lead from the total and both lead buckets |
+| CRM and opportunity counts come from the real flows | **Tested** | shortlist + qualify routes produce the rows the analytics then counts |
+| Export | **Tested**, browser-verified | `GET /analytics/export` CSV mirrors the JSON summary row-for-row |
+| Saved reports | **Tested**, browser-verified | `saved_reports` + CRUD; snapshot equals the live summary at capture and does not drift when new data arrives |
+| Reports are point-in-time | **Tested** | after a fourth lead, live reads 4 and the stored snapshot still reads 3 |
+| Ownership and CSRF | **Tested** | another owner gets 404 on read/export/delete; POST/DELETE without a CSRF token are refused |
+| Audited | **Tested** (row observed live) | `report.saved`, `report.deleted`, `export.create` in `audit_logs` |
+
+**Not built:** scheduled report generation, PDF/Excel output, time-series trending
+(`captured_at` stores one instant, so a chart across captures is future work) and startup
+side-by-side comparison. Analytics covers the surfaces that actually have rows; it does not
+invent a section for a module with no data model behind it.
 
 ## Deferred (with reason — see IMPLEMENTATION_PLAN.md section 7)
 

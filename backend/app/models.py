@@ -7,6 +7,7 @@ silently produces a migration that drops the table.
 
 from __future__ import annotations
 
+from app.modules.analytics import models as analytics_models  # noqa: F401
 from app.modules.auth import models as auth_models  # noqa: F401
 from app.modules.automation import models as automation_models  # noqa: F401
 from app.modules.businesses import models as businesses_models  # noqa: F401

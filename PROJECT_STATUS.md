@@ -64,7 +64,9 @@ This file uses the master prompt's Phase 0–11 numbering. The mapping to
 | 4 | Startup Intelligence | **Complete except discovery-from-sources, reports and comparison.** 9-table schema (startups, founders, products, pricing, revenue records, competitors, research records, watchlists), 21 owner-scoped API routes with audit writes, and a browser UI (dashboard, profile, watchlists) — manual entry, research, evidence-labelled revenue, competitor and watchlist flows all browser-verified. Discovery from configured startup sources (Product Hunt, HN, GitHub) is **Deferred** (needs new adapters), and report generation / company comparison are **Not Started** (Phase 7) |
 | 5 | Social Intelligence | **Complete except live Reddit reachability.** 4-table schema (platforms, profiles, content, research queries), an honest 6-platform catalogue (Reddit enabled; LinkedIn/Instagram/Facebook/X/YouTube disabled with their real access terms stated), research-query CRUD + run with deduplication, owner-isolated content list/filter/CSV export, business linking, and the `/social` browser workspace. Live Reddit requests return 403 from this client, which the adapter reports honestly as a failure rather than fabricating results |
 | 6 | Automation Engine | **Complete except live SMTP delivery, Gmail OAuth and the Celery/beat path.** Two modules — `automation` (workflows, executions, step executions, schedules, approvals — 5 tables) and `email` (accounts, campaigns, messages, events, suppression list — 5 tables), 10 new tables in migration `682d9e15b781`. The step engine runs `qualify` → `shortlist` → `email_draft` → `send` inline on "run now", each step recorded in `workflow_step_executions`; `email_draft` writes an approval-gated message plus a `workflow_approvals` row; `send` refuses anything not approved, suppressed, or without a configured account. Recurring schedules compute `next_run_at` from an interval or a five-field cron subset (custom parser, no croniter). SMTP adapter first; Gmail OAuth and live delivery deferred (credential-gated). Browser-verified. See D-048 |
-| 7–11 | Global Search, Analytics, Source Manager, Import/Export, Hardening | Not Started — after Automation Engine |
+| 7 | Global Search (#26) | **Complete** — `GET /api/v1/search` over leads, startups, social results, saved items and tracks, reusing each module's own list function; owner-scoped, browser-verified, 3 tests |
+| 8 | Analytics and Reports (#27) | **Complete except report scheduling and per-surface drill-through.** `saved_reports` + nine real `GROUP BY` surfaces + CSV export + snapshot save/list/delete, audited and CSRF-guarded; `/analytics` browser-verified against the operator's real rows (29 leads, 50 social results, 10 jobs). 10 tests |
+| 9–11 | Source Manager, Import/Export, Hardening | Not Started — next in sequence |
 
 ## 1. Security review findings (2026-11-02)
 
@@ -121,18 +123,19 @@ helpers.
 
 | Gate | Result |
 |---|---|
-| `pytest` | **375 passed** (44 new Social & Demand Engine tests: 5 schema + 20 connectors + 8 pipeline + 11 runs/integration; earlier automation/email retained) |
+| `pytest` | **388 passed** (13 new since the Social Engine: 3 Global Search + 10 Analytics & Reports; 44 engine + automation/email + all earlier tests retained) |
 | `ruff check` | All checks passed |
-| `mypy app` | No issues in 106 source files |
+| `mypy app` | No issues in 115 source files |
 | `eslint` / `tsc --noEmit` | Clean |
-| `next build` | Succeeds; routes `/`, `/dashboard`, `/leads`, `/leads/[id]`, `/leads/crm`, `/leads/map`, `/leads/services`, `/login`, `/social`, `/social/sources`, `/startups`, `/startups/[id]`, `/startups/watchlists`, `/automation/workflows`, `/automation/scheduler`, `/automation/approvals`, `/email`, `/intelligence`, `/intelligence/demand`, `/intelligence/business`, `/intelligence/tracks`, `/intelligence/saved` |
-| `alembic upgrade head` from empty | 11 revisions applied, 66 tables created (10 automation/email + 5 social-engine tables incl. source_config column) |
-| `alembic check` on that schema | **No new upgrade operations detected** (head `c2f7937c920d`) |
-| Schema audit query | 66/66 tables have a primary key; 51 named CHECK constraints, 72 FKs, 253 indexes |
+| `next build` | Succeeds; routes `/`, `/dashboard`, `/leads`, `/leads/[id]`, `/leads/crm`, `/leads/map`, `/leads/services`, `/login`, `/social`, `/social/sources`, `/startups`, `/startups/[id]`, `/startups/watchlists`, `/automation/workflows`, `/automation/scheduler`, `/automation/approvals`, `/email`, `/intelligence`, `/intelligence/demand`, `/intelligence/business`, `/intelligence/tracks`, `/intelligence/saved`, `/search`, `/analytics` |
+| `alembic upgrade head` from empty | 12 revisions applied, 67 tables created (10 automation/email + 5 social-engine + 1 `saved_reports`) |
+| `alembic check` on that schema | **No new upgrade operations detected** (head `ef461cd22fb6`) |
+| Schema audit query | 67/67 tables have a primary key; 52 named CHECK constraints, 72 FKs, 255 indexes |
 | Live HTTP smoke test | register 201 → login 200 → session 200 → businesses 200 → **anonymous 401** → **shortlist without CSRF 403** → logout 200 → **session after logout 401** |
 | Browser mutation smoke test | qualify 200 (score/status/evidence rendered) → note 201 → shortlist 200 → stage move 200, all against real PostgreSQL |
 | Browser automation smoke test | create workflow 201 → run inline (execution `completed`, `shortlist` step `completed`) → create schedule (`next_run_at` computed +3600 s) → email draft → approve → **send returns honest "blocked: no sending account"**, against real PostgreSQL |
 | Social engine — live source test | created a Demand track, ran it against **real Hacker News**: 50 live posts returned, 50 stored, classified (Freelancer Hiring 5, Service Needed 3, General Discussion 6, Unclassified 36) with evidence + confidence; filtered Demand by confidence (6 ≥ 50); saved one (appeared in Saved + Overview); Overview counts all real. Sources page renders 12 connectors honestly. |
+| Analytics browser test (2026-11-03) | `/analytics` rendered the operator's real rows: 29 leads, website-status 29 unknown, lifecycle 29 active, CRM Qualified 1, opportunities candidate 1, discovery jobs completed 6 + failed 4 = 10, social classification 36+6+5+3 = 50, source hackernews 50, track demand 50, startups unknown 1. Saved "Milestone check 2026-11-03" (29 leads captured in the snapshot), exported the live CSV and the report CSV over HTTP (both 200, `text/csv`, 15 rows, `leads_total,,29`), and confirmed `report.saved` + `export.create` rows landed in `audit_logs` and 1 row in `saved_reports`. |
 
 Runtime note: the suite now takes about four minutes because the auth and
 authorization tests hit a real database and real Argon2 hashing. That is the cost of
@@ -369,16 +372,57 @@ automation-recurrence machinery already present.
   owner+domain dedup and `BusinessSocialProfile` provenance, refuses without a real entity),
   JSON export, and a read-only Sources view.
 
-**Engine — deferred / honest limits.** A dedicated cross-entity Global Search module and
-full Analytics/Reports are still separate master-plan phases and are not built; the engine
-exposes `GET /social/results?query=` for a future global search to consume. SearXNG needs a
-running instance (absent here) and Reddit's public JSON is 403 from this client — both
+**Engine — deferred / honest limits.** SearXNG needs a running instance (absent here) and Reddit's public JSON is 403 from this client — both
 reported honestly; the connectors are unit-tested against mocked transports and Hacker News
 was additionally verified with a **live run** (50 real posts stored + classified). The Celery
 queued path and beat tick are configured and tested but not live-run (no Redis). Adapters
 that would need paid or credentialed access (X, YouTube Data API, LinkedIn partner API) are
 left unimplemented rather than faked; LinkedIn public snippets are reachable only through the
 SearXNG indexed-snippet path.
+
+### Master-plan #26 — Global Search — what was built
+
+- `app/modules/search/` — `GET /api/v1/search?q=&limit=&offset=` aggregating one query over
+  every owned surface by **reusing the existing list functions** (`list_businesses`,
+  `list_startups`, `list_intelligence`, tracks) rather than re-implementing their filters:
+  leads, startups, social results, saved items, discovery tracks. Each hit carries
+  `kind`/`id`/`title`/`subtitle`/`url`/`confidence` so the UI can deep-link instead of
+  showing a dead label. Blanks return zero groups; nothing is fuzzy-matched or ranked.
+- Owner scoping comes from the reused functions, proven by a second account finding 0 hits.
+- Frontend `/search` (grouped result cards, links to `/leads/[id]`, `/startups/[id]`,
+  `/intelligence/*`) plus the header search entry, which previously pointed at a
+  placeholder. 3 tests.
+
+### Master-plan #27 — Analytics and Reports — what was built
+
+- `app/modules/analytics/` — `saved_reports` table (additive migration `ef461cd22fb6`:
+  name, description, `report_type` CHECK-constrained to analytics|leads|social|startups,
+  `snapshot` JSONB, `captured_at`; owner-scoped, PK + owner index, no FK to keep reports
+  readable after their source rows change).
+- `GET /api/v1/analytics` runs nine `GROUP BY` queries over the operator's own rows only —
+  leads by website status and lifecycle, CRM by stage (record ⋈ stage), opportunities by
+  status, discovery jobs by status, social by classification / source platform / track type,
+  startups by funding stage — plus `leads_total` counted from non-deleted businesses. Soft
+  deleted leads are excluded from every lead figure, and a surface with no rows returns an
+  empty list rather than a plausible-looking zero.
+- `GET /api/v1/analytics/export` streams the same summary as CSV (`section,key,count`), and
+  `POST|GET|DELETE /api/v1/analytics/reports` + `/reports/{id}/export` save, list, read and
+  export a point-in-time snapshot. A report records the summary at capture; new data moves
+  the live numbers while the stored snapshot stays what it was. `report.saved`,
+  `report.deleted` and `export.create` are audited; writes require CSRF.
+- Frontend `/analytics`: leads total, the nine bucket cards with proportional bars derived
+  from the real counts, each linking to the surface it counts, Export CSV, and the Saved
+  reports panel (name + type → save, export, delete). Analytics and Reports are now live in
+  the sidebar; Reports anchors to the saved-reports panel on the same page rather than to a
+  route that does not exist. 10 tests.
+- **Dashboard defect found and fixed.** `/dashboard` still carried a hard-coded
+  "No businesses discovered yet — Discovery is being wired to the database" panel from the
+  slice-1 build. With 29 real leads stored, that text asserted the opposite of the database —
+  exactly the hardcoded-metric failure the roadmap forbids. The panel now reads the same
+  `/analytics` aggregate (leads, discovery jobs, social results, startups, each linking to its
+  surface) and only shows the empty state when every one of those counts is truly zero.
+  Browser-checked: 29 / 10 (6 completed, 4 failed) / 50 (36 unclassified) / 1, matching
+  `/analytics` exactly.
 
 ### Infrastructure actually running
 

@@ -48,6 +48,7 @@ async def info() -> RuntimeInfo:
             "automation",
             "email",
             "search",
+            "analytics",
             "exports",
         ],
     )

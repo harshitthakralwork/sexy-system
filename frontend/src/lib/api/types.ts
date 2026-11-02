@@ -865,3 +865,41 @@ export interface GlobalSearchOut {
   total: number;
 }
 
+// --- Analytics & Reports (master-plan #27) ----------------------------------
+
+export interface AnalyticsBucket {
+  key: string;
+  count: number;
+}
+
+export interface AnalyticsOut {
+  generated_at: string;
+  leads_total: number;
+  businesses_by_website_status: AnalyticsBucket[];
+  businesses_by_lifecycle: AnalyticsBucket[];
+  crm_by_stage: AnalyticsBucket[];
+  opportunities_by_status: AnalyticsBucket[];
+  discovery_jobs_by_status: AnalyticsBucket[];
+  social_by_classification: AnalyticsBucket[];
+  social_by_platform: AnalyticsBucket[];
+  social_by_track_type: AnalyticsBucket[];
+  startups_by_funding_stage: AnalyticsBucket[];
+}
+
+export interface SavedReport {
+  id: string;
+  name: string;
+  description: string | null;
+  report_type: string;
+  snapshot: Record<string, unknown>;
+  captured_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SavedReportList {
+  items: SavedReport[];
+  total: number;
+  limit: number;
+  offset: number;
+}

@@ -59,6 +59,8 @@ SENSITIVE_ACTIONS = frozenset(
         "email.suppression_added",
         "email.suppression_deleted",
         "export.create",
+        "report.saved",
+        "report.deleted",
         "source.configure",
         "source.enable",
         "source.disable",
