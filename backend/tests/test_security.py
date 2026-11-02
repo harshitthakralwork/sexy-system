@@ -220,6 +220,11 @@ def test_pipeline_sanitises_before_it_stores() -> None:
         "cafe name]",
         "café",
         "a" * 60,
+        # The value half is the same attack surface now that `key=value` is allowed.
+        'amenity="cafe"]["shop',
+        'amenity="cafe"; out count;',
+        "amenity=",
+        "=",
     ],
 )
 def test_overpass_refuses_category_injection(category: str) -> None:
@@ -233,20 +238,21 @@ def test_overpass_refuses_category_injection(category: str) -> None:
         location=LocationSpec(center=(12.9, 77.5), radius_km=1),
         max_results=10,
     )
-    with pytest.raises(UnsupportedQueryError, match="OSM tag value"):
+    with pytest.raises(UnsupportedQueryError, match="OSM tag"):
         adapter.build_query(query)
 
 
 def test_overpass_radius_and_bounds_are_capped() -> None:
     adapter = OverpassAdapter(client=client_for(lambda request: httpx.Response(200, json={})))
     too_big = DiscoveryQuery(
-        category="cafe", location=LocationSpec(center=(12.9, 77.5), radius_km=MAX_RADIUS_KM * 100)
+        category="amenity=cafe",
+        location=LocationSpec(center=(12.9, 77.5), radius_km=MAX_RADIUS_KM * 100),
     )
     with pytest.raises(UnsupportedQueryError, match="radius_km"):
         adapter.build_query(too_big)
 
     bad_coords = DiscoveryQuery(
-        category="cafe", location=LocationSpec(center=(900.0, 77.5), radius_km=1)
+        category="amenity=cafe", location=LocationSpec(center=(900.0, 77.5), radius_km=1)
     )
     with pytest.raises(UnsupportedQueryError, match="outside valid ranges"):
         adapter.build_query(bad_coords)
@@ -256,12 +262,12 @@ def test_overpass_clamps_the_element_limit() -> None:
     adapter = OverpassAdapter(client=client_for(lambda request: httpx.Response(200, json={})))
     body = adapter.build_query(
         DiscoveryQuery(
-            category="cafe",
+            category="amenity=cafe",
             location=LocationSpec(center=(12.9, 77.5), radius_km=1),
             max_results=999_999,
         )
     )
-    assert "out body 1000;" in body
+    assert "out center 1000;" in body
 
 
 def test_overpass_configuration_must_be_an_origin() -> None:

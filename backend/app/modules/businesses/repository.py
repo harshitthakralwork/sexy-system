@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import uuid
 from dataclasses import dataclass
 from typing import Any
@@ -34,6 +35,12 @@ class BusinessFilters:
     country: str | None = None
     category: str | None = None
     website_status: str | None = None
+    has_phone: bool | None = None
+    min_rating: float | None = None
+    min_reviews: int | None = None
+    bbox: tuple[float, float, float, float] | None = None
+    located_only: bool = False
+    job_id: uuid.UUID | None = None
     shortlisted_only: bool = False
     sort: str = "first_discovered_at"
     descending: bool = True
@@ -41,12 +48,25 @@ class BusinessFilters:
     offset: int = 0
 
     def normalized(self) -> BusinessFilters:
+        bbox = self.bbox
+        if bbox is not None:
+            west, south, east, north = bbox
+            # An unordered box is a caller bug, not a search: silently swapping it
+            # would return a different region than the one drawn on the map.
+            if not (-90 <= south <= north <= 90 and -180 <= west <= east <= 180):
+                bbox = None
         return BusinessFilters(
             query=(self.query or "").strip() or None,
             city=(self.city or "").strip() or None,
             country=(self.country or "").strip().upper() or None,
             category=(self.category or "").strip() or None,
             website_status=(self.website_status or "").strip() or None,
+            has_phone=self.has_phone,
+            min_rating=self.min_rating,
+            min_reviews=self.min_reviews,
+            bbox=bbox,
+            located_only=self.located_only,
+            job_id=self.job_id,
             shortlisted_only=self.shortlisted_only,
             sort=self.sort if self.sort in SORTABLE else "first_discovered_at",
             descending=self.descending,
@@ -68,7 +88,7 @@ def _base_statement(owner_user_id: uuid.UUID) -> Select:
     )
 
 
-def _apply_filters(statement: Select, filters: BusinessFilters) -> Select:
+def _apply_filters(statement: Select, filters: BusinessFilters, owner_user_id: uuid.UUID) -> Select:
     if filters.query:
         pattern = f"%{filters.query}%"
         statement = statement.where(
@@ -89,6 +109,46 @@ def _apply_filters(statement: Select, filters: BusinessFilters) -> Select:
         )
     if filters.website_status:
         statement = statement.where(Business.website_status == filters.website_status)
+    if filters.has_phone is True:
+        statement = statement.where(Business.normalized_phone.is_not(None))
+    elif filters.has_phone is False:
+        # "No phone reported" is not "no phone exists", and the UI says which.
+        statement = statement.where(Business.normalized_phone.is_(None))
+    if filters.min_rating is not None:
+        statement = statement.where(Business.rating >= filters.min_rating)
+    if filters.min_reviews is not None:
+        statement = statement.where(Business.review_count >= filters.min_reviews)
+    if filters.bbox:
+        west, south, east, north = filters.bbox
+        statement = statement.where(
+            Business.latitude.is_not(None),
+            Business.longitude.is_not(None),
+            Business.latitude >= south,
+            Business.latitude <= north,
+            Business.longitude >= west,
+            Business.longitude <= east,
+        )
+    if filters.located_only:
+        statement = statement.where(
+            Business.latitude.is_not(None), Business.longitude.is_not(None)
+        )
+    if filters.job_id:
+        # Which records this run produced is recorded in provenance, not denormalised
+        # onto the business: a job that merged into an existing lead still owns the
+        # sighting, and the lead itself may predate the job.
+        from app.modules.discovery.models import SourceRecord, SourceRecordLink
+
+        linked = (
+            select(SourceRecordLink.entity_id)
+            .join(SourceRecord, SourceRecord.id == SourceRecordLink.source_record_id)
+            .where(
+                SourceRecord.job_id == filters.job_id,
+                SourceRecord.owner_user_id == owner_user_id,
+                SourceRecordLink.entity_type == "business",
+            )
+            .subquery()
+        )
+        statement = statement.where(Business.id.in_(select(linked.c.entity_id)))
     return statement
 
 
@@ -96,7 +156,7 @@ async def list_businesses(
     session: AsyncSession, owner_user_id: uuid.UUID, filters: BusinessFilters
 ) -> tuple[list[Business], int]:
     filters = filters.normalized()
-    statement = _apply_filters(_base_statement(owner_user_id), filters)
+    statement = _apply_filters(_base_statement(owner_user_id), filters, owner_user_id)
 
     total = await session.scalar(select(func.count()).select_from(statement.subquery()))
 
@@ -104,6 +164,61 @@ async def list_businesses(
     ordered = statement.order_by(column.desc() if filters.descending else column.asc())
     rows = (await session.scalars(ordered.limit(filters.limit).offset(filters.offset))).all()
     return list(rows), int(total or 0)
+
+
+async def list_pins(
+    session: AsyncSession, owner_user_id: uuid.UUID, filters: BusinessFilters
+) -> tuple[list[dict[str, Any]], int]:
+    """Pins for one viewport, with the true count of what is inside it.
+
+    Reads only the columns a marker and its preview need, and always reports
+    `total` from the same filtered query as the rows: a map that shows 1500 pins and
+    says "1500 found" when 4213 match would be lying about the market.
+    """
+    filters = filters.normalized()
+    statement = _apply_filters(
+        _base_statement(owner_user_id),
+        dataclasses.replace(filters, located_only=True),
+        owner_user_id,
+    )
+    total = await session.scalar(select(func.count()).select_from(statement.subquery()))
+    rows = (
+        await session.execute(
+            statement.with_only_columns(
+                Business.id,
+                Business.name,
+                Business.latitude,
+                Business.longitude,
+                Business.primary_category,
+                Business.website_status,
+                Business.normalized_phone.is_not(None),
+                Business.rating,
+                Business.review_count,
+                Business.created_at,
+            )
+            .order_by(Business.created_at.desc())
+            .limit(filters.limit)
+        )
+    ).all()
+    pins = [
+        {
+            "id": row[0],
+            "name": row[1],
+            "latitude": float(row[2]),
+            "longitude": float(row[3]),
+            "primary_category": row[4],
+            "website_status": row[5],
+            "has_phone": row[6],
+            "rating": float(row[7]) if row[7] is not None else None,
+            "review_count": row[8],
+            "discovered_at": row[9],
+        }
+        for row in rows
+        # The query asks for located records only; re-checking here means a pin is
+        # never emitted without a place to put it.
+        if row[2] is not None and row[3] is not None
+    ]
+    return pins, int(total or 0)
 
 
 async def get_business(
@@ -246,7 +361,7 @@ async def export_rows(
 ) -> list[dict[str, Any]]:
     """Build CSV-ready rows, including provenance and verification state."""
     filters = filters.normalized()
-    statement = _apply_filters(_base_statement(owner_user_id), filters).order_by(
+    statement = _apply_filters(_base_statement(owner_user_id), filters, owner_user_id).order_by(
         Business.first_discovered_at.desc()
     )
     rows = (await session.scalars(statement.limit(10_000))).all()

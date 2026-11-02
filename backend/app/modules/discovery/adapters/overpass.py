@@ -42,15 +42,34 @@ MAX_RADIUS_KM = 50.0
 MAX_ELEMENTS_PER_QUERY = 1000
 
 
-def _validate_category(category: str) -> str:
-    candidate = category.strip()
+def _validate_tag_part(value: str, label: str) -> str:
+    candidate = value.strip()
     if not _CATEGORY_PATTERN.match(candidate):
         raise UnsupportedQueryError(
-            "Category must be an OSM tag value (letters, digits, colon, underscore, "
-            f"hyphen; up to 40 characters). Received {len(candidate)} characters of "
-            "unusable input."
+            f"Category must be an OSM tag key or a key=value pair (letters, digits, "
+            f"colon, underscore, hyphen; up to 40 characters per part). Unusable {label} "
+            f"received: {len(candidate)} characters."
         )
     return candidate
+
+
+def _tag_selector(category: str) -> str:
+    """Turn `amenity=cafe` or a bare `shop` into a whitelisted Overpass selector.
+
+    The category is the only untrusted string that reaches the query language, and
+    Overpass has no parameter binding — so each half is validated against the tag
+    alphabet and rejected otherwise, never escaped.
+
+    A bare key means "anything carrying this tag"; `key=value` is the precise form.
+    OSM stores a cafe as `amenity=cafe`, not as a tag named `cafe`, so the value
+    half is what makes a category queryable at all.
+    """
+    key, separator, value = category.partition("=")
+    validated_key = _validate_tag_part(key, "tag key")
+    if not separator:
+        return f'["{validated_key}"]'
+    validated_value = _validate_tag_part(value, "tag value")
+    return f'["{validated_key}"="{validated_value}"]'
 
 
 def _validate_coordinate(lat: float, lon: float) -> None:
@@ -111,6 +130,11 @@ class OverpassAdapter:
         self._client = client
         self._owns_client = client is None
         self.requests_made = 0
+        # Set by the last query: True when the interpreter returned exactly as many
+        # elements as were asked for, which means the answer was cut off rather
+        # than complete. An empty map and a truncated map look the same unless the
+        # adapter says which one happened.
+        self.last_capped = False
 
     @property
     def capabilities(self) -> AdapterCapabilities:
@@ -156,18 +180,32 @@ class OverpassAdapter:
         if self._client is not None and self._owns_client:
             await self._client.aclose()
 
+    def _limit(self, query: DiscoveryQuery) -> int:
+        return min(max(int(query.max_results), 1), MAX_ELEMENTS_PER_QUERY)
+
     def build_query(self, query: DiscoveryQuery) -> str:
+        """Render Overpass QL for one area and one tag filter.
+
+        The union block terminates every statement with a semicolon and the
+        response asks for element centres: a hospital mapped as a *way* has no
+        `lat`/`lon` of its own, and reading only nodes silently drops the larger
+        buildings a city's businesses are mapped as. D4 measured this against the
+        live interpreter — the previously emitted shape was rejected outright as
+        `parse error: ';' expected - ')' found`.
+        """
         scope = _build_around_clause(query)
         category = (query.category or "").strip()
-        # Whitelisted, never escaped: the category is the only untrusted string
-        # that reaches the query language.
-        tags = (
-            f'["{_validate_category(category)}"]'
+        selectors = (
+            [_tag_selector(category)]
             if category
-            else "".join(f'["{key}"]' for key in BUSINESS_KEYS)
+            else [f'["{key}"]' for key in BUSINESS_KEYS]
         )
-        limit = min(max(int(query.max_results), 1), MAX_ELEMENTS_PER_QUERY)
-        return f"[out:json][timeout:25];(node{tags}{scope});out body {limit};"
+        limit = self._limit(query)
+        statements = "".join(f"nwr{selector}({scope});" for selector in selectors)
+        server_timeout = max(int(self._timeout), 5)
+        return (
+            f"[out:json][timeout:{server_timeout}];({statements});out center {limit};"
+        )
 
     async def discover(self, query: DiscoveryQuery) -> list[DiscoveredItem]:
         client = await self._get_client()
@@ -191,6 +229,7 @@ class OverpassAdapter:
         if elements is None:
             raise MalformedResponseError("Overpass response had no elements field")
 
+        self.last_capped = len(elements) >= self._limit(query)
         return [item for item in (self._to_item(element) for element in elements) if item]
 
     def _raise_for_response(self, response: httpx.Response) -> None:
@@ -221,6 +260,13 @@ class OverpassAdapter:
         osm_type = element.get("type", "node")
         osm_id = element.get("id")
         reference = f"{osm_type}/{osm_id}" if osm_id is not None else None
+        # `out center` supplies a centroid for ways and relations; a building
+        # mapped as a way has no own lat/lon and would otherwise be stored
+        # without coordinates, invisible on the map it was discovered through.
+        raw_center = element.get("center")
+        center: dict[str, Any] = raw_center if isinstance(raw_center, dict) else {}
+        latitude = element.get("lat") if element.get("lat") is not None else center.get("lat")
+        longitude = element.get("lon") if element.get("lon") is not None else center.get("lon")
         address = " ".join(
             part
             for part in (
@@ -238,8 +284,8 @@ class OverpassAdapter:
                 f"https://www.openstreetmap.org/{osm_type}/{osm_id}" if reference else None
             ),
             title_hint=name,
-            latitude=element.get("lat"),
-            longitude=element.get("lon"),
+            latitude=latitude,
+            longitude=longitude,
             raw_data={
                 "osm_reference": reference,
                 "tags": tags,

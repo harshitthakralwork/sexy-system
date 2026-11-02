@@ -271,6 +271,9 @@ class SourceOutcome:
     failed: bool = False
     failure_classification: str | None = None
     failure_reason: str | None = None
+    # A source that hit its own element cap did not answer the question — it
+    # stopped early. Coverage claims must not be made from a truncated answer.
+    capped: bool = False
 
 
 @dataclass
@@ -369,6 +372,7 @@ async def run_pipeline(
 
             outcome.items_returned += len(items)
             outcome.requests_made = getattr(adapter, "requests_made", outcome.requests_made)
+            outcome.capped = outcome.capped or bool(getattr(adapter, "last_capped", False))
             report.counters.discovered += len(items)
             await stage("discover")
 

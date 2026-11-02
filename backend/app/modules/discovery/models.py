@@ -12,6 +12,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
     text,
 )
@@ -54,6 +55,9 @@ class Search(Base, UUIDPrimaryKeyMixin):
     preset_id: Mapped[uuid.UUID | None] = mapped_column(
         UUIDType, ForeignKey("search_presets.id", ondelete="SET NULL"), nullable=True
     )
+    area_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUIDType, ForeignKey("search_areas.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     module: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     query_config: Mapped[dict] = mapped_column(
         JSONType, nullable=False, default=dict, server_default=text("'{}'::jsonb")
@@ -64,6 +68,66 @@ class Search(Base, UUIDPrimaryKeyMixin):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class SearchArea(Base, UUIDPrimaryKeyMixin, TimestampMixin):
+    """A geographic scope a user drew, resolved or saved.
+
+    The geometry lives here once, not in every search that used it: a saved area
+    that is corrected must not leave stale shapes behind in past searches, and a
+    re-run has to ask about the same ground it was saved with.
+    """
+
+    __tablename__ = "search_areas"
+    __table_args__ = (
+        CheckConstraint(
+            "shape_type IN ('circle', 'rectangle', 'polygon', 'administrative')",
+            name="ck_search_area_shape",
+        ),
+        CheckConstraint(
+            "radius_m IS NULL OR (radius_m > 0 AND radius_m <= 50000)", name="ck_search_area_radius"
+        ),
+        CheckConstraint(
+            "bbox_west <= bbox_east AND bbox_south <= bbox_north",
+            name="ck_search_area_bbox_ordered",
+        ),
+        CheckConstraint(
+            "bbox_south >= -90 AND bbox_north <= 90 AND bbox_west >= -180 AND bbox_east <= 180",
+            name="ck_search_area_bbox_ranges",
+        ),
+        CheckConstraint("area_km2 >= 0", name="ck_search_area_size_nonnegative"),
+        CheckConstraint(
+            "shape_type <> 'circle' OR (center_latitude IS NOT NULL AND radius_m IS NOT NULL)",
+            name="ck_search_area_circle_complete",
+        ),
+        CheckConstraint(
+            "shape_type <> 'polygon' OR polygon IS NOT NULL", name="ck_search_area_polygon_present"
+        ),
+    )
+
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    module: Mapped[str] = mapped_column(String(50), nullable=False, index=True, default="leads")
+    name: Mapped[str] = mapped_column(String(150), nullable=False)
+    shape_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    center_latitude: Mapped[float | None] = mapped_column(Numeric(10, 7), nullable=True)
+    center_longitude: Mapped[float | None] = mapped_column(Numeric(10, 7), nullable=True)
+    radius_m: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    bbox_west: Mapped[float] = mapped_column(Numeric(10, 7), nullable=False)
+    bbox_south: Mapped[float] = mapped_column(Numeric(10, 7), nullable=False)
+    bbox_east: Mapped[float] = mapped_column(Numeric(10, 7), nullable=False)
+    bbox_north: Mapped[float] = mapped_column(Numeric(10, 7), nullable=False)
+    polygon: Mapped[list | None] = mapped_column(JSONType, nullable=True)
+    area_km2: Mapped[float] = mapped_column(Numeric(12, 4), nullable=False)
+    admin_country: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    admin_state: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    admin_city: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    admin_locality: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    categories: Mapped[list] = mapped_column(
+        JSONType, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
+    geocode: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
+    last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class DiscoveryJob(Base, UUIDPrimaryKeyMixin):
@@ -123,12 +187,43 @@ class DiscoveryJob(Base, UUIDPrimaryKeyMixin):
 
 
 class JobBatch(Base, UUIDPrimaryKeyMixin):
+    """One unit of work inside a job: a tile against a source, or one whole query.
+
+    For geographic jobs this row *is* the tile's state, which is what lets a
+    region show which parts answered, which were cut off, and which can be
+    re-run alone without asking the provider about ground it already covered.
+    """
+
     __tablename__ = "job_batches"
+    __table_args__ = (
+        CheckConstraint("records_expected >= 0", name="ck_batch_expected_nonnegative"),
+        CheckConstraint("records_processed >= 0", name="ck_batch_processed_nonnegative"),
+        CheckConstraint(
+            "unit_kind IN ('tile', 'single_query', 'keyword', 'source_probe')",
+            name="ck_batch_unit_kind",
+        ),
+        # A tile is asked once per source per job. Without this, a retry that lost
+        # its response could double-count the same ground as new work.
+        UniqueConstraint("job_id", "tile_key", "source_id", name="uq_batch_job_tile_source"),
+    )
 
     job_id: Mapped[uuid.UUID] = mapped_column(
         UUIDType, ForeignKey("discovery_jobs.id", ondelete="CASCADE"), nullable=False, index=True
     )
     batch_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    unit_kind: Mapped[str] = mapped_column(
+        String(30), nullable=False, default="single_query", server_default=text("'single_query'")
+    )
+    # Deterministic identity for a tile: the same area and tile size always produce
+    # the same key, which is what makes a re-run able to say "already done".
+    tile_key: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    source_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUIDType, ForeignKey("sources.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    bounds: Mapped[dict | None] = mapped_column(JSONType, nullable=True)
+    truncated: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
     status: Mapped[str] = mapped_column(String(30), nullable=False, default="queued")
     records_expected: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     records_processed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -175,6 +270,12 @@ class SourceRecord(Base):
     )
     job_id: Mapped[uuid.UUID | None] = mapped_column(
         UUIDType, ForeignKey("discovery_jobs.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    # Which unit of work produced this record. Nullable: imports and non-tiled jobs
+    # have no tile, and provenance that cannot be named is recorded as unknown
+    # rather than guessed.
+    batch_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUIDType, ForeignKey("job_batches.id", ondelete="SET NULL"), nullable=True, index=True
     )
     owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
     module: Mapped[str] = mapped_column(String(50), nullable=False, index=True)

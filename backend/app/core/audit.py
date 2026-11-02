@@ -13,6 +13,9 @@ from app.modules.notifications.models import AuditLog
 # the audit trail a security artefact rather than a request echo.
 SENSITIVE_ACTIONS = frozenset(
     {
+        "area.create",
+        "area.delete",
+        "area.update",
         "auth.register",
         "auth.login",
         "auth.login_failed",

@@ -709,9 +709,6 @@ Server-side rules before anything is sent to a provider:
 A source request has a maximum area it can honestly cover. Anything bigger is divided
 into a regular lat/lng grid of tiles sized so each tile fits inside that limit.
 
-- Tile geometry is **deterministic**: the same parent area and the same tile size
-  always produce the same tiles, in the same order, with the same identity. That is
-  what lets a re-run skip completed work instead of re-asking for everything.
 - Each tile becomes one `job_batches` row carrying its bounds and its own counters,
   so per-tile progress, failure and retry are first-class state rather than a log
   line to infer them from.
@@ -725,6 +722,28 @@ into a regular lat/lng grid of tiles sized so each tile fits inside that limit.
 - Cancellation is honoured between tiles. Records already stored stay stored.
 - A tile returning exactly the provider's element cap is treated as truncated, not
   complete: the tile is subdivided and re-run, or reported as needing a smaller tile.
+
+**Measured behaviour (D4, 2026-11-02).** Against the public `overpass-api.de`
+interpreter, one 78.5 km² circle at a 200-element limit took **36–45 seconds** and
+**7 of 12 queries failed** with `502`, `504`, or an error page delivered under
+HTTP 200. Four consequences are now design facts rather than preferences:
+
+- Tile size is chosen against *latency and refusal rate*, not coverage. Defaults:
+  25 km² per tile, at most 40 tiles per job, one level of subdivision, one request in
+  flight, 90 s client timeout. Larger tiles answer slower and fail more often; many
+  more tiles is precisely what a saturated endpoint cannot take.
+- A **200 response is not proof of an answer**. The adapter parses the body before
+  treating the query as successful; a non-JSON body under a success status is a
+  retryable `MalformedResponseError`, not an empty result. Reporting a provider's
+  outage as "no businesses found" would convert an infrastructure failure into a
+  false statement about a market.
+- Public Overpass is a development path. Production geographic discovery assumes a
+  self-hosted or contracted endpoint, configured through `SPARKX_OVERPASS_BASE_URL`.
+- Geographic coverage is uneven by category and must be reported as such. In the
+  measured circle, `amenity=hospital` returned 80 located, named records while
+  `amenity=restaurant` returned 2 and `shop=grocery` returned 0. A map that shows
+  hospitals but no shops is reporting OSM's mapping habits, not the city — which is
+  why Overpass supplements search and website discovery and never carries it.
 
 ```mermaid
 flowchart TD

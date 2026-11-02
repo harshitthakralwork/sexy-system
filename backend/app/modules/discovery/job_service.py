@@ -8,7 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import JobStateError, NotFoundError
-from app.modules.discovery.models import DiscoveryJob, JobLog, Search
+from app.modules.discovery.models import DiscoveryJob, JobBatch, JobLog, Search
 
 JOB_TYPE_DISCOVERY = "discovery"
 MODULE_LEADS = "leads"
@@ -21,14 +21,18 @@ async def create_job(
     owner_user_id: uuid.UUID,
     config: dict[str, Any],
     correlation_id: str | None,
+    area_id: uuid.UUID | None = None,
 ) -> DiscoveryJob:
     """Queue a discovery job and remember the query that produced it.
 
     The query lives on a `searches` row so a job can always be re-read as "what
-    was asked", separate from "what happened".
+    was asked", separate from "what happened". A saved area is referenced by id,
+    not copied, while the resolved geometry is copied into the config — so the job
+    stays reproducible even if the area is later edited or deleted.
     """
     search = Search(
         owner_user_id=owner_user_id,
+        area_id=area_id,
         module=MODULE_LEADS,
         query_config=config,
         execution_status="queued",
@@ -128,3 +132,94 @@ async def cancel_job(
     await add_log(session, job.id, "warning", "Cancellation requested")
     await session.flush()
     return job
+
+
+async def open_batch(
+    session: AsyncSession,
+    *,
+    job_id: uuid.UUID,
+    batch_number: int,
+    unit_kind: str,
+    tile_key: str | None = None,
+    source_id: uuid.UUID | None = None,
+    bounds: dict[str, Any] | None = None,
+) -> JobBatch:
+    """Record a unit of work as started, or return the row that already exists.
+
+    Re-opening a completed tile is what a retry is: the same deterministic key,
+    the same bounds, the counters reset and the history kept. Inserting a second
+    row for the same tile would let one region be counted twice.
+    """
+    existing = await find_batch(
+        session, job_id=job_id, tile_key=tile_key, source_id=source_id
+    )
+    if existing is not None:
+        existing.status = "running"
+        existing.started_at = datetime.now(UTC)
+        existing.completed_at = None
+        existing.retry_count += 1
+        existing.records_processed = 0
+        await session.flush()
+        return existing
+
+    batch = JobBatch(
+        job_id=job_id,
+        batch_number=batch_number,
+        unit_kind=unit_kind,
+        tile_key=tile_key,
+        source_id=source_id,
+        bounds=bounds,
+        status="running",
+        started_at=datetime.now(UTC),
+    )
+    session.add(batch)
+    await session.flush()
+    return batch
+
+
+async def find_batch(
+    session: AsyncSession,
+    *,
+    job_id: uuid.UUID,
+    tile_key: str | None,
+    source_id: uuid.UUID | None,
+) -> JobBatch | None:
+    if tile_key is None:
+        return None
+    return await session.scalar(
+        select(JobBatch).where(
+            JobBatch.job_id == job_id,
+            JobBatch.tile_key == tile_key,
+            JobBatch.source_id == source_id,
+        )
+    )
+
+
+def finish_batch(
+    batch: JobBatch,
+    *,
+    status: str,
+    records_expected: int,
+    records_processed: int,
+    truncated: bool = False,
+    error: dict[str, Any] | None = None,
+) -> None:
+    batch.status = status
+    batch.records_expected = records_expected
+    batch.records_processed = records_processed
+    batch.truncated = truncated
+    batch.error_details = error
+    batch.completed_at = datetime.now(UTC)
+
+
+async def list_batches(
+    session: AsyncSession, job_id: uuid.UUID, owner_user_id: uuid.UUID
+) -> list[JobBatch]:
+    """Tile-level state for a job the caller owns."""
+    job = await get_job(session, job_id, owner_user_id)
+    rows = (
+        await session.scalars(
+            select(JobBatch).where(JobBatch.job_id == job.id).order_by(JobBatch.batch_number)
+        )
+    ).all()
+    return list(rows)

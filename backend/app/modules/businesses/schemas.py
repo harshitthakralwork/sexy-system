@@ -57,6 +57,46 @@ class BusinessListOut(BaseModel):
     offset: int
 
 
+class PinOut(BaseModel):
+    """One marker. Carries only what a pin and its preview need."""
+
+    id: uuid.UUID
+    name: str
+    latitude: float
+    longitude: float
+    primary_category: str | None = None
+    website_status: str
+    has_phone: bool
+    rating: float | None = None
+    review_count: int | None = None
+    discovered_at: datetime
+
+
+class ViewportOut(BaseModel):
+    """A viewport read that admits what it left out.
+
+    `total_in_viewport` counts every matching record; `returned` is what was sent.
+    When they differ the client must say so rather than let a dense area look sparse.
+    """
+
+    items: list[PinOut]
+    total_in_viewport: int
+    returned: int
+    truncated: bool
+    bbox: list[float]
+
+
+class SelectedExportIn(BaseModel):
+    ids: list[uuid.UUID] = Field(min_length=1, max_length=500)
+
+
+class SelectedExportOut(BaseModel):
+    rows: int
+    skipped: int = Field(
+        default=0, description="Requested ids that are not the caller's records or no longer exist"
+    )
+
+
 class ActionOut(BaseModel):
     id: uuid.UUID
     message: str

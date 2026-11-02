@@ -368,7 +368,64 @@ triage — both scheduled with Phase 11 hardening, and both still true gaps.
 Do not expose the application beyond loopback until the Phase 3 endpoints inherit the
 same owner-scoped tests.
 
-## 9. Status vocabulary
+## 9. D4 — live source measurement (2026-11-02)
+
+`scripts/d4_overpass_probe.py` was run against the public
+`https://overpass-api.de/api/interpreter` with one request in flight, a 20–25 s gap
+between queries, and an identifying User-Agent. Roughly 35 requests were made in
+total across three runs, after which the instance began refusing even 0.5 km
+count-only queries; the probing was stopped rather than keep hammering shared
+infrastructure. **These are the numbers that actually came back.**
+
+Clean measurements — Hisar, centre (29.1499, 75.7211), 5 km radius, limit 200:
+
+| Category filter | Elements | Named | Coordinates | Phone | Website | Nodes / ways |
+|---|---|---|---|---|---|---|
+| `amenity=hospital` | 80 | 80 | 80 | 2 (2.5%) | 8 (10%) | 78 / 2 |
+| `tourism=hotel` | 4 | 4 | 4 | 0 | 0 | 4 / 0 |
+| `amenity=restaurant` | 2 | 2 | 2 | 0 | 0 | 0 / 2 |
+| `leisure=fitness_centre` | 0 | — | — | — | — | — |
+| `shop=grocery` | 0 | — | — | — | — | — |
+| `amenity=clinic`, `amenity=school` | **not measured** — 502 | | | | | |
+| Delhi, Gurugram, all larger areas | **not measured** — 502/504 | | | | | |
+
+Latency and reliability, which the previous design had no basis for at all:
+
+- Successful queries: **36.6 s to 45.3 s** each for one 78.5 km² circle at a 200-element limit.
+- **7 of 12** coverage cases failed. Observed failures were `502 Gateway Timeout`,
+  `504`, and — importantly — **an error page returned with HTTP 200**. The adapter
+  already treats that correctly as a retryable `MalformedResponseError`, because it
+  parses the body rather than trusting the status.
+- No successful query came near the element limit, so **truncation frequency remains
+  unmeasured**. The detector is implemented (`source.last_capped` → batch `truncated`
+  → subdivision) but is not yet exercised against a real dense area.
+
+What this decides:
+
+1. **D4 stands, and is now evidenced.** OSM/Overpass in India is strong for a few
+   large institutional categories (80 hospitals near Hisar, all named and located)
+   and effectively empty for local commerce (2 restaurants, 0 groceries, 0 gyms in
+   the same circle). A leads product built on Overpass alone would report that a
+   city of three million people has no shops. Search-based discovery and the
+   permitted website crawler are not nice-to-have.
+2. **Contact coverage is thin even where the record exists.** Of 80 hospitals, 2
+   carried a phone and 8 a website. "Discovered 80 businesses" is not "80 usable
+   leads", which is the metric PRD §22 warns about. Enrichment has to be a real
+   stage, not a bonus.
+3. **Tile defaults are set from latency and refusal behaviour, not coverage.**
+   Smaller units answer faster, but more units is what a saturated endpoint cannot
+   take — so `discovery_tile_target_area_km2 = 25`, `discovery_max_tiles_per_job = 40`,
+   `discovery_max_tile_depth = 1`, one source in flight, and a 90 s client timeout
+   (45 s was the slowest observed success).
+4. **Public Overpass is a demo path, not a production path.** The endpoint is
+   configuration (`SPARKX_OVERPASS_BASE_URL`); production use means self-hosting it.
+
+What remains blocked for D4: per-category coverage at Delhi and Gurugram, the
+tile-size/latency curve beyond 5 km, and truncation frequency. They need either a
+healthier moment on the public instance or a self-hosted one — which needs Docker
+or a second native install, both still unavailable here.
+
+## 10. Status vocabulary
 
 Not Started · In Progress · Implemented · Tested · Blocked · Deferred (with reason)
 

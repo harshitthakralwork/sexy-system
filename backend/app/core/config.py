@@ -89,7 +89,21 @@ class Settings(BaseSettings):
     searxng_results_per_page: int = 20
 
     overpass_base_url: str = "https://overpass-api.de"
-    overpass_timeout_seconds: float = 30.0
+    overpass_timeout_seconds: float = 90.0
+
+    # Geographic discovery ceilings. Set from the D4 measurements in
+    # PROJECT_STATUS.md section 9: a 78.5 km² circle took 36-45 s on the public
+    # interpreter, and smaller/faster units are what keep a job from timing out —
+    # but more units is exactly what a saturated endpoint cannot absorb, so tiles
+    # stay modest and the per-job request budget stays tight on purpose.
+    discovery_max_area_km2: float = 2500.0
+    discovery_tile_target_area_km2: float = 25.0
+    discovery_max_tiles_per_job: int = 40
+    # One level of subdivision. Deep recursion multiplies requests against shared
+    # infrastructure that is already refusing queries.
+    discovery_max_tile_depth: int = 1
+    discovery_max_results_per_job: int = 20_000
+    map_max_features_per_viewport: int = 1500
 
     default_region: str = "IN"
     export_dir: Path = Path("var/exports")
@@ -132,11 +146,53 @@ class Settings(BaseSettings):
             raise ValueError("searxng_results_per_page must be between 1 and 50")
         return value
 
-    @field_validator("searxng_timeout_seconds", "overpass_timeout_seconds")
+    @field_validator("searxng_timeout_seconds")
     @classmethod
     def _bounded_timeout(cls, value: float) -> float:
         if not 1.0 <= value <= 60.0:
-            raise ValueError("source timeout_seconds must be between 1 and 60")
+            raise ValueError("searxng_timeout_seconds must be between 1 and 60")
+        return value
+
+    @field_validator("overpass_timeout_seconds")
+    @classmethod
+    def _bounded_overpass_timeout(cls, value: float) -> float:
+        # D4 measured a 5 km / 50-element query completing in 37 seconds on the
+        # public interpreter under load. A 60-second ceiling would time out on
+        # work that was succeeding; the ceiling is still hard, because an
+        # unbounded wait against shared infrastructure is a self-inflicted DoS.
+        if not 1.0 <= value <= 120.0:
+            raise ValueError("overpass_timeout_seconds must be between 1 and 120")
+        return value
+
+    @field_validator("discovery_max_tiles_per_job")
+    @classmethod
+    def _bounded_tiles(cls, value: int) -> int:
+        # Each tile is a request against shared public infrastructure. A number
+        # this high is already aggressive; the ceiling exists to be argued down
+        # from measurement, never up for convenience.
+        if not 1 <= value <= 400:
+            raise ValueError("discovery_max_tiles_per_job must be between 1 and 400")
+        return value
+
+    @field_validator("discovery_max_area_km2", "discovery_tile_target_area_km2")
+    @classmethod
+    def _bounded_area_settings(cls, value: float) -> float:
+        if not 0.01 <= value <= 10_000.0:
+            raise ValueError("area settings must be between 0.01 and 10000 km2")
+        return value
+
+    @field_validator("discovery_max_tile_depth")
+    @classmethod
+    def _bounded_depth(cls, value: int) -> int:
+        if not 0 <= value <= 4:
+            raise ValueError("discovery_max_tile_depth must be between 0 and 4")
+        return value
+
+    @field_validator("map_max_features_per_viewport", "discovery_max_results_per_job")
+    @classmethod
+    def _bounded_feature_counts(cls, value: int) -> int:
+        if not 1 <= value <= 50_000:
+            raise ValueError("map and job result counts must be between 1 and 50000")
         return value
 
     @field_validator("session_ttl_hours")

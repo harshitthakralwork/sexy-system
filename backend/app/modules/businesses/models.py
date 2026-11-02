@@ -8,6 +8,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
+    Integer,
     Numeric,
     String,
     Text,
@@ -48,8 +49,19 @@ class Business(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
             "lifecycle_status IN ('active','archived','deleted')",
             name="ck_business_lifecycle_status",
         ),
+        CheckConstraint(
+            "rating IS NULL OR (rating >= 0 AND rating <= 5)",
+            name="ck_business_rating_range",
+        ),
+        CheckConstraint(
+            "review_count IS NULL OR review_count >= 0",
+            name="ck_business_review_count",
+        ),
         Index("ix_business_owner_domain", "owner_user_id", "normalized_domain"),
         Index("ix_business_owner_location", "owner_user_id", "country", "city"),
+        # Pin reads are "whose records are inside this viewport". Coordinates stay
+        # nullable, so a record without them is still countable in the table.
+        Index("ix_business_owner_coordinates", "owner_user_id", "latitude", "longitude"),
     )
 
     owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
@@ -68,6 +80,12 @@ class Business(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
     normalized_phone: Mapped[str | None] = mapped_column(String(50), nullable=True, index=True)
     email: Mapped[str | None] = mapped_column(String(320), nullable=True)
     normalized_email: Mapped[str | None] = mapped_column(String(320), nullable=True, index=True)
+
+    # Nullable on purpose, and never computed: these hold a rating only when a
+    # collected source actually reported one. A null here is "no source told us",
+    # which a map filter must be able to tell apart from "rated zero".
+    rating: Mapped[float | None] = mapped_column(Numeric(3, 2), nullable=True)
+    review_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     country: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     state: Mapped[str | None] = mapped_column(String(100), nullable=True)

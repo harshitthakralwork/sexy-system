@@ -49,14 +49,20 @@ class SqlBusinessStore:
         *,
         owner_user_id: uuid.UUID,
         job_id: uuid.UUID | None = None,
+        batch_id: uuid.UUID | None = None,
     ) -> None:
         self._session = session
         self._owner = owner_user_id
         self._job_id = job_id
+        self._batch_id = batch_id
         self._source_ids: dict[str, uuid.UUID | None] = {}
         self.created = 0
         self.merged = 0
         self.skipped_provenance = 0
+        # The same source record id seen again — the tile next door, or a re-run of
+        # a saved area. Reported separately so "N known, M new" is a fact.
+        self.reused_by_source_id = 0
+        self.touched_business_ids: list[uuid.UUID] = []
 
     async def _source_id(self, slug: str) -> uuid.UUID | None:
         if slug not in self._source_ids:
@@ -79,6 +85,7 @@ class SqlBusinessStore:
             await self._session.flush()
             await self._write_contacts(model, business)
             await self._write_provenance(model.id, business)
+            self.touched_business_ids.append(model.id)
             self.created += 1
             return True
 
@@ -86,16 +93,26 @@ class SqlBusinessStore:
         await self._session.flush()
         await self._write_contacts(existing, business)
         await self._write_provenance(existing.id, business)
+        self.touched_business_ids.append(existing.id)
         self.merged += 1
         return False
 
     async def _find_existing(self, business: NormalizedBusiness) -> Business | None:
-        """Match on domain first, then phone — the two strongest identifiers.
+        """Match on the source's own record id first, then domain, then phone.
 
-        Deliberately *not* name matching. Two different cafes called "Spark
-        Coffee" are a real thing, and merging them on a name would destroy two
-        leads and their evidence.
+        A provider identifier is exact identity: the same OSM node re-appearing in
+        the tile next door, or in next month's re-run of a saved area, is the same
+        business and must be recorded as another sighting rather than a new lead.
+        Domain and phone are the strongest cross-source keys.
+
+        Deliberately *not* name matching. Two different cafes called "Spark Coffee"
+        are a real thing, and merging them on a name would destroy two leads and
+        their evidence.
         """
+        by_external_id = await self._find_by_source_identity(business)
+        if by_external_id is not None:
+            return by_external_id
+
         if business.normalized_domain:
             found = await self._session.scalar(
                 select(Business).where(
@@ -114,6 +131,38 @@ class SqlBusinessStore:
                     Business.deleted_at.is_(None),
                 )
             )
+        return None
+
+    async def _find_by_source_identity(self, business: NormalizedBusiness) -> Business | None:
+        """Has this exact source record already produced one of my businesses?"""
+        references = [
+            (attribution.source_slug, attribution.external_id)
+            for attribution in business.attributions
+            if attribution.external_id
+        ]
+        for slug, external_id in references:
+            source_id = await self._source_id(slug)
+            if source_id is None:
+                continue
+            found = await self._session.scalar(
+                select(Business)
+                .join(
+                    SourceRecordLink,
+                    (SourceRecordLink.entity_id == Business.id)
+                    & (SourceRecordLink.entity_type == "business"),
+                )
+                .join(SourceRecord, SourceRecord.id == SourceRecordLink.source_record_id)
+                .where(
+                    SourceRecord.owner_user_id == self._owner,
+                    SourceRecord.source_id == source_id,
+                    SourceRecord.external_id == external_id,
+                    Business.owner_user_id == self._owner,
+                    Business.deleted_at.is_(None),
+                )
+            )
+            if found is not None:
+                self.reused_by_source_id += 1
+                return found
         return None
 
     def _to_model(self, business: NormalizedBusiness) -> Business:
@@ -249,6 +298,7 @@ class SqlBusinessStore:
             record = SourceRecord(
                 source_id=source_id,
                 job_id=self._job_id,
+                batch_id=self._batch_id,
                 owner_user_id=self._owner,
                 module="leads",
                 external_id=attribution.external_id,

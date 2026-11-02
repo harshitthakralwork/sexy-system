@@ -203,12 +203,122 @@ async def test_overpass_maps_named_elements_and_keeps_attribution() -> None:
 async def test_overpass_query_uses_metre_radius() -> None:
     adapter = OverpassAdapter(client=client_for(lambda request: httpx.Response(200, json={})))
     query = DiscoveryQuery(
-        category="cafe", location=LocationSpec(center=(12.9, 77.5), radius_km=3.5), max_results=20
+        category="amenity=cafe",
+        location=LocationSpec(center=(12.9, 77.5), radius_km=3.5),
+        max_results=20,
     )
     body = adapter.build_query(query)
     assert "around:3500,12.9,77.5" in body
-    assert '["cafe"]' in body
-    assert "out body 20;" in body
+    assert '["amenity"="cafe"]' in body
+    assert "out center 20;" in body
+
+
+@pytest.mark.asyncio
+async def test_overpass_union_statements_terminate_with_semicolons() -> None:
+    """D4 found the shipped query was rejected by the real interpreter.
+
+    Overpass QL requires every statement inside a union block to end with a
+    semicolon; the old builder emitted `(node[...](around:...))` and the live
+    endpoint answered `parse error: ';' expected - ')' found`. Mocked transports
+    could never have caught that, which is why the shape is asserted here.
+    """
+    adapter = OverpassAdapter(client=client_for(lambda request: httpx.Response(200, json={})))
+    body = adapter.build_query(
+        DiscoveryQuery(
+            category="shop", location=LocationSpec(center=(12.9, 77.5), radius_km=1), max_results=5
+        )
+    )
+    assert "(nwr[\"shop\"](around:1000,12.9,77.5););" in body
+
+
+@pytest.mark.asyncio
+async def test_overpass_searches_ways_and_relations_not_only_nodes() -> None:
+    """A hospital mapped as a building is a way. Reading nodes only would report
+    an area as thinly covered when the data is there in another element type."""
+    adapter = OverpassAdapter(client=client_for(lambda request: httpx.Response(200, json={})))
+    body = adapter.build_query(
+        DiscoveryQuery(
+            category="amenity=hospital",
+            location=LocationSpec(center=(29.1499, 75.7211), radius_km=5),
+            max_results=10,
+        )
+    )
+    assert body.count("nwr[") == 1
+    assert "(node[" not in body
+
+
+@pytest.mark.asyncio
+async def test_overpass_uses_centre_of_a_way_as_the_pin_location() -> None:
+    payload = {
+        "elements": [
+            {
+                "type": "way",
+                "id": 4444,
+                "center": {"lat": 28.61, "lon": 77.21},
+                "tags": {"amenity": "hospital", "name": "St. Stephen's"},
+            }
+        ]
+    }
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(200, json=payload)
+
+    adapter = OverpassAdapter("https://overpass.test", client=client_for(handler))
+    items = await adapter.discover(
+        DiscoveryQuery(
+            category="amenity=hospital",
+            location=LocationSpec(center=(28.61, 77.21), radius_km=5),
+            max_results=10,
+        )
+    )
+    assert items[0].latitude == 28.61
+    assert items[0].longitude == 77.21
+    assert items[0].external_id == "way/4444"
+
+
+@pytest.mark.asyncio
+async def test_overpass_reports_a_truncated_answer_as_truncated() -> None:
+    """Exactly `limit` elements means the source stopped early, not that the area
+    is empty. Tiles and coverage claims depend on telling those apart."""
+
+    def elements(count: int) -> dict[str, object]:
+        return {
+            "elements": [
+                {
+                    "type": "node",
+                    "id": index,
+                    "lat": 12.9,
+                    "lon": 77.5,
+                    "tags": {"name": f"Shop {index}"},
+                }
+                for index in range(count)
+            ]
+        }
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(200, json=elements(3))
+
+    adapter = OverpassAdapter("https://overpass.test", client=client_for(handler))
+    await adapter.discover(
+        DiscoveryQuery(
+            category="shop", location=LocationSpec(center=(12.9, 77.5), radius_km=1), max_results=3
+        )
+    )
+    assert adapter.last_capped is True
+
+    async def short(request: httpx.Request) -> httpx.Response:
+        del request
+        return httpx.Response(200, json=elements(2))
+
+    capped_adapter = OverpassAdapter("https://overpass.test", client=client_for(short))
+    await capped_adapter.discover(
+        DiscoveryQuery(
+            category="shop", location=LocationSpec(center=(12.9, 77.5), radius_km=1), max_results=9
+        )
+    )
+    assert capped_adapter.last_capped is False
 
 
 @pytest.mark.asyncio

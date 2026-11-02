@@ -179,7 +179,7 @@ def test_job_runs_and_persists_businesses(
     assert job["status"] == "completed"
     assert job["total"] == 2
     assert job["failed"] == 1
-    assert job["report"]["counters"]["stored_new"] == 1
+    assert job["report"]["totals"]["stored_new"] == 1
     assert job["report"]["skipped_provenance"] == 0
 
     listed = session_account.api.get("/api/v1/businesses")
@@ -254,7 +254,7 @@ def test_one_dead_source_does_not_erase_the_other_s_results(
     job = read_job(uuid.UUID(created["id"]))
 
     assert job["status"] == "completed"
-    assert job["report"]["stored_new"] == 1
+    assert job["report"]["totals"]["stored_new"] == 1
     assert job["report"]["sources"][0]["failed"] is True
     assert "partial_failure" in job["error_details"]
 
@@ -424,5 +424,5 @@ def test_logs_record_what_the_job_saw(
     logs = session_account.api.get(f"/api/v1/discovery/jobs/{created['id']}/logs").json()
     messages = " ".join(entry["message"] for entry in logs)
 
-    assert "Started with sources" in messages
+    assert "Started: 1 unit(s) across 1 source(s)" in messages
     assert any(entry["metadata"].get("classification") == "access_denied" for entry in logs)

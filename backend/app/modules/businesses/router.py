@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response, status
 
 from app.core.audit import client_ip, record_audit
 from app.core.database import AsyncSessionDep
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import NotFoundError, ValidationFailedError
 from app.modules.auth.dependencies import CurrentUser, require_csrf_for_state_changes
 from app.modules.businesses import repository
 from app.modules.businesses.schemas import (
@@ -15,6 +15,8 @@ from app.modules.businesses.schemas import (
     BusinessListOut,
     BusinessOut,
     ContactOut,
+    PinOut,
+    ViewportOut,
 )
 from app.modules.crm.service import ensure_default_pipeline, stage_by_name
 from app.modules.exports.csv_export import to_csv
@@ -22,6 +24,26 @@ from app.modules.exports.csv_export import to_csv
 router = APIRouter(prefix="/businesses", tags=["businesses"])
 
 Csrf = Depends(require_csrf_for_state_changes())
+
+MAX_SELECTED_EXPORT = 500
+
+
+def _parse_bbox(value: str | None) -> tuple[float, float, float, float] | None:
+    """Parse `west,south,east,north`. Anything unusable is treated as no filter.
+
+    The repository re-checks ordering and ranges, so a malformed or inverted box
+    narrows nothing rather than silently searching the wrong quadrant of the map.
+    """
+    if not value:
+        return None
+    parts = value.split(",")
+    if len(parts) != 4:
+        return None
+    try:
+        west, south, east, north = (float(part) for part in parts)
+    except ValueError:
+        return None
+    return (west, south, east, north)
 
 
 @router.get("", response_model=BusinessListOut)
@@ -33,6 +55,11 @@ async def list_businesses(
     country: str | None = Query(default=None, max_length=100),
     category: str | None = Query(default=None, max_length=150),
     website_status: str | None = Query(default=None, max_length=30),
+    has_phone: bool | None = Query(default=None),
+    min_rating: float | None = Query(default=None, ge=0, le=5),
+    min_reviews: int | None = Query(default=None, ge=0),
+    job_id: uuid.UUID | None = Query(default=None),
+    bbox: str | None = Query(default=None, max_length=64, description="west,south,east,north"),
     shortlisted_only: bool = Query(default=False),
     sort: str = Query(default="first_discovered_at"),
     descending: bool = Query(default=True),
@@ -46,6 +73,11 @@ async def list_businesses(
         country=country,
         category=category,
         website_status=website_status,
+        has_phone=has_phone,
+        min_rating=min_rating,
+        min_reviews=min_reviews,
+        job_id=job_id,
+        bbox=_parse_bbox(bbox),
         shortlisted_only=shortlisted_only,
         sort=sort,
         descending=descending,
@@ -58,6 +90,52 @@ async def list_businesses(
         total=total,
         limit=filters.normalized().limit,
         offset=filters.normalized().offset,
+    )
+
+
+@router.get("/viewport", response_model=ViewportOut)
+async def viewport_pins(
+    session: AsyncSessionDep,
+    user: CurrentUser,
+    bbox: str = Query(description="west,south,east,north in decimal degrees"),
+    category: str | None = Query(default=None, max_length=150),
+    website_status: str | None = Query(default=None, max_length=30),
+    has_phone: bool | None = Query(default=None),
+    min_rating: float | None = Query(default=None, ge=0, le=5),
+    min_reviews: int | None = Query(default=None, ge=0),
+    job_id: uuid.UUID | None = Query(default=None),
+    limit: int = Query(default=500, ge=1, le=2000),
+) -> ViewportOut:
+    """Pins for the visible map area, plus the honest count of what is in it.
+
+    Bounded on purpose. The response says how many records match and how many were
+    sent, so a dense district is visibly a partial render rather than a smaller
+    market. Records without coordinates are excluded here and still counted in the
+    table, because the map cannot draw what the source never located.
+    """
+    bounds = _parse_bbox(bbox)
+    if bounds is None:
+        raise ValidationFailedError(
+            "A viewport needs a bounding box as west,south,east,north",
+            details={"example": "77.5,-85.3,77.7,28.7"},
+        )
+    filters = repository.BusinessFilters(
+        bbox=bounds,
+        category=category,
+        website_status=website_status,
+        has_phone=has_phone,
+        min_rating=min_rating,
+        min_reviews=min_reviews,
+        job_id=job_id,
+        limit=limit,
+    )
+    pins, total = await repository.list_pins(session, user.id, filters)
+    return ViewportOut(
+        items=[PinOut(**pin) for pin in pins],
+        total_in_viewport=total,
+        returned=len(pins),
+        truncated=total > len(pins),
+        bbox=list(bounds),
     )
 
 
