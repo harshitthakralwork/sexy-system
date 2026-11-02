@@ -53,7 +53,7 @@ and per-tile progress, saved areas, and one selection shared by pins and list.
 
 | Gate | Result |
 |---|---|
-| `pytest` | **261 passed**, 0 skipped (was 189) |
+| `pytest` | **260 passed**, 0 skipped (was 189) |
 | `ruff` / `mypy` | Clean, 73 files |
 | `tsc` / `eslint` / `next build` | Clean |
 | Live source | One 1 km Hisar job stored 16 real records; a 3 km job failed on `ReadError` and reported it |
