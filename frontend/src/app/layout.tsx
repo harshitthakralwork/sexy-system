@@ -4,6 +4,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 import { QueryProvider } from "@/components/providers/query-provider";
+import { SessionProvider } from "@/components/providers/session-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -25,7 +26,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Theme is applied by the provider on mount; the html attribute above is
             the dark default so the first paint does not flash light. */}
         <ThemeProvider>
-          <QueryProvider>{children}</QueryProvider>
+          <QueryProvider>
+            <SessionProvider>{children}</SessionProvider>
+          </QueryProvider>
         </ThemeProvider>
       </body>
     </html>

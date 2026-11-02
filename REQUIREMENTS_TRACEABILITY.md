@@ -13,14 +13,14 @@ covers the behaviour, not because a file with the right name exists.
 
 | # | Requirement | Where it lands | Status | Evidence |
 |---|---|---|---|---|
-| 1 | Open and securely access the platform | `modules/auth` | Not Started — **unblocked** | Primitives **Tested** (Argon2id, hashed session tokens, anti-enumeration); models exist. Endpoints are Phase 2's critical path now that a database runs |
+| 1 | Open and securely access the platform | `modules/auth` | **Tested** | Register, login, logout, session; 13 authentication tests + live HTTP smoke test |
 | 2 | Discover businesses using supported sources | `modules/discovery/adapters` | **Implemented** | SearXNG + Overpass adapters written against the `DiscoveryAdapter` contract; **Tested** with mocked transports (17 tests). Not yet run against a live instance |
 | 3 | View results in tables and on a map | frontend leads screens | Not Started | Phase 2a (table) / 2b (map) |
 | 4 | Research individual business profiles | `modules/businesses` | Not Started | Phase 2a |
 | 5 | Filter and deduplicate discovered businesses | `shared/normalization`, `modules/deduplication` | **Tested** | 13 normalisation + 10 deduplication tests. Confirmed auto-merges; probable/possible become a review backlog |
 | 6 | Evaluate businesses against configurable services | `shared/signals`, `shared/scoring`, `services_catalog` | **Tested** | Deterministic evaluator (12 tests) + canonical signal vocabulary. Storage models implemented, not yet exercised against a database |
-| 7 | Shortlist promising opportunities | `modules/crm` | Not Started | Phase 2a |
-| 8 | Manage shortlisted businesses through a CRM pipeline | `modules/crm` | Not Started | Phase 2b |
+| 7 | Shortlist promising opportunities | `modules/crm/service.py`, `modules/businesses` | **Tested** | Shortlist endpoint with ownership enforcement, stage history and activity; cross-owner shortlist rejected |
+| 8 | Manage shortlisted businesses through a CRM pipeline | `modules/crm` | Implemented | Per-owner default pipeline with the 12 documented stages, stage moves recorded with history. Kanban UI is Phase 6 |
 | 9 | Export data to CSV or Excel | `modules/exports/csv_export.py` | **Implemented** | CSV writer **Tested** (13 tests) incl. spreadsheet-formula neutralisation. Excel export and job persistence pending the database |
 | 10 | See job status, source health and processing errors | `modules/health`, `discovery/pipeline.py`, `modules/sources` | In Progress | Readiness + per-source failure reporting in `PipelineReport` are **Tested**. Job rows and Source Manager UI need the database |
 
@@ -86,13 +86,13 @@ as hostile input. They are recorded here so they cannot be dropped later.
 
 | Requirement | Source | Status |
 |---|---|---|
-| Secure authentication and sessions | PRD §17, `architecture.md` §19 | In Progress — primitives **Tested**, endpoints Blocked on database |
-| Authorization checks / owner scoping | PRD §17 | Not Started — `owner_user_id` creates an IDOR surface; tests proving cross-owner isolation are mandatory in Phase 1 |
-| CSRF protection | `architecture.md` §19 | Not Started — `sign_value`/`unsign_value` exist unused until cookie auth lands |
-| Rate limiting | PRD §19, `architecture.md` §19 | Not Started — safe today only because the stack binds to loopback |
-| Audit logging of important actions | PRD §17 | Implemented (model) · Not Started (writes) |
-| Security headers / CSP | Not specified | Not Started — Phase 1 frontend |
-| Dependency vulnerability triage | Not specified | Not Started — 16 moderate npm advisories reported at scaffold, untriaged |
+| Secure authentication and sessions | PRD §17, `architecture.md` §19 | **Tested** — endpoints live; server-side revocation proven by replaying a stolen cookie |
+| Authorization / ownership enforcement | PRD §17 | **Tested** — two users; read, shortlist, stage change, delete and export are cross-owner rejected with 404, and the store is owner-scoped at construction |
+| CSRF protection | `architecture.md` §19 | **Tested** — missing, mismatched and forged cookie cases all rejected |
+| Rate limiting | PRD §19, `architecture.md` §19 | **Tested** for login/registration. Limitation: in-process window, not shared between workers, resets on restart — Redis-backed later |
+| Audit logging of important actions | PRD §17 | In Progress — auth paths **Tested** incl. durable failed-attempt writes; business/export actions done, CRM and source-config writes still to wire |
+| Security headers / CSP | Not specified | Not Started — Phase 11 |
+| Dependency vulnerability triage | Not specified | Not Started — 16 moderate npm advisories still untriaged |
 
 ## Deferred (with reason — see IMPLEMENTATION_PLAN.md section 7)
 
@@ -113,9 +113,9 @@ Startup Intelligence tables · Social Intelligence tables.
    website, activity and freshness; extend it as enrichment lands.
 3. ~~Auth is implemented but unexercised~~ **Unblocked** — a real PostgreSQL is running;
    the endpoints and their integration tests are Phase 2 work, not a missing dependency.
-4. **The in-memory store is not the real store.** `BusinessStore` is a protocol; the
-   SQLAlchemy implementation is now writable and testable. Until it exists, "Store" in
-   the pipeline means "kept in process memory" — records do not survive a restart.
+4. ~~The in-memory store is not the real store~~ **Closed** — `SqlBusinessStore` is
+   implemented and tested against PostgreSQL. The pipeline still defaults to the
+   in-memory store; jobs must pass the SQL one, which is Phase 3 step 2.
 5. **Live network verification has not happened.** The first real SearXNG and Overpass
    calls will be the first test of the error taxonomies against actual failures such as
    bot protection and instance throttling.

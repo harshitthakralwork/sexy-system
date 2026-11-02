@@ -6,6 +6,59 @@ In Progress · Blocked · Deferred.
 
 ---
 
+## 2026-11-02 (Phase 2) — Authentication, authorization, SQL store, two-user proof
+
+### Backend
+- **`SqlBusinessStore`** — real PostgreSQL persistence. Owner fixed at construction;
+  merges on domain or phone, never name; fills gaps rather than overwriting; writes
+  contacts as `unverified`; one `source_records` row plus link per contributing source;
+  bounds raw payloads to 64 KB; counts skipped provenance instead of inventing a source id.
+- **Auth endpoints** — register, login, logout, session. Hashed session tokens,
+  server-side revocation, identical errors for unknown email and wrong password,
+  per-IP+email login throttle with `Retry-After`, switchable registration.
+- **CSRF** — double-submit cookie with an HMAC-signed, unguessable echo value; enforced
+  on unsafe methods whenever a session exists.
+- **Audit** — declared action list, redaction of secret-shaped keys, and a durable
+  write path for failed attempts.
+- **Businesses API** — list with filters, detail with provenance, shortlist, archive,
+  soft delete, stage changes, CSV export. Every query carries the owner predicate.
+- **CRM bootstrap** — per-owner default pipeline with the 12 documented stages; every
+  stage move writes history and an activity row.
+
+### Frontend
+- Login screen with a signup affordance that follows the server's `registration_open`
+  flag; session provider; dashboard gate; sign-out; CSRF-aware API client.
+
+### Defects found by the new tests (all fixed)
+Failed logins audited nothing (rolled back with the request); audit writes crashed on
+non-IP client hosts against an `INET` column; a module-global engine outlived its event
+loop; `NullPool` was handed pooling arguments; the CRM model referenced `services`
+without importing it (`NoReferencedTableError`); `dict(Result)` is invalid; the CSRF
+echo value was deterministic and therefore forgeable.
+
+### Verification
+| Gate | Result |
+|---|---|
+| `pytest` | **173 passed** (was 146) — 13 authentication, 14 authorization |
+| ruff / mypy | clean, 65 files |
+| eslint / tsc / `next build` | clean; `/`, `/dashboard`, `/login` prerendered |
+| Live HTTP smoke | register 201 → login 200 → session 200 → businesses 200 → anonymous **401** → shortlist without CSRF **403** → logout 200 → replayed cookie **401** |
+
+### The mandatory proof
+`tests/test_authorization.py` creates two real users and shows that user B cannot read,
+shortlist, change the stage of, delete, or export user A's records — each returning 404
+rather than confirming existence — and that `SqlBusinessStore` built for B returns none
+of A's rows. Two differently-named businesses in different accounts stay separate.
+
+### Commits
+`dddafb9` Phase 2 backend and tests.
+
+### Cost, stated
+The suite now takes about four minutes because these tests use a real database and real
+Argon2 hashing. Runtime rose deliberately in exchange for integration truth.
+
+---
+
 ## 2026-11-02 (later) — Phase 1 infrastructure unblocked, real migrations verified
 
 ### Unblocked without administrator rights

@@ -25,16 +25,24 @@ interface RequestOptions {
   body?: unknown;
   signal?: AbortSignal;
   timeoutMs?: number;
+  headers?: Record<string, string>;
 }
 
-async function request<T>(base: string, path: string, options: RequestOptions): Promise<T> {
-  const { method = "GET", body, signal, timeoutMs = DEFAULT_TIMEOUT_MS } = options;
+async function request<T>(
+  base: string,
+  path: string,
+  options: RequestOptions,
+): Promise<T> {
+  const { method = "GET", body, signal, timeoutMs = DEFAULT_TIMEOUT_MS, headers } = options;
 
   const timeout = AbortSignal.timeout(timeoutMs);
   const response = await fetch(`${base}${path}`, {
     method,
+    // The session cookie is the credential. Anything that can read it can act
+    // as the user, which is why it is HttpOnly and why these requests must not
+    // be sent from a page the operator did not open.
     credentials: "include",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...headers },
     body: body === undefined ? undefined : JSON.stringify(body),
     // A hung request would otherwise leave a panel spinning with no message, so
     // every call is bounded. Caller cancellation and our timeout both apply.
@@ -61,9 +69,23 @@ async function request<T>(base: string, path: string, options: RequestOptions): 
 export const api = {
   get: <T>(path: string, signal?: AbortSignal) =>
     request<T>(API_BASE, path, { method: "GET", signal }),
-  post: <T>(path: string, body?: unknown) => request<T>(API_BASE, path, { method: "POST", body }),
-  patch: <T>(path: string, body?: unknown) => request<T>(API_BASE, path, { method: "PATCH", body }),
-  delete: <T>(path: string) => request<T>(API_BASE, path, { method: "DELETE" }),
+  post: <T>(path: string, body?: unknown, csrf?: string | null) =>
+    request<T>(API_BASE, path, {
+      method: "POST",
+      body,
+      headers: csrf ? { "X-CSRF-Token": csrf } : undefined,
+    }),
+  patch: <T>(path: string, body?: unknown, csrf?: string | null) =>
+    request<T>(API_BASE, path, {
+      method: "PATCH",
+      body,
+      headers: csrf ? { "X-CSRF-Token": csrf } : undefined,
+    }),
+  delete: <T>(path: string, csrf?: string | null) =>
+    request<T>(API_BASE, path, {
+      method: "DELETE",
+      headers: csrf ? { "X-CSRF-Token": csrf } : undefined,
+    }),
 };
 
 /** Service endpoints outside the versioned API — health and readiness. */

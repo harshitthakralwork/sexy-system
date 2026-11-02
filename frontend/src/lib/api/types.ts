@@ -7,6 +7,7 @@ export interface RuntimeInfo {
   default_region: string;
   execution_model: string;
   ai_enabled: boolean;
+  registration_open: boolean;
   modules_enabled: string[];
 }
 
@@ -19,6 +20,24 @@ export interface ComponentState {
 export interface ReadyResponse {
   status: "ok" | "degraded";
   components: ComponentState[];
+}
+
+export interface AuthUser {
+  id: string;
+  email: string;
+  display_name: string;
+  is_active: boolean;
+}
+
+export interface SessionInfo {
+  authenticated: boolean;
+  user: AuthUser | null;
+  csrf_token: string | null;
+}
+
+export interface LoginPayload {
+  email: string;
+  password: string;
 }
 
 /** The single error envelope the API uses (see app/core/exceptions.py). */

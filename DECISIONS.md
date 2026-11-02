@@ -7,6 +7,52 @@ Format: decision, driver, alternatives rejected, consequence.
 
 ---
 
+## D-044 | Failed attempts are audited in their own transaction
+**Decision:** `record_audit()` joins the caller's transaction; `record_attempt()` opens
+its own and commits before the caller raises.
+**Driver:** Phase 2 test found failed logins recorded nothing — the audit row was
+written in the request transaction and the raised exception rolled it back.
+**Rejected:** One mechanism for both (either losing attempts, or persisting success
+records for actions that later rolled back).
+**Consequence:** "What happened" is atomic with the change; "what was attempted" is
+durable regardless. A brute-force trail that records nothing is worse than none,
+because it reads as no attempts.
+
+## D-043 | The engine belongs to the app instance, not the module
+**Decision:** `create_app()` builds the engine and session factory onto `app.state`;
+`get_db` reads them from the request's app. Standalone code uses `session_scope()`,
+which builds a short-lived unpooled engine.
+**Driver:** A module-global engine outlives the event loop that created it. Invisible
+with one production process; fatal the moment a second client exists — every pooled
+connection then belongs to a dead loop and fails with "Event loop is closed".
+**Rejected:** Test-only workarounds (shared client, monkeypatched loops) that leave the
+architectural flaw in place.
+**Consequence:** Two cost notes, both accepted: the integration suite now runs about
+four minutes, and `session_scope()` pays a fresh connection per call — fine for workers
+and scripts, not something to put in a hot request path.
+
+## D-042 | CSRF double-submit with an unguessable echo value
+**Decision:** Cookie holds an HMAC-signed token; the client echoes an unguessable nonce
+that the signature commits to. Enforced on unsafe methods when a session cookie exists;
+login and registration are exempt because there is no session yet.
+**Driver:** The first implementation signed a *deterministic* value, so anyone who knew
+the scheme could construct the header without reading the cookie — a CSRF control that
+was not one.
+**Rejected:** SameSite-only (a defence, not a control); synchronizer tokens needing
+server state per anonymous visitor.
+**Consequence:** `signing_secret` is mandatory in production; without it the signature
+falls back to a published development key.
+
+## D-041 | Ownership is fixed at construction and cross-owner reads return 404
+**Decision:** `SqlBusinessStore` takes `owner_user_id` once; every read statement in the
+repository starts from `_base_statement(owner)`. A row belonging to someone else is
+`not_found`, never `permission_denied`.
+**Driver:** Phase 2's mandatory two-user proof. A store accepting an owner per call is
+one forgotten argument from writing to another user's data; a 403 confirms the id exists.
+**Rejected:** Filter-in-the-frontend; soft-scoping via optional filters.
+**Consequence:** The isolation test suite is the regression guard for every future
+endpoint — a new owned resource without a cross-owner test is incomplete.
+
 ## D-040 · Integrity is asserted against the database, not the model
 **Decision:** `tests/test_database_schema.py` queries `pg_constraint` and attempts real
 writes, asserting every table has a primary key, foreign keys reject dangling rows,

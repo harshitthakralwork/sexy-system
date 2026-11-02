@@ -1,10 +1,12 @@
 "use client";
 
 import { Monitor, Moon, Sun } from "lucide-react";
+import { useState } from "react";
 
+import { useSession } from "@/components/providers/session-provider";
+import { useTheme } from "@/components/providers/theme-provider";
 import { useBackendStatus } from "@/hooks/use-backend-status";
 import { cn } from "@/lib/utils";
-import { useTheme } from "@/components/providers/theme-provider";
 
 const STATE_LABEL: Record<string, string> = {
   online: "API connected",
@@ -62,6 +64,8 @@ export function Header({ title, subtitle }: { title: string; subtitle?: string }
           Global search — Phase 2
         </span>
 
+        <UserMenu />
+
         <button
           type="button"
           onClick={toggleTheme}
@@ -72,5 +76,35 @@ export function Header({ title, subtitle }: { title: string; subtitle?: string }
         </button>
       </div>
     </header>
+  );
+}
+
+function UserMenu() {
+  const { user, logout } = useSession();
+  const [busy, setBusy] = useState(false);
+
+  if (!user) return null;
+
+  return (
+    <div className="flex items-center gap-2">
+      <span className="hidden text-xs text-[var(--color-muted)] sm:inline" title={user.email}>
+        {user.display_name}
+      </span>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            await logout();
+          } finally {
+            setBusy(false);
+          }
+        }}
+        className="rounded-md border border-border px-2.5 py-1.5 text-xs hover:bg-[var(--color-surface-elevated)] disabled:opacity-60"
+      >
+        {busy ? "Signing out…" : "Sign out"}
+      </button>
+    </div>
   );
 }

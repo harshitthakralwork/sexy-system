@@ -1,10 +1,10 @@
 # SparkXFlow Nexus — Project Status
 
-**Last updated:** 2026-11-02 (Phase 1 infrastructure session)
-**Current phase:** **Phase 1 — infrastructure and database foundation, partially done.**
-PostgreSQL is running and migrations are verified against it. Redis and SearXNG are not.
-**Overall status:** The database blocker is gone. Phase 2 (authentication) is now the
-critical path and needs no further infrastructure.
+**Last updated:** 2026-11-02 (Phase 2 session)
+**Current phase:** **Phase 2 complete and verified.** Phase 3 (discovery vertical slice)
+is next and is largely unblocked.
+**Overall status:** Authentication, authorization, ownership enforcement and real SQL
+persistence are implemented and proven with two separate users. 173 tests pass.
 
 ### Phase mapping
 
@@ -16,9 +16,9 @@ This file uses the master prompt's Phase 0–11 numbering. The mapping to
 | Phase | Scope | Status |
 |---|---|---|
 | 0 | Repository audit and stabilisation | **Complete** — baseline committed at `0efa064` |
-| 1 | Infrastructure and database foundation | **In Progress** — PostgreSQL real, migrations verified; Redis and SearXNG absent |
-| 2 | Authentication and authorization | Not Started — unblocked, next |
-| 3 | Discovery vertical slice | Partial — adapters, pipeline, normalisation, dedup, CSV export built and tested; no persistence wiring yet |
+| 1 | Infrastructure and database foundation | **Complete for PostgreSQL.** Redis and SearXNG still absent |
+| 2 | Authentication and authorization | **Complete** — includes the mandatory two-user isolation proof |
+| 3 | Discovery vertical slice | **In Progress** — pipeline, adapters and SQL store exist; job management and the UI table/profile/export wiring remain |
 | 4–11 | Leads UI, enrichment, CRM, Startup, Social, Automation, Analytics, Hardening | Not Started |
 
 ## 1. Security review findings (2026-11-02)
@@ -76,15 +76,56 @@ helpers.
 
 | Gate | Result |
 |---|---|
-| `pytest` | **146 passed** (139 previous + 7 database integrity tests against real PostgreSQL) |
+| `pytest` | **173 passed** (146 previous + 13 authentication + 14 authorization) |
 | `ruff check` | All checks passed |
-| `mypy app` | No issues in 53 source files |
+| `mypy app` | No issues in 65 source files |
 | `eslint` / `tsc --noEmit` | Clean |
-| `next build` | Verified in the baseline session; no frontend changes since |
+| `next build` | Succeeds; routes `/`, `/dashboard`, `/login` prerendered |
 | `alembic upgrade head` from empty | 4 revisions applied to a scratch database, 37 tables created |
 | `alembic check` on that schema | **No new upgrade operations detected** |
 | Schema audit query | 37/37 tables have a primary key; 15 CHECK constraints, 37 FKs, 146 indexes |
-| Live probe | `/health/ready` → `degraded`, `database: ok`, `redis: TimeoutError` |
+| Live HTTP smoke test | register 201 → login 200 → session 200 → businesses 200 → **anonymous 401** → **shortlist without CSRF 403** → logout 200 → **session after logout 401** |
+
+Runtime note: the suite now takes about four minutes because the auth and
+authorization tests hit a real database and real Argon2 hashing. That is the cost of
+integration truth over mocks, recorded rather than hidden.
+
+### Phase 2 — what was built
+
+- **`SqlBusinessStore`** — ownership fixed at construction rather than passed per write;
+  merges on domain or phone (never name); fills gaps instead of overwriting; writes
+  contacts as `unverified`; one `source_record` plus link per contributing source;
+  bounds raw payloads; counts skipped provenance instead of faking a source id.
+- **Auth endpoints** — register, login, logout, session. Hashed session tokens,
+  server-side revocation, generic credential errors, per-IP+email login throttle with
+  `Retry-After`, switchable registration, double-submit CSRF with an unguessable echo.
+- **Businesses API** — list with filters, detail with provenance, shortlist, archive,
+  soft delete, stage changes, CSV export. Every statement carries the owner predicate.
+- **Audit trail** — declared action list, secret redaction, and a separate durable write
+  for attempts so a rolled-back request still records what was tried.
+- **CRM bootstrap** — per-owner default pipeline with the 12 documented stages, stage
+  history and activity written on every move.
+- **Frontend** — login screen, session provider, dashboard gate, sign-out, CSRF-aware
+  API client. The signup affordance follows the server's `registration_open` flag
+  instead of assuming it.
+
+### Defects the Phase 2 tests found (all fixed)
+
+1. **Failed logins recorded nothing.** The audit row was written inside the request
+   transaction, which the raised exception rolled back.
+2. **Audit writes crashed on non-IP client hosts.** `ip_address` is `INET`; test and
+   proxied clients put a name there, failing the whole request.
+3. **A module-global engine outlived its event loop.** Invisible in production, fatal
+   for any second client; the engine now belongs to the app instance.
+4. **`NullPool` rejected the pooling arguments** it was being handed.
+5. **The CRM model referenced `services` without importing it**, producing
+   `NoReferencedTableError` whenever one module was loaded alone.
+6. **`dict(Result)` is invalid** — the export path raised instead of returning rows.
+7. **The CSRF echo value was deterministic**, which made double-submit forgeable from
+   the URL alone.
+
+Items 1, 2 and 7 were security defects in code written hours earlier; none would have
+shown up as a functional bug.
 
 ### Infrastructure actually running
 
@@ -119,12 +160,12 @@ are confined to the `dev` dependency extra so they cannot leak into a runtime in
 |---|---|---|
 | ~~`0002_initial_schema`~~ | ~~No PostgreSQL~~ | **Done** — autogenerated, reviewed, applied, drift-free |
 | ~~Schema revision chain~~ | ~~No PostgreSQL~~ | **Done** — verified by rebuilding into an empty database |
-| SQLAlchemy `BusinessStore` | Nothing | **Unblocked** — can be written and tested now |
-| Auth endpoints end to end | Nothing | **Unblocked** — Phase 2 is the critical path |
-| Source Manager with real rows | Nothing | **Unblocked** |
+| ~~Auth endpoints end to end~~ | ~~Nothing~~ | **Done** — Phase 2, proven with two users |
+| ~~SQLAlchemy `BusinessStore`~~ | ~~Nothing~~ | **Done** — `SqlBusinessStore`, tested |
+| Source Manager with real rows | Nothing | **Unblocked** — next after discovery |
 | Celery worker running jobs | No Redis | Blocked — Memurai (runbook §3.2) or Docker (§2.4). `SynchronousDispatcher` covers development |
-| Live SearXNG verification | No container runtime | Blocked — needs a SearXNG instance. Overpass can be live-tested now (public endpoint, internet confirmed working) |
-| Discovery UI | Phase 2 + `BusinessStore` | Follows Phase 3 |
+| Live SearXNG verification | No container runtime | Blocked — needs a SearXNG instance. **Overpass can be live-tested now** (public endpoint, internet confirmed working) |
+| Discovery UI | Nothing | Next: Phase 3 job management, then the results table |
 | Gmail sending | No credentials, and scope verification | Not attempted — adapter and approval queue first |
 
 **No administrator rights are required for anything marked Unblocked.** The remaining
@@ -271,25 +312,34 @@ installer (runbook §3.1), point `.env` at it, and run steps 7 immediately. That
 the schema revision, the SQLAlchemy store, auth, and Source Manager — everything except
 background jobs and SearXNG.
 
-## 8. Phase 2 work queue — authentication and authorization
+## 8. Phase 3 work queue — the first usable discovery workflow
 
-Nothing here needs Docker, Redis or credentials.
+Target: **Source → Discover → Normalize → Database → Table → Profile → Shortlist → CSV
+Export**, running end to end for a signed-in user with real collected data.
 
-1. `SqlBusinessStore` implementing the existing `BusinessStore` protocol, with a bounded
-   `raw_data` payload, plus integration tests against the real database.
-2. Auth endpoints: register, login, logout, current-user dependency, session middleware
-   reading the hashed token from `user_sessions`.
-3. CSRF: double-submit token using the existing `sign_value` / `unsign_value` helpers,
-   which are currently written, tested and unused.
-4. Rate limiting on login and registration.
-5. **The mandatory authorization test:** create two users and prove user A cannot read,
-   modify, export or delete any of user B's businesses, contacts, notes, CRM records,
-   shortlists or exports. Every owned table gets a cross-owner assertion.
-6. Audit-log writes on security-relevant actions.
-7. Security headers and CSP on the frontend.
-8. Dependency advisory triage (`npm audit`, lockfile review).
+1. Discovery job management: create a job, dispatch through `TaskDispatcher`, track
+   progress from real processed counts, support cancel and honest failure reporting.
+2. Wire `run_pipeline` to `SqlBusinessStore` inside a job, persisting `source_records`
+   with bounded payloads and `expires_at`.
+3. Overpass live test — public endpoint, no container needed. Record how many real
+   businesses come back for a Bengaluru query. This is the D4 measurement.
+4. SearXNG live test once an instance exists; until then the Source Manager shows it as
+   unavailable rather than silent.
+5. Results table UI: raw / filtered / qualified views with filters, sorting, pagination.
+6. Business profile page: overview, contacts with verification state, provenance,
+   research history, CRM block, actions.
+7. Shortlist and export wired to the existing endpoints with CSRF.
+8. Duplicate review queue surfaced in the UI (probable and possible pairs).
 
-Do not expose the application beyond loopback until items 1–5 are done.
+### Completed in Phase 2, carried forward
+
+Auth endpoints, sessions, CSRF, rate limiting, audit writes, `SqlBusinessStore`,
+businesses API, per-owner CRM pipeline, and the two-user isolation proof. Remaining
+Phase 2 leftovers: security headers/CSP on the frontend, and dependency advisory
+triage — both scheduled with Phase 11 hardening, and both still true gaps.
+
+Do not expose the application beyond loopback until the Phase 3 endpoints inherit the
+same owner-scoped tests.
 
 ## 9. Status vocabulary
 
