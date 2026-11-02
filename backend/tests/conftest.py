@@ -235,6 +235,20 @@ def make_account(
                 )
                 await connection.execute("delete from searches where owner_user_id = $1", user_id)
                 await connection.execute(
+                    "delete from social_classification_history where content_id in"
+                    " (select id from social_content where owner_user_id = $1)",
+                    user_id,
+                )
+                await connection.execute(
+                    "delete from social_saved_items where owner_user_id = $1", user_id
+                )
+                await connection.execute(
+                    "delete from social_discovery_runs where owner_user_id = $1", user_id
+                )
+                await connection.execute(
+                    "delete from social_search_tracks where owner_user_id = $1", user_id
+                )
+                await connection.execute(
                     "delete from social_content where owner_user_id = $1", user_id
                 )
                 await connection.execute(
