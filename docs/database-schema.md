@@ -1053,7 +1053,41 @@ method is permitted to collect and retain.
 
 ---
 
-# 15. Automation Tables
+## 14.5–14.8 Social & Demand Intelligence Engine (additions)
+
+Built into the existing `social` module (migrations `9fd5409a50ff`,
+`c2f7937c920d`). No new package; `social_content` gains nullable intelligence
+columns rather than a parallel posts table.
+
+- **`social_search_tracks`** — one per Intelligence track. `owner_user_id`, `name`,
+  `track_type` CHECK ∈ `demand`/`business`, JSONB vocabulary (`keywords`,
+  `exact_phrases`, `excluded_terms`, `hashtags`, `platforms`, `source_config`),
+  `language`, `geography`, `date_from`/`date_to`, `frequency_config` (interval or a
+  five-field cron), `max_results_per_run`, `is_enabled`, `is_paused`, `next_run_at`,
+  `last_run_at`. `next_run_at` is stored, not derived.
+- **`social_discovery_runs`** — one auditable run per track execution. `status` CHECK ∈
+  `pending`/`running`/`completed`/`completed_with_warnings`/`failed`/`cancelled`,
+  `trigger_type` ∈ `manual`/`scheduled`, `sources_attempted` JSONB, and the counts kept
+  **distinct** — `results_returned`, `stored_new`, `duplicates`, `review_flagged`,
+  `classification_counts` JSONB — so a repeat run cannot inflate a total;
+  `error_summary`, `duration_ms`.
+- **`social_saved_items`** — owner annotations over collected content: `content_id` FK,
+  `note`, `tags` JSONB, and `converted_business_id` FK (nullable) linking a conversion
+  to a Leads Intelligence business. Unique `(owner_user_id, content_id)`.
+- **`social_classification_history`** — appended, never overwritten: `content_id`,
+  `previous_classification`, `classification`, `confidence_score`, `classification_method`,
+  `changed_by_user_id`, `reason`.
+- **`social_content` intelligence columns** (all nullable, so prior rows stay valid):
+  `track_id`, `track_type`, `title`, `snippet`, `canonical_url`, `language`, `geography`,
+  `retrieval_status` (CHECK ∈ `retrieved`/`snippet_only`/`indexed_snippet`/
+  `public_page_retrieved`/`user_provided_url`/`inaccessible`/`unsupported`),
+  `classification`, `confidence_score`, `classification_method` ∈ `rule`/`ai`/`manual`,
+  `classification_version`, `matched_terms`/`evidence`/`positive_signals`/`negative_signals`
+  JSONB, `dedup_fingerprint`, `source_attribution` JSONB, `needs_review`. **Retrieval
+  status is deliberately separate from classification** — a snippet can be classified
+  without its full content ever having been retrieved.
+
+## 15. Automation Tables
 
 ## 15.1 workflows
 

@@ -7,6 +7,50 @@ Format: decision, driver, alternatives rejected, consequence.
 
 ---
 
+## D-049 | Social & Demand Intelligence Engine: extend `social`, keyless-first, deterministic classification, compliance-first connectors
+
+**Decision:** The Social & Demand Intelligence Engine is built *inside* the existing
+`social` module rather than as the `social_intelligence` / `demand_intelligence` /
+`social_discovery` / … packages the directive suggested as one possible layout. It adds
+two independent tracks (Demand and Business) over shared infrastructure: new tables
+`social_search_tracks`, `social_discovery_runs`, `social_saved_items`,
+`social_classification_history` and nullable intelligence columns on the existing
+`social_content`. The step engine reuses the existing dispatcher, task registry,
+SSRF guard, normalisation, dedup, notifications and Businesses models. Sources are
+implemented free-first and keyless (Reddit already; plus Hacker News, RSS/Atom,
+SearXNG indexed-snippets, Stack Overflow, Bluesky, Mastodon), each behind the existing
+`SocialAdapter` contract with honest `AdapterCapabilities`. Classification is a
+transparent deterministic rule engine with stored evidence, confidence and method; local
+Ollama is an optional hook, never mandatory, and there is no paid-API fallback.
+
+**Driver:** The directive's own rules — do not replace the architecture, do not duplicate
+infrastructure, no mandatory paid services, keep restricted-platform access compliant,
+and do not present an adapter as working when it is not. Extending `social` (already the
+home of `SocialPlatform`, `SocialContent`, `SocialResearchQuery`, the Reddit adapter and
+the run/store/dedup flow) avoids a parallel system; the two tracks stay separate via a
+`track_type` discriminator plus distinct vocabulary, categories and saved views.
+
+**Alternatives rejected:**
+- *A new parallel module set* (`demand_intelligence`, `social_discovery`, …) — rejected:
+  it duplicates the adapter protocol, job/dispatcher, dedup and ownership machinery that
+  already exist, which the directive forbids.
+- *A dedicated per-user source-enablement table* — rejected for now: the platform
+  catalogue is global operator data (capabilities/terms are not per-user), so the Sources
+  UI is read-only and enable/config stays an operator action; a user must not mutate
+  shared source state.
+- *LLM-first classification* — rejected: paid/credentialed providers are barred, and a
+  transparent rule engine with evidence is auditable and works offline. Ollama is a
+  non-mandatory enrichment path only.
+
+**Consequence:** LinkedIn/Instagram/Facebook/X have no scraping path implemented and remain
+disabled with their real terms in the catalogue; their public snippets are reachable only
+through the SearXNG indexed-snippet route, explicitly labelled as snippets, not retrieved
+posts. A dedicated cross-entity Global Search module and full Analytics/Reports are still
+the master-plan phases; the engine exposes `GET /social/results?query=` for a future search
+to consume, and does not fabricate the higher-level analytics it has not built.
+
+---
+
 ## D-048 | Automation Engine: two modules, approval-first email, SMTP-first sending
 
 **Decision:** Phase 5 (Automation Engine) lands as two backend modules — `automation`

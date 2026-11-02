@@ -1,10 +1,14 @@
 # SparkXFlow Nexus — Project Status
 
-**Last updated:** 2026-11-03 (automation engine — milestone complete)
+**Last updated:** 2026-11-03 (Social & Demand Intelligence Engine — Phases 1–6 complete)
 **Current phase:** **Full product completion, in progress.** Phases 1 (background
 execution), 2 (leads intelligence), 3 (startup intelligence), 4 (social
-intelligence) and 5 (automation engine) are implemented and tested; work continues
-through the remaining phases in order.
+intelligence) and 5 (automation engine) are implemented and tested. A separate
+standing directive — the **Social & Demand Intelligence Engine** (extend `social`
+with Demand + Business tracks, keyless connectors and a deterministic classification
+pipeline) — is now implemented through Phase 6 and browser-verified with a **live
+Hacker News run**. Work continues through the remaining master-plan phases (Global
+Search, Analytics, Source Manager UI, Import/Export, hardening) in order.
 **Overall status:** Authentication and ownership enforcement are proven with two
 separate users. Discovery jobs run against real PostgreSQL and persist businesses with
 provenance. Jobs run exactly once per submission (atomic claim), can be retried
@@ -22,10 +26,19 @@ shortlisting, draft-rendering and approval-gated sending. All four workspaces
 (`/automation/workflows`, `/automation/scheduler`, `/automation/approvals`, `/email`)
 are browser-verified against real PostgreSQL — including the honest "blocked" refusal
 when a send has no connected account, and the inline engine completing a run step by
-step. 331 backend tests pass. Redis is still absent on this machine, so the Celery
-queued path and the recurring-schedule tick are configured and tested but not
-live-run; the inline execution path is fully exercised. Gmail OAuth sending and live
-SMTP delivery remain credential-gated and are not claimed.
+step. The Social & Demand Intelligence Engine extends `social` with two independent
+tracks (Demand / Business), a 4-table-plus-columns schema (`social_search_tracks`,
+`social_discovery_runs`, `social_saved_items`, `social_classification_history` and
+intelligence columns on `social_content`), six keyless connectors (Reddit, Hacker
+News, RSS/Atom, SearXNG indexed-snippets, Stack Overflow, Bluesky, Mastodon), a
+deterministic classification engine with evidence and confidence, cross-source
+dedup, per-run observability, in-app high-confidence alerts, and lead conversion into
+the existing Businesses model with domain dedup — all browser-verified, including a
+**live Hacker News run** that stored 50 real posts and classified them. 375 backend
+tests pass. Redis is still absent on this machine, so the Celery queued path and the
+recurring-schedule tick are configured and tested but not live-run; the inline
+execution path is fully exercised. Gmail OAuth sending and live SMTP delivery remain
+credential-gated and are not claimed.
 
 ### Documentation change (2026-11-02)
 
@@ -108,17 +121,18 @@ helpers.
 
 | Gate | Result |
 |---|---|
-| `pytest` | **331 passed** (36 new: 21 automation + 15 email) |
+| `pytest` | **375 passed** (44 new Social & Demand Engine tests: 5 schema + 20 connectors + 8 pipeline + 11 runs/integration; earlier automation/email retained) |
 | `ruff check` | All checks passed |
-| `mypy app` | No issues in 102 source files |
+| `mypy app` | No issues in 106 source files |
 | `eslint` / `tsc --noEmit` | Clean |
-| `next build` | Succeeds; routes `/`, `/dashboard`, `/leads`, `/leads/[id]`, `/leads/crm`, `/leads/map`, `/leads/services`, `/login`, `/social`, `/startups`, `/startups/[id]`, `/startups/watchlists`, `/automation/workflows`, `/automation/scheduler`, `/automation/approvals`, `/email` |
-| `alembic upgrade head` from empty | 9 revisions applied, 62 tables created (10 new automation/email tables) |
-| `alembic check` on that schema | **No new upgrade operations detected** |
-| Schema audit query | 62/62 tables have a primary key; 43 named CHECK constraints, 67 FKs, 236 indexes |
+| `next build` | Succeeds; routes `/`, `/dashboard`, `/leads`, `/leads/[id]`, `/leads/crm`, `/leads/map`, `/leads/services`, `/login`, `/social`, `/social/sources`, `/startups`, `/startups/[id]`, `/startups/watchlists`, `/automation/workflows`, `/automation/scheduler`, `/automation/approvals`, `/email`, `/intelligence`, `/intelligence/demand`, `/intelligence/business`, `/intelligence/tracks`, `/intelligence/saved` |
+| `alembic upgrade head` from empty | 11 revisions applied, 66 tables created (10 automation/email + 5 social-engine tables incl. source_config column) |
+| `alembic check` on that schema | **No new upgrade operations detected** (head `c2f7937c920d`) |
+| Schema audit query | 66/66 tables have a primary key; 51 named CHECK constraints, 72 FKs, 253 indexes |
 | Live HTTP smoke test | register 201 → login 200 → session 200 → businesses 200 → **anonymous 401** → **shortlist without CSRF 403** → logout 200 → **session after logout 401** |
 | Browser mutation smoke test | qualify 200 (score/status/evidence rendered) → note 201 → shortlist 200 → stage move 200, all against real PostgreSQL |
 | Browser automation smoke test | create workflow 201 → run inline (execution `completed`, `shortlist` step `completed`) → create schedule (`next_run_at` computed +3600 s) → email draft → approve → **send returns honest "blocked: no sending account"**, against real PostgreSQL |
+| Social engine — live source test | created a Demand track, ran it against **real Hacker News**: 50 live posts returned, 50 stored, classified (Freelancer Hiring 5, Service Needed 3, General Discussion 6, Unclassified 36) with evidence + confidence; filtered Demand by confidence (6 ≥ 50); saved one (appeared in Saved + Overview); Overview counts all real. Sources page renders 12 connectors honestly. |
 
 Runtime note: the suite now takes about four minutes because the auth and
 authorization tests hit a real database and real Argon2 hashing. That is the cost of
@@ -318,6 +332,53 @@ shown up as a functional bug.
 - **The Celery queued path and the beat-driven `tick_schedules`** are configured and
   registered but not run live, because Redis is absent. "Run now" executes inline through
   the same engine, which is fully exercised; nothing pretends a queued job ran.
+
+### Social & Demand Intelligence Engine — what was built (added directive, Phases 1–6)
+
+A separate standing directive, implemented inside the existing `social` module (no
+competing package, no redesign), reusing the auth/CSRF/audit/ownership, SSRF,
+normalisation, dedup, notifications, businesses, source-registry, dispatcher and
+automation-recurrence machinery already present.
+
+- **Phase 1 (schema)** — migrations `9fd5409a50ff` + `c2f7937c920d`: `social_search_tracks`
+  (demand|business; keyword/phrase/exclusion/hashtag vocabulary, platform selection,
+  language/geography/date range, interval-or-cron schedule, `source_config` for
+  per-platform extras), `social_discovery_runs` (status incl. `completed_with_warnings`,
+  distinct results_returned/stored_new/duplicates/classification_counts), `social_saved_items`,
+  `social_classification_history`, and nullable intelligence columns on `social_content`
+  (track, retrieval_status, classification, confidence, method/version, matched_terms,
+  evidence, signals, dedup_fingerprint, source_attribution, needs_review). Retrieval status
+  is kept deliberately separate from classification.
+- **Phase 2 + 6 (connectors)** — keyless `SocialAdapter` implementations for Hacker News
+  (Algolia), RSS/Atom (stdlib XML, DTD-refused, SSRF-guarded feed URLs), SearXNG
+  indexed-snippets, Stack Overflow, Bluesky and Mastodon, alongside the existing Reddit.
+  Each declares honest `AdapterCapabilities`; a refusal is reported, never worked around.
+- **Phase 3 (pipeline)** — deterministic `classification.py` (intent required; a bare
+  keyword is demoted to discussion; negatives reduce confidence; evidence + method + rule
+  version stamped; local-Ollama hook optional and never mandatory, no paid fallback) and
+  `pipeline.py` (normalise → within/cross-source dedup with attribution merge → classify).
+- **Phase 4 (background)** — `tracks.py`: idempotent pending-claim run, per-source failure
+  isolation (one refused source → `completed_with_warnings`, others still persist),
+  per-source committed partial state, run-now inline (dev) / Celery (prod), and a beat
+  `tick_tracks` schedule reusing the automation recurrence maths.
+- **Phase 5 (UI)** — `/intelligence` Overview (real DB metrics only), Demand & Business
+  filtered result browsers (evidence, retrieval labels, source links, save, CSV export),
+  Discovery Tracks (create/run/pause/history/delete) and Saved Items.
+- **Phase 6 (integration)** — high-confidence demand → in-app `Notification` (deduped, no
+  email), `/social/notifications`, convert-result-to-lead (reuses `Business` with
+  owner+domain dedup and `BusinessSocialProfile` provenance, refuses without a real entity),
+  JSON export, and a read-only Sources view.
+
+**Engine — deferred / honest limits.** A dedicated cross-entity Global Search module and
+full Analytics/Reports are still separate master-plan phases and are not built; the engine
+exposes `GET /social/results?query=` for a future global search to consume. SearXNG needs a
+running instance (absent here) and Reddit's public JSON is 403 from this client — both
+reported honestly; the connectors are unit-tested against mocked transports and Hacker News
+was additionally verified with a **live run** (50 real posts stored + classified). The Celery
+queued path and beat tick are configured and tested but not live-run (no Redis). Adapters
+that would need paid or credentialed access (X, YouTube Data API, LinkedIn partner API) are
+left unimplemented rather than faked; LinkedIn public snippets are reachable only through the
+SearXNG indexed-snippet path.
 
 ### Infrastructure actually running
 

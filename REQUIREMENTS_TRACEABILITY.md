@@ -219,6 +219,40 @@ real delivery is claimed. Gmail OAuth reports itself unconfigured. The Celery `r
 task and the beat-driven `tick_schedules` are registered and tested but not run live because
 Redis is absent — "run now" executes the same engine inline.
 
+## Social & Demand Intelligence Engine (added directive, implemented 2026-11-03)
+
+A separate standing directive extending `modules/social` (no competing package) with two
+independent tracks over shared infrastructure. Maps the directive's §19 acceptance criteria
+to real status; sources are labelled Operational / Partial / Unavailable / Planned honestly.
+
+| Capability (directive §) | Status | Evidence |
+|---|---|---|
+| Create Demand + Business tracks (§6) | **Tested** | `social_search_tracks` with track_type demand\|business, keyword/phrase/exclusion/hashtag vocabulary, platforms, schedule; 422 on bad type/empty terms |
+| Select supported sources (§6) | **Implemented, browser-verified** | catalogue exposes only permitted sources; Tracks UI multi-selects enabled platforms |
+| Manual run through the real pipeline (§5,§11) | **Tested**, live-verified | `execute_track_run` normalise→classify→dedup→store; a **live Hacker News run** stored 50 real posts, classified Freelancer Hiring 5 / Service Needed 3 / General Discussion 6 / Unclassified 36 |
+| Results persisted in PostgreSQL (§9) | **Tested** | intelligence columns on `social_content`; owner-scoped |
+| Duplicate handling (§10) | **Tested** | within- and cross-source dedup by external id / canonical-URL fingerprint; attribution preserved; re-run does not inflate totals |
+| Deterministic classification w/ evidence + confidence (§8) | **Tested** | intent required; keyword-without-intent demoted; negatives lower confidence; method+rule version stored; no mandatory AI/paid path |
+| Inspect attribution + retrieval quality (§7,§12) | **Implemented, browser-verified** | retrieval_status kept separate from classification; source_attribution; UI shows labels + evidence |
+| Filter and search results (§12) | **Tested** | `GET /social/results` filters (track_type/platform/classification/min_confidence/retrieval_status/needs_review/saved_only/query) + pagination |
+| Save opportunities (§12) | **Tested**, browser-verified | `social_saved_items` note+tags; appears in Saved + Overview |
+| Export records (§13) | **Tested** | CSV and JSON export of filtered/saved results, URLs + provenance preserved |
+| Convert business record → Leads (§13) | **Tested** | `convert_result_to_lead` reuses `Business` with owner+domain dedup (no duplicate lead) + `BusinessSocialProfile` provenance; refuses without a real entity |
+| Source health + run history visible (§13) | **Implemented, browser-verified** | `/social/platforms` health + last run/error; `social_discovery_runs` history; read-only Sources UI |
+| Partial-source failure isolation (§11) | **Tested** | refused/unconfigured source → `completed_with_warnings`, other sources persist; never a fake success |
+| Scheduled execution (§11) | **Implemented** (live-queued unverified) | interval/cron `next_run_at` (reuses automation recurrence); Celery `tick_tracks` registered; Redis absent so inline only |
+| In-app alerts, no spam (§14) | **Tested** | high-confidence demand → `Notification`, deduped per content; no email required |
+| Existing modules still work + cross-user boundaries (§19) | **Tested** | 375-suite green incl. two-user isolation on tracks/results/save/convert |
+| No paid API/AI required; LinkedIn honest (§5,§19) | **Implemented** | keyless connectors only; LinkedIn/IG/FB/X disabled with real terms; snippets only via SearXNG, labelled `indexed_snippet` |
+
+**Engine — not built / deferred with reason.** A dedicated cross-entity **Global Search**
+module and full **Analytics/Reports** remain the master-plan phases (#26–#27) and are
+unbuilt; the engine exposes `GET /social/results?query=` for a future search to consume.
+SearXNG needs a running instance (absent here) and Reddit's public JSON returns 403 from
+this client — both reported honestly. Per-user source enable/disable is deliberately omitted
+(a user must not mutate shared source state); Sources is read-only. X, YouTube Data API and
+LinkedIn partner API connectors are unimplemented rather than faked.
+
 ## Deferred (with reason — see IMPLEMENTATION_PLAN.md section 7)
 
 Hybrid worker dispatch and heartbeats · Google Sheets two-way sync · cloud browser

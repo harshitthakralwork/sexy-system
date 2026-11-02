@@ -6,6 +6,63 @@ In Progress · Blocked · Deferred.
 
 ---
 
+## 2026-11-03 (Social & Demand Intelligence Engine) — two tracks, keyless connectors, deterministic classification
+
+A separate standing directive, built inside the existing `social` module — no new
+competing package, no redesign — reusing auth/CSRF/audit/ownership, SSRF,
+normalisation, dedup, notifications, the Businesses model, the source registry, the
+dispatcher and the automation recurrence maths.
+
+### What changed
+
+- **Schema** — migrations `9fd5409a50ff` + `c2f7937c920d`: `social_search_tracks`
+  (Demand | Business, keyword/phrase/exclusion/hashtag vocabulary, platform selection,
+  language/geography/date range, interval-or-cron schedule, `source_config`),
+  `social_discovery_runs` (per-run observability incl. `completed_with_warnings` and
+  distinct discovered/returned/stored/duplicate counts), `social_saved_items`,
+  `social_classification_history`, and nullable intelligence columns on `social_content`
+  (retrieval_status kept separate from classification, plus confidence, evidence,
+  matched_terms, signals, dedup fingerprint, cross-source attribution).
+- **Connectors (keyless, free-first)** — Hacker News (Algolia), RSS/Atom (stdlib XML,
+  DTD-refused, SSRF-guarded), SearXNG indexed-snippets, Stack Overflow, Bluesky,
+  Mastodon, alongside Reddit. Each declares honest capabilities; a refusal is reported,
+  never worked around.
+- **Classification** — a transparent rule engine: confidence only rises on an *intent*
+  phrase, a bare keyword is demoted to discussion, tutorial/news/job-seeker context
+  lowers it; evidence + method + rule version are stored; optional local-Ollama hook is
+  never mandatory and there is no paid fallback. `pipeline.py` normalises, dedups within
+  and across sources (attribution preserved) and classifies.
+- **Background** — idempotent pending-claim run with per-source failure isolation (a
+  refused source yields `completed_with_warnings`, the rest still persist); inline in dev,
+  Celery + beat in prod; reuses the automation recurrence.
+- **UI** — `/intelligence` Overview (real counts only), Demand & Business result browsers
+  with filters/evidence/source links/save/CSV export, Discovery Tracks, Saved Items, and a
+  read-only `/social/sources`.
+- **Integration** — high-confidence demand → in-app `Notification` (deduped, no email);
+  convert-result-to-lead reuses `Business` with owner+domain dedup + provenance link and
+  refuses without a real entity; JSON export; `/social/notifications`.
+
+### Verification
+
+- **Live source**: created a Demand track and ran it against real Hacker News — 50 live
+  posts stored and classified (Freelancer Hiring 5 / Service Needed 3 / General
+  Discussion 6 / Unclassified 36); Demand filtered by confidence (6 ≥ 50); one saved
+  surfaced in Saved + Overview; Sources renders 12 connectors honestly.
+- 44 new tests (schema/connectors/pipeline/runs/integration); **375 backend tests pass**;
+  ruff + mypy clean (106 files); `next build` ok; `alembic check` drift-free (66 tables).
+
+### Honest limits
+
+No dedicated Global Search module or full Analytics/Reports yet (separate master-plan
+phases; the engine exposes a queryable results endpoint for a future search to consume).
+SearXNG needs a running instance (absent here) and Reddit's public JSON is 403 from this
+client — both reported, not faked. Paid/credentialed connectors (X, YouTube Data API,
+LinkedIn partner API) are left unimplemented; LinkedIn public snippets are reachable only
+via the SearXNG indexed-snippet path. The Celery queued path and beat tick are tested but
+not live-run (no Redis).
+
+---
+
 ## 2026-11-03 (Automation Engine) — workflows, recurring schedules, approval-gated email
 
 Phase 5 of full product completion. The automation engine is two modules that share
