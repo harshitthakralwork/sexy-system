@@ -347,3 +347,118 @@ export interface ActivityList {
   limit: number;
   offset: number;
 }
+
+// --- Startup intelligence (Phase 3) -----------------------------------------
+
+export interface Startup {
+  id: string;
+  name: string;
+  website_url: string | null;
+  normalized_domain: string | null;
+  description: string | null;
+  industry: string | null;
+  country: string | null;
+  city: string | null;
+  founding_date: string | null;
+  launch_date: string | null;
+  funding_stage: string | null;
+  status: string;
+  source_slug: string | null;
+  source_url: string | null;
+  first_discovered_at: string;
+  last_researched_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StartupList {
+  items: Startup[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export interface Founder {
+  id: string;
+  startup_id: string;
+  name: string;
+  role: string | null;
+  public_profile_url: string | null;
+  source_id: string | null;
+  created_at: string;
+}
+
+export interface StartupProduct {
+  id: string;
+  startup_id: string;
+  name: string;
+  description: string | null;
+  product_url: string | null;
+  category: string | null;
+  launch_date: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Pricing {
+  id: string;
+  product_id: string;
+  plan_name: string;
+  amount: number | null;
+  currency: string | null;
+  billing_period: string | null;
+  pricing_url: string | null;
+  observed_at: string;
+}
+
+export interface Revenue {
+  id: string;
+  startup_id: string;
+  amount: number | null;
+  currency: string | null;
+  revenue_period: string | null;
+  classification: string;
+  methodology: string | null;
+  assumptions: Record<string, unknown>;
+  confidence: number | null;
+  source_url: string | null;
+  reported_at: string | null;
+  observed_at: string;
+}
+
+export interface Competitor {
+  id: string;
+  startup_id: string;
+  competitor_startup_id: string;
+  relationship_type: string | null;
+  evidence: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface StartupResearch {
+  id: string;
+  startup_id: string;
+  research_type: string;
+  summary: string | null;
+  findings: Record<string, unknown>;
+  source_references: Record<string, unknown>;
+  researched_at: string;
+}
+
+export interface StartupDetail extends Startup {
+  founders: Founder[];
+  products: StartupProduct[];
+  revenue: Revenue[];
+  competitors: Competitor[];
+  research: StartupResearch[];
+  watchlists: string[];
+}
+
+export interface Watchlist {
+  id: string;
+  name: string;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+  items: Startup[];
+}

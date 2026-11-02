@@ -143,11 +143,39 @@ as hostile input. They are recorded here so they cannot be dropped later.
 | Scheduled job execution | Configured, live-unverified | Celery beat schedule (`recover-stale-jobs` every 10 min) + `beat` compose service; needs a beat process |
 | Health/readiness: DB, Redis, workers | **Tested** | `/health/ready` reports `database`, `redis`, `worker` individually |
 
+## Startup Intelligence (Phase 3, implemented 2026-11-03)
+
+Specified in `PRD.md` §8, `DESIGN.md` §7, `architecture.md` §14,
+`database-schema.md` §13, and `implementation-roadmap.md` §8. Statuses describe
+**code**, not documents.
+
+| Capability | Status | Evidence |
+|---|---|---|
+| Startup records with source attribution | Implemented | `startups` table with `source_id` provenance fields on founders; manual entry names the source as `manual`. Discovery from configured sources is **Deferred** (below) |
+| Research and compare startups | **Tested** | `startup_research_records` (findings + source references as JSONB); `last_researched_at` bumped on write, covered by `test_startups.py` |
+| Revenue information is evidence-labelled | **Tested** | `classification` ∈ `verified`/`founder_reported`/`estimated`/`not_available` enforced in service + CHECK constraint; `not_available` requires null amount and `estimated` requires methodology — asserted in tests |
+| Competitor tracking | **Tested** | self-reference rejected (422), duplicate pair is 409, cross-owner is 404 |
+| Watchlists | **Tested** | create/list/delete, unique `(watchlist_id, startup_id)`, owner-scoped |
+| Founders, products, pricing | **Tested** | CRUD owner-scoped; cross-owner read/delete returns 404 |
+| Generate reports | Not Started | PRD §8 lists it under Watchlists and Reports; no report generation exists yet — Phase 7 (Analytics/Reports) |
+| Compare companies / market segments | Not Started | PRD §8; no comparison view exists yet |
+| Ownership and CSRF on every write | **Tested** | all 21 routes use `CurrentUser` + CSRF; `test_another_user_cannot_read_or_delete` |
+| Startup detail pages and dashboard | Implemented, browser-verified | `/startups` (create/filter/paginate/delete) and `/startups/[id]` (overview PATCH, revenue, competitors, founders, products, research, watchlists) verified against real PostgreSQL |
+| Distinct from Leads while sharing infrastructure | Implemented | separate module (`app/modules/startups`), separate tables, same auth/CSRF/audit/ownership machinery |
+
+**Deferred with reason — startup discovery from configured sources.** The one Phase 3
+acceptance item in the roadmap that is not met. The existing adapters are Overpass
+(geographic) and SearXNG (search); no startup-directory adapter exists. Product Hunt
+requires an API key; Hacker News and GitHub are free candidates. Until one is chosen and
+built, `/startups/discover` stays disabled rather than a nonfunctional control. Reports
+and company comparison are also not yet built (Not Started above). No startup record is
+invented — every row was created through the API by the operator.
+
 ## Deferred (with reason — see IMPLEMENTATION_PLAN.md section 7)
 
 Hybrid worker dispatch and heartbeats · Google Sheets two-way sync · cloud browser
 automation · PostGIS · dedicated search engine · multi-tenancy · auto-send email ·
-Startup Intelligence tables · Social Intelligence tables.
+Social Intelligence tables.
 
 ## Known gaps to close before they become expensive
 

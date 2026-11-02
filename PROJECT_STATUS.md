@@ -1,18 +1,20 @@
 # SparkXFlow Nexus — Project Status
 
-**Last updated:** 2026-11-02 (leads-intelligence UI milestone)
+**Last updated:** 2026-11-03 (startup-intelligence milestone)
 **Current phase:** **Full product completion, in progress.** Phase 1 (background
-execution) and Phase 2 (leads intelligence) are implemented and tested; work continues
-through the remaining phases in order.
+execution), Phase 2 (leads intelligence) and Phase 3 (startup intelligence) are
+implemented and tested; work continues through the remaining phases in order.
 **Overall status:** Authentication and ownership enforcement are proven with two
 separate users. Discovery jobs run against real PostgreSQL and persist businesses with
 provenance. Jobs run exactly once per submission (atomic claim), can be retried
-safely, and recover from a dead worker. Phase 2 leads intelligence is now usable end
-to end in the browser: the standalone Leads table, business profiles with per-service
-qualification, the 12-stage CRM board, notes and tags all connect to real endpoints
-against PostgreSQL (browser-verified). 277 backend tests pass. Redis is still absent
-on this machine, so the Celery queued path is configured and tested but not live-run;
-the inline execution path is fully exercised.
+safely, and recover from a dead worker. Leads intelligence is usable end to end in the
+browser (standalone table, profiles, qualification, 12-stage CRM, notes, tags), and
+startup intelligence now has its own 9-table schema, 21 API routes and browser UI:
+manual startup records, founders, products, pricing, evidence-labelled revenue,
+competitors, research records and watchlists all connect to real endpoints against
+PostgreSQL (browser-verified). 285 backend tests pass. Redis is still absent on this
+machine, so the Celery queued path is configured and tested but not live-run; the
+inline execution path is fully exercised.
 
 ### Documentation change (2026-11-02)
 
@@ -35,7 +37,8 @@ This file uses the master prompt's Phase 0–11 numbering. The mapping to
 | 1 | Infrastructure, database and background execution | **Complete for PostgreSQL.** Job claim/retry/stale-recovery and worker readiness are **Tested** (7 new tests). Redis and SearXNG still absent, so the Celery queued path is configured but not live-run |
 | 2 | Authentication and authorization | **Complete** — includes the mandatory two-user isolation proof |
 | 3 | Discovery vertical slice + map discovery | **Complete** — jobs, progress, cancel, provenance, SQL persistence, the geographic grid/map API, and the browser UI (Leads table, profiles, qualification, CRM board, service catalog) are all implemented and verified |
-| 4–11 | Startup, Social, Automation, Analytics, Hardening and the remaining phases | Not Started — the next milestone is Phase 3 Startup Intelligence |
+| 4 | Startup Intelligence | **Complete except discovery-from-sources, reports and comparison.** 9-table schema (startups, founders, products, pricing, revenue records, competitors, research records, watchlists), 21 owner-scoped API routes with audit writes, and a browser UI (dashboard, profile, watchlists) — manual entry, research, evidence-labelled revenue, competitor and watchlist flows all browser-verified. Discovery from configured startup sources (Product Hunt, HN, GitHub) is **Deferred** (needs new adapters), and report generation / company comparison are **Not Started** (Phase 7) |
+| 5–11 | Social, Automation, Analytics, Hardening and the remaining phases | Not Started — the next milestone is Phase 4 Social Intelligence |
 
 ## 1. Security review findings (2026-11-02)
 
@@ -92,14 +95,14 @@ helpers.
 
 | Gate | Result |
 |---|---|
-| `pytest` | **277 passed** |
+| `pytest` | **285 passed** |
 | `ruff check` | All checks passed |
-| `mypy app` | No issues in 79 source files |
+| `mypy app` | No issues in 84 source files |
 | `eslint` / `tsc --noEmit` | Clean |
-| `next build` | Succeeds; routes `/`, `/dashboard`, `/leads`, `/leads/[id]`, `/leads/crm`, `/leads/map`, `/leads/services`, `/login` |
-| `alembic upgrade head` from empty | 4 revisions applied to a scratch database, 37 tables created |
+| `next build` | Succeeds; routes `/`, `/dashboard`, `/leads`, `/leads/[id]`, `/leads/crm`, `/leads/map`, `/leads/services`, `/login`, `/startups`, `/startups/[id]`, `/startups/watchlists` |
+| `alembic upgrade head` from empty | 7 revisions applied to a scratch database, 48 tables created (9 startup tables) |
 | `alembic check` on that schema | **No new upgrade operations detected** |
-| Schema audit query | 37/37 tables have a primary key; 15 CHECK constraints, 37 FKs, 146 indexes |
+| Schema audit query | 48/48 tables have a primary key; 28 CHECK constraints, 49 FKs, 185 indexes |
 | Live HTTP smoke test | register 201 → login 200 → session 200 → businesses 200 → **anonymous 401** → **shortlist without CSRF 403** → logout 200 → **session after logout 401** |
 | Browser mutation smoke test | qualify 200 (score/status/evidence rendered) → note 201 → shortlist 200 → stage move 200, all against real PostgreSQL |
 
@@ -143,6 +146,49 @@ integration truth over mocks, recorded rather than hidden.
 
 Items 1, 2 and 7 were security defects in code written hours earlier; none would have
 shown up as a functional bug.
+
+### Phase 3 — what was built
+
+- **Startup schema (9 tables)** — `startups`, `startup_founders`, `startup_products`,
+  `startup_pricing`, `startup_revenue_records`, `startup_competitors`,
+  `startup_research_records`, `startup_watchlists`, `startup_watchlist_items`. CHECK
+  constraints enforce the status vocabulary, non-negative pricing/revenue amounts,
+  the revenue-confidence range, and no self-referencing competitor. `database-schema.md`
+  §13 already documents them, so the build was made to match the spec.
+- **21 owner-scoped API routes** under `/startups` — CRUD for startups, founders,
+  products, pricing, revenue records, competitors, research records and watchlists;
+  every write is CSRF-gated, and create/delete/watchlist-create write audit rows.
+- **Revenue evidence classes enforced in code, not just schema.** `verified`,
+  `founder_reported`, `estimated`, `not_available`; `not_available` must carry a null
+  amount and `estimated` must name a methodology — so an estimate without its reasoning
+  is refused rather than stored as if it were fact.
+- **Competitor integrity** — self-reference is rejected and a duplicate pair is a 409.
+- **Duplicate startup detection** — the domain is normalised and a second record with
+  the same domain conflicts rather than silently duplicating.
+- **Frontend** — Startup dashboard (`/startups`, filter/search/paginate/create/delete),
+  profile (`/startups/[id]` with overview PATCH, revenue, competitors, founders,
+  products, research and watchlists), and watchlists view (`/startups/watchlists`).
+  Navigation enables both; `/startups/discover` stays disabled because there is no
+  startup source adapter yet.
+
+### Defects the Phase 3 tests found (all fixed)
+
+1. **Serializing a just-flushed row raised `MissingGreenlet`.** Server-default
+   timestamp columns are expired after `flush()`, and `model_validate` in sync context
+   cannot lazily refresh them. Nine service functions now `await session.refresh()`
+   after flush before returning. The businesses paths never hit this because they only
+   select; the startup create/update paths return the created row.
+2. **The first startup migration emitted duplicate indexes.** Six columns carried both
+   `index=True` and a redundant named `Index()` on the same column. Removed the six
+   redundant declarations and regenerated the migration as `a02df3cff960`.
+
+### Deferred (honest)
+
+- **Startup discovery from configured sources** is the one Phase 3 acceptance item not
+  met. The existing adapters are Overpass (geographic) and SearXNG (search); neither is
+  a startup directory. Product Hunt needs a key, Hacker News and GitHub are free
+  candidates — the adapter choice is still open, so `/startups/discover` remains
+  disabled rather than a decorative control.
 
 ### Infrastructure actually running
 

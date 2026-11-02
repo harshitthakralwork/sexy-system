@@ -43,6 +43,7 @@ async def info() -> RuntimeInfo:
             "businesses",
             "crm",
             "services_catalog",
+            "startups",
             "exports",
         ],
     )

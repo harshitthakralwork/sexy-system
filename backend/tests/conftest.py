@@ -236,6 +236,10 @@ def make_account(
                 await connection.execute("delete from searches where owner_user_id = $1", user_id)
                 await connection.execute("delete from businesses where owner_user_id = $1", user_id)
                 await connection.execute("delete from tags where owner_user_id = $1", user_id)
+                await connection.execute(
+                    "delete from startup_watchlists where owner_user_id = $1", user_id
+                )
+                await connection.execute("delete from startups where owner_user_id = $1", user_id)
                 await connection.execute("delete from audit_logs where owner_user_id = $1", user_id)
                 await connection.execute("delete from user_sessions where user_id = $1", user_id)
                 await connection.execute("delete from user_settings where user_id = $1", user_id)

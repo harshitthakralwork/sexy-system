@@ -62,9 +62,9 @@ export const navigation: NavSection[] = [
   {
     title: "Startup Intelligence",
     items: [
-      { label: "Startup Dashboard", href: "/startups", icon: Sparkles, available: false },
+      { label: "Startup Dashboard", href: "/startups", icon: Sparkles, available: true },
       { label: "Discover Startups", href: "/startups/discover", icon: Compass, available: false },
-      { label: "Watchlists", href: "/startups/watchlists", icon: Users, available: false },
+      { label: "Watchlists", href: "/startups/watchlists", icon: Users, available: true },
     ],
   },
   {

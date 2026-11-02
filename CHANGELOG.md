@@ -6,6 +6,59 @@ In Progress · Blocked · Deferred.
 
 ---
 
+## 2026-11-03 (Startup Intelligence) — 9-table schema, 21 routes, dashboard, profiles, watchlists
+
+Phase 3 of full product completion. Startup Intelligence is its own module sharing the
+auth/CSRF/audit/ownership infrastructure with Leads Intelligence, not a re-labelled
+copy of it.
+
+### What changed
+
+- **Schema** — 9 tables (`startups`, founders, products, pricing, revenue records,
+  competitors, research records, watchlists, watchlist items) in migration
+  `a02df3cff960`, with CHECK constraints for the status vocabulary, non-negative
+  amounts, the revenue-confidence range and no self-referencing competitor. Matches
+  `database-schema.md` §13.
+- **API** — 21 owner-scoped routes under `/startups` (CRUD for startups, founders,
+  products, pricing, revenue, competitors, research, watchlists), CSRF-gated, with
+  audit writes on create/delete/watchlist-create.
+- **Revenue evidence classes enforced in code** — `verified`, `founder_reported`,
+  `estimated`, `not_available`; `not_available` requires a null amount and `estimated`
+  requires a methodology, so estimates cannot be stored as facts.
+- **Competitor integrity** — self-reference rejected, duplicate pair is a 409.
+- **Duplicate startup detection** — normalised domain; a second record on the same
+  domain conflicts.
+- **Frontend** — Startup dashboard (`/startups`, filter/search/paginate/create/delete),
+  startup profile (`/startups/[id]` with overview, revenue, competitors, founders,
+  products, research, watchlists) and a watchlists view (`/startups/watchlists`).
+  Navigation enables both.
+
+### Bug fixed
+
+- **Serializing a just-flushed row raised `MissingGreenlet`.** Server-default timestamp
+  columns are expired after `flush()`, so `model_validate` in sync context tried to
+  lazily refresh them. Nine service functions now `await session.refresh()` after flush.
+
+### Deferred
+
+- **Startup discovery from configured sources.** The existing adapters are geographic
+  (Overpass) and search (SearXNG); no startup-directory adapter exists yet. Product Hunt
+  needs a key; Hacker News and GitHub are free candidates. `/startups/discover` stays
+  disabled rather than a nonfunctional screen.
+- **Report generation and company comparison** are not built yet; they are Phase 7
+  (Analytics/Reports) work, recorded rather than implied.
+
+### Verification
+
+- Browser-verified against real PostgreSQL: dashboard create (Zerodha → normalised
+  domain, status, source), founder add, and watchlist create all returned real rows.
+- 285 backend tests pass (8 new in `test_startups.py`); ruff and mypy clean (84 files);
+  `next build` exit 0 with routes `/startups`, `/startups/[id]`, `/startups/watchlists`.
+- `alembic upgrade head` from empty: 7 revisions, 48 tables; `alembic check` clean;
+  48/48 tables have a primary key.
+
+---
+
 ## 2026-11-02 (Leads Intelligence UI) — table, profiles, qualification, CRM in the browser
 
 Phase 2 frontend, closing the loop on the already-committed leads-intelligence
