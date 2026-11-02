@@ -98,7 +98,10 @@ Order once infrastructure exists:
 2. Auth (register/login/session/logout), seeded single user for local dev.
 3. Job infrastructure + `discovery_jobs` status endpoints.
 4. Design system components + shell + theme.
-5. Source Manager displaying real source registry rows.
+5. Source Manager displaying real source registry rows. — **Done at #28 (2026-11-03)**:
+   `/api/v1/sources` and `/sources` display the registry generated from the adapters, with
+   per-account enable/disable honoured by both runners, recorded probes and usage, and a
+   validated per-account configuration the track runner actually reads.
 6. Backup foundation (scheduled `pg_dump` locally).
 
 ## 6. Phase 2 — Vertical slice, then breadth

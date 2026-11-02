@@ -64,6 +64,7 @@ SENSITIVE_ACTIONS = frozenset(
         "source.configure",
         "source.enable",
         "source.disable",
+        "source.test",
         "settings.update",
     }
 )

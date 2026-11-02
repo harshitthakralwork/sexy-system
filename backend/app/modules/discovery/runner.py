@@ -14,6 +14,7 @@ import dataclasses
 import uuid
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import BackgroundTasks
@@ -36,6 +37,7 @@ from app.modules.discovery.pipeline import PipelineReport, run_pipeline
 from app.modules.discovery.schemas import query_from_config
 from app.modules.discovery.store_sql import SqlBusinessStore
 from app.modules.discovery.tiles import Tile, plan_tiles, split_tile
+from app.modules.sources import service as source_service
 from app.modules.sources.registry import ensure_source
 from app.shared.geo import Area, BoundingBox
 from app.workers.dispatcher import SynchronousDispatcher, get_dispatcher
@@ -452,7 +454,23 @@ async def execute(job_id: uuid.UUID, *, settings: Settings | None = None) -> str
 
         config = await job_service.query_config(session, job)
         request_model, area = query_from_config(config)
-        slugs = tuple(request_model.sources or DEFAULT_SOURCE_SLUGS)
+        requested = list(request_model.sources or DEFAULT_SOURCE_SLUGS)
+        # The Source Manager switch is honoured here, so disabling a source for an
+        # account actually stops that account collecting from it.
+        blocked = await source_service.disabled_slugs(session, job.owner_user_id, requested)
+        slugs = tuple(slug for slug in requested if slug not in blocked)
+        if not slugs:
+            reason = ", ".join(f"{slug} ({why})" for slug, why in blocked.items())
+            job.status = "failed"
+            job.error_details = {"reason": f"no enabled source left to query — {reason}"[:500]}
+            job_service.mark_finished(job)
+            await job_service.add_log(session, job.id, "error", f"Nothing to run: {reason}")
+            await session.commit()
+            return job.status
+        for slug, why in blocked.items():
+            await job_service.add_log(
+                session, job.id, "warning", f"Skipped source '{slug}': {why}"
+            )
         adapters = build_adapters(active, slugs)
         source_ids: dict[str, uuid.UUID] = {}
         for slug, adapter in adapters:
@@ -545,8 +563,39 @@ async def execute(job_id: uuid.UUID, *, settings: Settings | None = None) -> str
         if request_model.area_id is not None:
             await area_service.mark_run(session, request_model.area_id)
         await finalize(session, job, last_report, store, counters, area)
+        if blocked:
+            job.report = {**(job.report or {}), "skipped_sources": blocked}
+        await record_job_usage(session, job.id, source_ids, counters)
         await session.commit()
         return job.status
+
+
+async def record_job_usage(
+    session: AsyncSession,
+    job_id: uuid.UUID,
+    source_ids: dict[str, uuid.UUID],
+    counters: JobCounters,
+) -> None:
+    """Write what each source actually consumed on this run.
+
+    `records_accepted` stays null for discovery: the pipeline counts stored rows for
+    the whole job, not per source, and guessing the split would put a number in the
+    manager that no code ever observed.
+    """
+    finished = datetime.now(UTC)
+    for slug, summary in counters.sources.items():
+        source_id = source_ids.get(slug)
+        if source_id is None:
+            continue
+        await source_service.record_usage(
+            session,
+            source_id,
+            job_id=job_id,
+            requests_count=summary.requests_made,
+            records_returned=summary.items_returned,
+            records_accepted=None,
+            measured_at=finished,
+        )
 
 
 @register_task(RUN_TASK_NAME)

@@ -1,14 +1,15 @@
 # SparkXFlow Nexus — Project Status
 
-**Last updated:** 2026-11-03 (Social & Demand Intelligence Engine — Phases 1–6 complete)
-**Current phase:** **Full product completion, in progress.** Phases 1 (background
-execution), 2 (leads intelligence), 3 (startup intelligence), 4 (social
-intelligence) and 5 (automation engine) are implemented and tested. A separate
-standing directive — the **Social & Demand Intelligence Engine** (extend `social`
-with Demand + Business tracks, keyless connectors and a deterministic classification
-pipeline) — is now implemented through Phase 6 and browser-verified with a **live
-Hacker News run**. Work continues through the remaining master-plan phases (Global
-Search, Analytics, Source Manager UI, Import/Export, hardening) in order.
+**Last updated:** 2026-11-03 (master-plan #26 Global Search, #27 Analytics & Reports and
+#28 Source Manager complete; build stopped here by instruction)
+**Current phase:** **Full product completion, paused at the end of Phase 8.** Phases 1
+(background execution), 2 (leads intelligence), 3 (startup intelligence), 4 (social
+intelligence) and 5 (automation engine) are implemented and tested. The separate
+standing **Social & Demand Intelligence Engine** directive is implemented through Phase 6
+and browser-verified with a **live Hacker News run**. Of the remaining master-plan phases,
+**#26 Global Search**, **#27 Analytics and Reports** and **#28 Source Manager** are now
+implemented, tested and browser-verified. **#29 Import/Export and #30 security/reliability
+hardening are deliberately not started** — the next task is Phase 9, Import and Export.
 **Overall status:** Authentication and ownership enforcement are proven with two
 separate users. Discovery jobs run against real PostgreSQL and persist businesses with
 provenance. Jobs run exactly once per submission (atomic claim), can be retried
@@ -66,7 +67,8 @@ This file uses the master prompt's Phase 0–11 numbering. The mapping to
 | 6 | Automation Engine | **Complete except live SMTP delivery, Gmail OAuth and the Celery/beat path.** Two modules — `automation` (workflows, executions, step executions, schedules, approvals — 5 tables) and `email` (accounts, campaigns, messages, events, suppression list — 5 tables), 10 new tables in migration `682d9e15b781`. The step engine runs `qualify` → `shortlist` → `email_draft` → `send` inline on "run now", each step recorded in `workflow_step_executions`; `email_draft` writes an approval-gated message plus a `workflow_approvals` row; `send` refuses anything not approved, suppressed, or without a configured account. Recurring schedules compute `next_run_at` from an interval or a five-field cron subset (custom parser, no croniter). SMTP adapter first; Gmail OAuth and live delivery deferred (credential-gated). Browser-verified. See D-048 |
 | 7 | Global Search (#26) | **Complete** — `GET /api/v1/search` over leads, startups, social results, saved items and tracks, reusing each module's own list function; owner-scoped, browser-verified, 3 tests |
 | 8 | Analytics and Reports (#27) | **Complete except report scheduling and per-surface drill-through.** `saved_reports` + nine real `GROUP BY` surfaces + CSV export + snapshot save/list/delete, audited and CSRF-guarded; `/analytics` browser-verified against the operator's real rows (29 leads, 50 social results, 10 jobs). 10 tests |
-| 9–11 | Source Manager, Import/Export, Hardening | Not Started — next in sequence |
+| 9 | Source Manager (#28) | **Complete except provider-wide toggle, quota figures and credential entry.** API over all four pre-existing source tables, registry generated from the adapters, per-account enable/disable honoured by both runners, validated RSS configuration read back by the track runner, probes and usage recorded from real runs, `/sources` browser-verified (live HN *working 1541 ms*; SearXNG honestly *failed — ConnectError*). Migration `ba881785925a` additive; 19 tests |
+| 10–11 | Import/Export, Hardening | Not Started — deliberately not begun; this session stops after Phase 8 |
 
 ## 1. Security review findings (2026-11-02)
 
@@ -123,19 +125,20 @@ helpers.
 
 | Gate | Result |
 |---|---|
-| `pytest` | **388 passed** (13 new since the Social Engine: 3 Global Search + 10 Analytics & Reports; 44 engine + automation/email + all earlier tests retained) |
+| `pytest` | **407 passed** (19 new Source Manager tests; on top of 10 Analytics & Reports + 3 Global Search + 44 engine + automation/email + all earlier tests) |
 | `ruff check` | All checks passed |
-| `mypy app` | No issues in 115 source files |
+| `mypy app` | No issues in 118 source files |
 | `eslint` / `tsc --noEmit` | Clean |
-| `next build` | Succeeds; routes `/`, `/dashboard`, `/leads`, `/leads/[id]`, `/leads/crm`, `/leads/map`, `/leads/services`, `/login`, `/social`, `/social/sources`, `/startups`, `/startups/[id]`, `/startups/watchlists`, `/automation/workflows`, `/automation/scheduler`, `/automation/approvals`, `/email`, `/intelligence`, `/intelligence/demand`, `/intelligence/business`, `/intelligence/tracks`, `/intelligence/saved`, `/search`, `/analytics` |
-| `alembic upgrade head` from empty | 12 revisions applied, 67 tables created (10 automation/email + 5 social-engine + 1 `saved_reports`) |
-| `alembic check` on that schema | **No new upgrade operations detected** (head `ef461cd22fb6`) |
-| Schema audit query | 67/67 tables have a primary key; 52 named CHECK constraints, 72 FKs, 255 indexes |
+| `next build` | Succeeds; routes `/`, `/dashboard`, `/leads`, `/leads/[id]`, `/leads/crm`, `/leads/map`, `/leads/services`, `/login`, `/social`, `/social/sources`, `/sources`, `/startups`, `/startups/[id]`, `/startups/watchlists`, `/automation/workflows`, `/automation/scheduler`, `/automation/approvals`, `/email`, `/intelligence`, `/intelligence/demand`, `/intelligence/business`, `/intelligence/tracks`, `/intelligence/saved`, `/search`, `/analytics` |
+| `alembic upgrade head` from empty | 13 revisions applied, 67 tables created (10 automation/email + 5 social-engine + 1 `saved_reports`; #28 adds no table, only a constraint and one nullable column) |
+| `alembic check` on that schema | **No new upgrade operations detected** (head `ba881785925a`) |
+| Schema audit query | 67/67 tables have a primary key; 52 named CHECK constraints, 72 FKs, 256 indexes |
 | Live HTTP smoke test | register 201 → login 200 → session 200 → businesses 200 → **anonymous 401** → **shortlist without CSRF 403** → logout 200 → **session after logout 401** |
 | Browser mutation smoke test | qualify 200 (score/status/evidence rendered) → note 201 → shortlist 200 → stage move 200, all against real PostgreSQL |
 | Browser automation smoke test | create workflow 201 → run inline (execution `completed`, `shortlist` step `completed`) → create schedule (`next_run_at` computed +3600 s) → email draft → approve → **send returns honest "blocked: no sending account"**, against real PostgreSQL |
 | Social engine — live source test | created a Demand track, ran it against **real Hacker News**: 50 live posts returned, 50 stored, classified (Freelancer Hiring 5, Service Needed 3, General Discussion 6, Unclassified 36) with evidence + confidence; filtered Demand by confidence (6 ≥ 50); saved one (appeared in Saved + Overview); Overview counts all real. Sources page renders 12 connectors honestly. |
 | Analytics browser test (2026-11-03) | `/analytics` rendered the operator's real rows: 29 leads, website-status 29 unknown, lifecycle 29 active, CRM Qualified 1, opportunities candidate 1, discovery jobs completed 6 + failed 4 = 10, social classification 36+6+5+3 = 50, source hackernews 50, track demand 50, startups unknown 1. Saved "Milestone check 2026-11-03" (29 leads captured in the snapshot), exported the live CSV and the report CSV over HTTP (both 200, `text/csv`, 15 rows, `leads_total,,29`), and confirmed `report.saved` + `export.create` rows landed in `audit_logs` and 1 row in `saved_reports`. |
+| Source Manager browser test (2026-11-03) | `/sources` lists the 8 providers this build can actually run, grouped (Geographic 1, Search 1, Social 6) with each adapter's own coverage and limitations. **Live**: probing Hacker News returned *working, 1541 ms* against the real Algolia endpoint. **Honest failure**: probing SearXNG (no instance here) returned *failed — ConnectError*, shown on the card and in the history panel. Disable flipped the card to "Disabled" with an Enable action; restored afterwards. This check also surfaced a stale registry row displaying **"Fake hackernews"** as a provider name — repaired by the new catalogue sync and locked by a test. |
 
 Runtime note: the suite now takes about four minutes because the auth and
 authorization tests hit a real database and real Argon2 hashing. That is the cost of
@@ -424,6 +427,66 @@ SearXNG indexed-snippet path.
   Browser-checked: 29 / 10 (6 completed, 4 failed) / 50 (36 unclassified) / 1, matching
   `/analytics` exactly.
 
+### Master-plan #28 — Source Manager — what was built
+
+The four source tables already existed and had no API at all, so the registry was only
+ever written as a side effect of a run.
+
+- **API** (`app/modules/sources/{service,schemas,router}.py`) — `GET /api/v1/sources`
+  groups the registry by discovery category and joins each row with this account's state,
+  the newest probe and per-source usage totals. Plus `GET /sources/{slug}`,
+  `POST /sources/{slug}/enable|disable`, `PUT /sources/{slug}/config`,
+  `POST /sources/{slug}/test` and `GET /sources/{slug}/history`. Writes are CSRF-guarded
+  and audited; `source.test` was newly reserved alongside the already-declared
+  `source.enable/disable/configure`.
+- **Generated registry** — the provider list comes from the adapters the existing
+  factories can build, so it cannot drift from the code. SearXNG registers **once** (as the
+  discovery provider it is for jobs) instead of appearing twice with double-counted health
+  and usage.
+- **The switch is honoured, not decorative** — `discovery.runner.execute` drops a source
+  the account disabled before building adapters, logs each skip, records them in
+  `report.skipped_sources`, and fails the job with a named reason if nothing enabled is
+  left. `social.tracks.execute_track_run` skips it per source, so the run ends
+  `completed_with_warnings` with the block recorded rather than a fake success.
+- **Configure has a reader** — the RSS feed list stored here is the fallback the track
+  runner uses when a track names no feeds. It is validated by the real connector, so the
+  existing SSRF guard rejects loopback/private and non-http targets at configuration time.
+  Feed URLs are refused for any source that cannot use them, and only `secret_reference`
+  is ever stored — never a secret value.
+- **Recorded, not inferred** — runs write `source_usage_records` (requests made, records
+  returned, and `records_accepted` only where a run genuinely knows it) and
+  `source_health_checks`. `Test connection` calls the adapter's own `health_check()`, which
+  for RSS honestly reports *per-feed, unknown* rather than minting a green badge.
+- **Migration `ba881785925a`** (additive, no new table) — unique
+  `(source_id, owner_user_id)` on `source_configurations`, and `records_accepted` becomes
+  nullable so "not reported per source" is not displayed as `0 accepted`.
+- **Three defects found and fixed.** (1) A stale registry row was being shown to the operator
+  as a real provider ("Fake hackernews" with an Answering badge) because first-writer-wins
+  let a test double's capabilities name the shared row; the catalogue pass now re-syncs the
+  descriptive columns and the display name, so a row that stops matching its own code
+  repairs itself. Deleting polluted rows was rejected — `source_records` and
+  `business_social_profiles` reference `sources` with `ON DELETE CASCADE`, so purging one
+  would destroy the provenance it exists to describe. (2) Coalescing the accepted-records
+  `SUM` to `0` turned "not reported" into "contributed nothing"; the aggregate now compares
+  reported values against run count and returns unknown when they differ. (3) **The test
+  teardown was destroying operator data**: `sources` health and the health/usage tables have
+  no owner column, so conftest's per-account cleanup could only scope them by `source_id` and
+  so removed probes the operator had really made. Replaced by a per-test autouse snapshot and
+  restore (`_preserve_source_observability`) bounded by a start watermark, which can only ever
+  undo the rows that test created. Verified by recording a live Hacker News probe, running the
+  whole suite, and confirming the probe row and its badge survived — and that no stub-derived
+  badge leaked in.
+- **Frontend** `/sources` — cards per provider with health badge, per-account and
+  provider-wide enable state, last successful run, last probe (+ latency), recorded
+  requests/returned/accepted, coverage, limitations, the RSS feed editor, Test connection
+  and an expandable probe/run history. The sidebar's Source Manager entry is enabled. 19
+  tests.
+- **Deferred honestly** — no admin role, so provider-wide enable is honoured but not
+  exposed as a control; no quota figures, because no free connector here exposes quota
+  headers (the column stays null rather than guessed); no credential entry; and the
+  unimplemented startup connectors (Product Hunt, GitHub) are absent from the manager
+  rather than listed as broken.
+
 ### Infrastructure actually running
 
 | Service | How | State |
@@ -459,7 +522,7 @@ are confined to the `dev` dependency extra so they cannot leak into a runtime in
 | ~~Schema revision chain~~ | ~~No PostgreSQL~~ | **Done** — verified by rebuilding into an empty database |
 | ~~Auth endpoints end to end~~ | ~~Nothing~~ | **Done** — Phase 2, proven with two users |
 | ~~SQLAlchemy `BusinessStore`~~ | ~~Nothing~~ | **Done** — `SqlBusinessStore`, tested |
-| Source Manager with real rows | Nothing | **Unblocked** — next after discovery |
+| ~~Source Manager with real rows~~ | ~~Nothing~~ | **Done** — #28: full API over the four source tables, per-account enable/disable honoured by both runners, probes and usage recorded |
 | Celery worker running jobs | No Redis | Blocked — Memurai (runbook §3.2) or Docker (§2.4). `SynchronousDispatcher` covers development |
 | Live SearXNG verification | No container runtime | Blocked — needs a SearXNG instance. **Overpass can be live-tested now** (public endpoint, internet confirmed working) |
 | Discovery UI | Nothing | Next: Phase 3 job management, then the results table |

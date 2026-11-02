@@ -29,7 +29,7 @@ from app.core.exceptions import ConflictError, NotFoundError, ValidationFailedEr
 from app.core.logging import get_logger
 from app.modules.automation.service import compute_next_run
 from app.modules.businesses.models import Business, BusinessSocialProfile
-from app.modules.discovery.adapters.base import AdapterError
+from app.modules.discovery.adapters.base import AdapterError, HealthResult
 from app.modules.notifications.models import Notification
 from app.modules.social.adapters import SocialResult
 from app.modules.social.models import (
@@ -43,6 +43,8 @@ from app.modules.social.models import (
 from app.modules.social.pipeline import ingest_results
 from app.modules.social.schemas import TrackCreateIn, TrackUpdateIn
 from app.modules.social.service import _build_adapter, ensure_platforms
+from app.modules.sources import service as source_service
+from app.modules.sources.models import Source
 from app.modules.sources.registry import ensure_source
 from app.shared.normalization import normalize_domain, normalize_name
 from app.workers.dispatcher import SynchronousDispatcher, get_dispatcher
@@ -168,11 +170,15 @@ def _primary_query_text(track: SocialSearchTrack) -> str:
     return " ".join(parts)
 
 
-def build_query(track: SocialSearchTrack, platform_slug: str) -> dict[str, Any]:
+def build_query(
+    track: SocialSearchTrack, platform_slug: str, feed_urls: list[str] | None = None
+) -> dict[str, Any]:
     """Turn a track into the config one platform's adapter expects.
 
     A platform whose adapter cannot answer this track (e.g. RSS with no feed URLs)
     raises so the orchestrator records an honest skip rather than a fake empty run.
+    `feed_urls` is the account's Source Manager default, used only where a track
+    leaves its feeds unset.
     """
     text = _primary_query_text(track)
     limit = min(track.max_results_per_run, 100)
@@ -220,10 +226,10 @@ def build_query(track: SocialSearchTrack, platform_slug: str) -> dict[str, Any]:
                 cfg[key] = track.source_config[key]
         return cfg
     if platform_slug == "rss":
-        feeds = track.source_config.get("feed_urls")
+        feeds = track.source_config.get("feed_urls") or feed_urls
         if not isinstance(feeds, Sequence) or not feeds:
             raise AdapterError(
-                "RSS track needs feed URLs in source_config.feed_urls",
+                "RSS track needs feed URLs (set them on the track or in the Source Manager)",
                 classification="unsupported_query",
             )
         return {"feed_urls": list(feeds)}
@@ -313,11 +319,21 @@ async def execute_track_run(run_id: uuid.UUID, *, settings: Settings | None = No
         errors: dict[str, str] = {}
         ok_sources: list[str] = []
         attempted: list[str] = []
+        # A source the operator turned off in the Source Manager is skipped here,
+        # and the skip is recorded on the run rather than quietly dropped.
+        blocked = await source_service.disabled_slugs(
+            session, run.owner_user_id, list(track.platforms)
+        )
 
         for slug in track.platforms:
             attempted.append(slug)
             run.sources_attempted = list(attempted)
             run.queries_attempted = len(attempted)
+            if slug in blocked:
+                errors[slug] = blocked[slug]
+                run.error_summary = json.dumps(errors)
+                await session.commit()
+                continue
             platform = await session.scalar(
                 select(SocialPlatform).where(SocialPlatform.slug == slug)
             )
@@ -329,13 +345,26 @@ async def execute_track_run(run_id: uuid.UUID, *, settings: Settings | None = No
 
             adapter = _build_adapter(active, platform.adapter_key)
             try:
-                config = build_query(track, slug)
+                configured_feeds = await source_service.owner_feed_urls(
+                    session, run.owner_user_id, slug
+                )
+                config = build_query(track, slug, feed_urls=configured_feeds)
                 raw_results = await adapter.search(config)
             except AdapterError as exc:
                 errors[slug] = exc.message[:400]
                 platform.health_status = "failed"
                 platform.last_error = exc.message[:500]
                 platform.last_run_at = datetime.now(UTC)
+                failed_source = await session.scalar(
+                    select(Source).where(Source.slug == slug)
+                )
+                if failed_source is not None:
+                    await source_service.record_health(
+                        session,
+                        failed_source,
+                        HealthResult(status="failed", detail=exc.message[:500]),
+                        detail_extra={"origin": "track_run", "run_id": str(run.id)},
+                    )
                 run.error_summary = json.dumps(errors)
                 await session.commit()
                 await adapter.aclose()
@@ -355,6 +384,24 @@ async def execute_track_run(run_id: uuid.UUID, *, settings: Settings | None = No
             platform.health_status = "working"
             platform.last_error = None
             platform.last_run_at = datetime.now(UTC)
+            finished_source = datetime.now(UTC)
+            await source_service.record_usage(
+                session,
+                source_id,
+                job_id=None,
+                requests_count=int(getattr(adapter, "requests_made", 0) or 0),
+                records_returned=len(raw_results),
+                records_accepted=int(outcome["stored_new"]),
+                measured_at=finished_source,
+            )
+            source_row = await session.get(Source, source_id)
+            if source_row is not None:
+                await source_service.record_health(
+                    session,
+                    source_row,
+                    HealthResult(status="working", detail=f"{len(raw_results)} result(s)"),
+                    detail_extra={"origin": "track_run", "run_id": str(run.id)},
+                )
             results_returned += len(raw_results)
             stored_new += outcome["stored_new"]
             duplicates += outcome["duplicates"]

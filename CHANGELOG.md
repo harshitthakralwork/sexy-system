@@ -6,6 +6,113 @@ In Progress · Blocked · Deferred.
 
 ---
 
+## 2026-11-03 (Master plan #28) — Source Manager that can actually manage
+
+`sources`, `source_configurations`, `source_health_checks` and `source_usage_records`
+all existed, and none of them had an API. The tables were the feature's shadow: the
+registry was written only as a side effect of a run, and the operator could neither see
+nor change anything in it. This closes that, and finds two real defects on the way.
+
+### What changed
+
+- **New Source Manager API** — `app/modules/sources/{service,schemas,router}.py`.
+  `GET /api/v1/sources` groups the registry by discovery category and joins each row
+  with this account's state, the newest probe, and the per-source usage totals.
+  `POST /sources/{slug}/enable|disable`, `PUT /sources/{slug}/config`,
+  `POST /sources/{slug}/test`, `GET /sources/{slug}` and `/history` complete the
+  PRD §6 / DESIGN §10 action set. Writes are CSRF-guarded and audited
+  (`source.enable`, `source.disable`, `source.configure`, and `source.test`, newly
+  reserved).
+- **The registry is generated, not typed.** The list of providers comes from the
+  adapters the existing factories can build, so it cannot drift from the code — and
+  SearXNG registers **once** (as the discovery provider it is for jobs) rather than
+  appearing as two independent sources whose health and usage would be double-counted.
+- **Enable/disable is honoured by the runners, not just displayed.**
+  `discovery.runner.execute` drops a source the account disabled before building any
+  adapter, logs each skip, stores it in `report.skipped_sources`, and fails the job with
+  the reason named if nothing enabled remains. `social.tracks.execute_track_run` skips
+  it per source, so the run ends `completed_with_warnings` with the block recorded.
+- **Configure has a reader.** The RSS feed list an operator stores here is used by the
+  track runner when a track names no feeds — the one per-source setting that has a
+  genuine consumer, so no decorative form ships. Feed URLs are validated by the real
+  connector, which means the existing SSRF guard rejects private and non-http targets at
+  configuration time instead of at run time.
+- **Health and usage became real columns of evidence.** Runs write
+  `source_usage_records` (requests made, records returned, and records accepted only
+  where a run actually knows it) and `source_health_checks` from real probes. The
+  `Test connection` action calls the adapter's own `health_check()` — which for RSS
+  honestly answers *per-feed, unknown* rather than minting a green badge.
+- **Migration `ba881785925a`** (additive): unique `(source_id, owner_user_id)` on
+  `source_configurations`, and `source_usage_records.records_accepted` becomes nullable
+  so "not reported per source" is not displayed as `0 accepted`.
+
+### Defects this task found
+
+1. **A stale registry row was being shown as a provider.** Opening `/sources` displayed
+   *"Fake hackernews"* with an "Answering" badge: a test double's `AdapterCapabilities`
+   had created the shared `hackernews` row first, and first-writer-wins meant the real
+   adapter could never correct it. The catalogue pass now re-syncs the descriptive
+   columns and the display name from the adapter it builds, so a row that stops matching
+   its own code repairs itself on the next read. Locked in by
+   `test_the_manager_repairs_a_row_that_stopped_matching_its_adapter`.
+   Deleting polluted rows was rejected: `source_records` and `business_social_profiles`
+   reference `sources` with `ON DELETE CASCADE`, so purging a row would destroy the very
+   provenance it exists to describe.
+2. **`SUM` was inventing a zero.** Coalescing the accepted-records total to `0` turned
+   "this run could not report it" into "this source contributed nothing" — the exact
+   class of quiet fabrication this project treats as a bug. The aggregate now compares
+   the count of reported values against the count of runs and reports unknown when they
+   differ.
+3. **The test cleanup was deleting the operator's real probe history.** `sources`,
+   `source_health_checks` and `source_usage_records` are global and have **no owner
+   column**, so the per-account teardown in `tests/conftest.py` could only scope them by
+   `source_id` — which removed *every* probe for a source the account had configured,
+   including probes the operator made for real. Caught by recording a live Hacker News
+   probe, running the suite, and finding the row gone while the card still claimed
+   "Answering". Replaced with a per-test autouse fixture,
+   `_preserve_source_observability`, which snapshots the registry and afterwards restores
+   `health_status` / `last_error` and deletes only rows stamped at or after its own start
+   — so a test can never remove evidence it did not create. Re-verified the same way: the
+   live probe (working, 510 ms) and the honest SearXNG failure both survived a full
+   407-test run, and no stub-derived badge leaked in.
+
+### Tests + verification
+
+- 19 new tests (real PostgreSQL): registry completeness and SearXNG singularity;
+  descriptions coming from the adapter; a never-probed row claiming no badge and no
+  history; per-account disable with a second account unaffected; CSRF on every state
+  change; **a disabled source never queried by a real job** (`skipped_sources` recorded,
+  the stub's call list empty, its business absent while the enabled one landed); a job
+  failing honestly when nothing enabled remains; usage recorded with `records_accepted`
+  honestly null; a recorded probe and a refused one; RSS staying `unknown`; feed
+  validation accepting public https and refusing a loopback target and a non-http
+  scheme; feed URLs refused for a source that cannot use them; configuration
+  per-account with no secret value stored; a track skipping a disabled source; and a
+  track running on feeds configured in the manager.
+- Backend **407 passed**; ruff clean; mypy clean across 118 source files; `alembic check`
+  reports no drift at head `ba881785925a`.
+- Frontend tsc / eslint / `next build` clean; `/sources` prerenders.
+- **Browser-verified, live vs honest-failure both observed**: `/sources` lists 8 real
+  providers with their declared limits; clicking *Test connection* on Hacker News
+  returned **working in 1541 ms** against the live Algolia endpoint; the same action on
+  SearXNG returned **failed — ConnectError**, because no instance runs here, and the
+  history panel shows that failure instead of hiding it; Disable flipped the card to
+  "Disabled" with an Enable action, and it was restored afterwards.
+- Test residue was cleaned up: three synthetic registry rows this suite inserted were
+  removed, and the suite now restores shared registry state itself, so the health,
+  probe and usage tables are left empty for the operator rather than populated with
+  stub-derived badges.
+
+Deferred honestly: no admin role, so no provider-wide enable (a user cannot change
+another user's sources — `sources.is_enabled` is honoured but not exposed as a control);
+no per-source quota reporting, because no free connector here exposes quota headers and
+the column stays null rather than guessing; no credential entry (configuration stores a
+`secret_reference` only, never a value); and the startup-source connectors (Product Hunt,
+GitHub) from Phase 3 remain unimplemented, so they are absent from the manager rather than
+listed as broken.
+
+---
+
 ## 2026-11-03 (Master plan #27) — Analytics and Reports
 
 The next genuinely-incomplete roadmap task after Global Search. No new third-party

@@ -13,6 +13,7 @@ from app.modules.email.router import router as email_router
 from app.modules.search.router import router as search_router
 from app.modules.services_catalog.router import router as services_router
 from app.modules.social.router import router as social_router
+from app.modules.sources.router import router as sources_router
 from app.modules.startups.router import router as startups_router
 
 api_router = APIRouter()
@@ -28,3 +29,4 @@ api_router.include_router(automation_router)
 api_router.include_router(email_router)
 api_router.include_router(search_router)
 api_router.include_router(analytics_router)
+api_router.include_router(sources_router)

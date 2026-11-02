@@ -100,7 +100,7 @@ export const navigation: NavSection[] = [
   {
     title: "Infrastructure",
     items: [
-      { label: "Source Manager", href: "/sources", icon: Shield, available: false },
+      { label: "Source Manager", href: "/sources", icon: Shield, available: true },
       { label: "Settings", href: "/settings", icon: Settings, available: false },
       { label: "Notifications", href: "/notifications", icon: Bell, available: false },
     ],

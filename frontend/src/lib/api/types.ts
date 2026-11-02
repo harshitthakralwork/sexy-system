@@ -903,3 +903,74 @@ export interface SavedReportList {
   limit: number;
   offset: number;
 }
+
+// --- Source Manager (master-plan #28) ---------------------------------------
+
+export interface SourceItem {
+  id: string;
+  slug: string;
+  name: string;
+  category: string;
+  adapter_key: string;
+  description: string | null;
+  globally_enabled: boolean;
+  enabled_for_user: boolean;
+  configured_at: string | null;
+  configuration: Record<string, unknown>;
+  secret_reference: string | null;
+  health_status: string;
+  last_error: string | null;
+  last_check_at: string | null;
+  last_check_response_ms: number | null;
+  last_check_detail: string | null;
+  last_successful_run_at: string | null;
+  runs_recorded: number;
+  requests_count: number;
+  records_returned: number;
+  records_accepted: number | null;
+  capabilities: Record<string, unknown>;
+  limitations: Record<string, unknown>;
+  coverage: Record<string, unknown>;
+  rate_limit_config: Record<string, unknown>;
+}
+
+export interface SourceGroup {
+  category: string;
+  items: SourceItem[];
+}
+
+export interface SourceList {
+  groups: SourceGroup[];
+  total: number;
+}
+
+export interface SourceTestResult {
+  slug: string;
+  status: string;
+  detail: string | null;
+  response_time_ms: number | null;
+  checked_at: string;
+}
+
+export interface HealthCheckRow {
+  id: string;
+  status: string;
+  checked_at: string;
+  response_time_ms: number | null;
+  error_message: string | null;
+}
+
+export interface UsageRecordRow {
+  id: string;
+  job_id: string | null;
+  requests_count: number;
+  records_returned: number;
+  records_accepted: number | null;
+  measured_at: string;
+}
+
+export interface SourceHistory {
+  slug: string;
+  checks: HealthCheckRow[];
+  runs: UsageRecordRow[];
+}

@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base
@@ -49,6 +49,11 @@ class Source(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
 class SourceConfiguration(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "source_configurations"
+    __table_args__ = (
+        # One row per account per source: enable/disable and configuration are
+        # meaningless if two rows can disagree about them.
+        UniqueConstraint("source_id", "owner_user_id", name="uq_source_config_owner"),
+    )
 
     source_id: Mapped[uuid.UUID] = mapped_column(
         UUIDType, ForeignKey("sources.id", ondelete="CASCADE"), nullable=False, index=True
@@ -84,7 +89,13 @@ class SourceHealthCheck(Base):
 
 class SourceUsageRecord(Base):
     """Per-job source consumption. ``quota_remaining`` stays null when a
-    provider does not expose quota information."""
+    provider does not expose quota information.
+
+    ``records_accepted`` is null when the run only counted what it stored for the
+    job as a whole — a discovery run knows how many rows each source *returned*,
+    not how many each one got past deduplication. Zero would claim the source
+    contributed nothing.
+    """
 
     __tablename__ = "source_usage_records"
 
@@ -97,6 +108,6 @@ class SourceUsageRecord(Base):
     job_id: Mapped[uuid.UUID | None] = mapped_column(UUIDType, nullable=True, index=True)
     requests_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     records_returned: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    records_accepted: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    records_accepted: Mapped[int | None] = mapped_column(Integer, nullable=True)
     quota_remaining: Mapped[int | None] = mapped_column(Integer, nullable=True)
     measured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

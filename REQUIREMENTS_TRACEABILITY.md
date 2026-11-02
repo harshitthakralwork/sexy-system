@@ -283,6 +283,32 @@ the convention every other module already uses.
 side-by-side comparison. Analytics covers the surfaces that actually have rows; it does not
 invent a section for a module with no data model behind it.
 
+## Source Manager (master-plan #28, implemented 2026-11-03)
+
+| Requirement (PRD §6, DESIGN §10) | Status | Evidence |
+|---|---|---|
+| Enable or disable individual sources | **Tested** | `POST /sources/{slug}/enable|disable` per account, and **honoured by the runners**: a disabled source is never queried by a discovery job (`test_disabled_source_is_skipped_by_a_discovery_job` asserts the stub's call list is empty and its business never appears), and a track records the skip rather than faking success |
+| No provider becomes a critical dependency | **Tested** | a job whose every source is disabled fails with the reason named instead of silently returning nothing; one refused source leaves the others running |
+| View source status | **Tested** | `GET /sources` grouped by category; provider-wide and per-account state reported separately so one user cannot appear to change another's |
+| Health: working / degraded / failed | **Tested**, browser-verified | `POST /sources/{slug}/test` calls the adapter's own `health_check()` and records a `source_health_checks` row; live HN probe returned working in 1541 ms, SearXNG honestly `failed — ConnectError` |
+| Never a badge without evidence | **Tested** | an unprobed row shows `unknown` with no last-check (`test_a_source_that_has_never_been_probed_claims_no_health`); RSS reports *per-feed, unknown* rather than inventing a provider-wide answer |
+| Last successful run | **Tested** | taken from `source_usage_records.measured_at`, written only by runs that completed for that source |
+| Recent errors | **Tested** | `sources.last_error` set from a real refusal, shown on the card and in history |
+| Usage / quota information | **Partially Implemented** | requests made, records returned and (for social tracks) records accepted are recorded and aggregated. **Quota is Deferred**: no free connector here exposes quota headers, so `quota_remaining` stays null rather than estimated |
+| Coverage and limitations visible | **Tested** | generated from `AdapterCapabilities`, not hand-written; a row that stops matching its adapter is re-synced (`test_the_manager_repairs_a_row_that_stopped_matching_its_adapter`) |
+| Configure action | **Tested** | per-account RSS feed list, validated by the real connector — so the existing SSRF guard rejects loopback/private and non-http targets at save time — and refused for a source that cannot use it |
+| Configuration is actually read | **Tested** | the track runner falls back to the account's configured feeds when a track names none (`test_track_uses_feeds_configured_in_the_source_manager`) |
+| View history | Implemented, browser-verified | `GET /sources/{slug}/history` returns probes and per-source run counters, newest first |
+| Grouped by discovery category | Implemented, browser-verified | Geographic / Search / Social grouping from the registry's own `category` |
+| Per-user isolation | **Tested** | disable and configuration are owner-scoped; a second account sees `enabled_for_user: true` and `no configuration` while the first is disabled |
+| Source failure must not disable the platform | **Tested** | skips are recorded per source; the job and the run both continue with the sources that answered |
+
+**Deferred with reason.** Provider-wide enable/disable needs an admin role that does not
+exist yet — `sources.is_enabled` is read and enforced, but no control is exposed for it.
+Credential entry is out of scope: only `secret_reference` is stored, never a value. The
+startup connectors (Product Hunt, GitHub) are still unimplemented from Phase 3, so they are
+absent from the manager rather than listed as broken.
+
 ## Deferred (with reason — see IMPLEMENTATION_PLAN.md section 7)
 
 Hybrid worker dispatch and heartbeats · Google Sheets two-way sync · cloud browser

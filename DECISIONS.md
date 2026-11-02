@@ -7,6 +7,56 @@ Format: decision, driver, alternatives rejected, consequence.
 
 ---
 
+## D-050 | Source Manager: shared registry, per-account switches, generated descriptions
+
+**Decision:** Master-plan #28 builds the Source Manager over the four tables that already
+existed but had no API (`sources`, `source_configurations`, `source_health_checks`,
+`source_usage_records`). The registry rows are **generated from the adapters**: the
+catalogue is derived by asking the existing factories which providers this build can
+actually run, so no hand-maintained list can drift from the code. A shared row's
+descriptive columns are re-synced on every read of `/api/v1/sources`, and that
+catalogue pass is the only writer allowed to correct a row's display name.
+
+Enable/disable is **per account**, stored in `source_configurations` (owner-scoped, one
+row per source per user, enforced by a new unique constraint), while `sources.is_enabled`
+stays the provider-wide switch. The switch is honoured by the runners, not just displayed:
+`discovery.runner.execute` drops disabled slugs before building adapters, logs each skip,
+records them in `report.skipped_sources`, and fails a job with a named reason if nothing
+enabled remains; `social.tracks.execute_track_run` skips them per source so a run ends
+`completed_with_warnings` rather than pretending. Configuration is real too: the RSS
+feed list an operator stores here is read back by the track runner as the fallback when a
+track names no feeds.
+
+**Driver:** PRD §6 and DESIGN §10 demand enable/disable, health, last run, recent errors,
+quota, coverage, limitations, and a configure/test/history action set. The previous phase
+deliberately left Sources read-only; that held while there was nothing to manage, but a
+roadmap task called "Full Source Manager management" cannot be met by a read-only list.
+A switch nobody honours is the kind of control this project has been refusing to ship.
+
+**Alternatives rejected:**
+- *Global-only enable/disable* — rejected: one account turning off Overpass would silently
+  change another account's collection, and the schema already provides an owner-scoped
+  table for exactly this.
+- *A per-source config form with no consumer* — rejected: `configuration` exists in the
+  schema, and a form that stored values nothing reads is the placeholder UI the mandate
+  forbids. Only the RSS feed list is accepted, because only RSS has a runner that reads it.
+- *Deleting stale registry rows from tests* — rejected: `source_records` and
+  `business_social_profiles` reference `sources` with `ON DELETE CASCADE`, so purging a
+  registry row would destroy the provenance it exists to describe. Repair, never delete.
+
+**Consequence:** Test doubles that declare their own `AdapterCapabilities` can still write
+a registry row under a real slug — but the next Source Manager read repairs it, which is
+how the browser caught a stale "Fake hackernews" row being shown as a provider name. The
+repair is limited to the descriptive columns and the name, and only on the catalogue path,
+so a run's provenance write can never rename a provider underneath another reader. Per-source
+`records_accepted` is recorded only where a run genuinely knows it (social tracks know
+what they stored; discovery counts storage per job, not per source) — the column became
+nullable so the manager can say "not reported per source" instead of showing `0`.
+
+Supersedes the read-only-Sources position recorded in D-049.
+
+---
+
 ## D-049 | Social & Demand Intelligence Engine: extend `social`, keyless-first, deterministic classification, compliance-first connectors
 
 **Decision:** The Social & Demand Intelligence Engine is built *inside* the existing
@@ -48,6 +98,9 @@ through the SearXNG indexed-snippet route, explicitly labelled as snippets, not 
 posts. A dedicated cross-entity Global Search module and full Analytics/Reports are still
 the master-plan phases; the engine exposes `GET /social/results?query=` for a future search
 to consume, and does not fabricate the higher-level analytics it has not built.
+*(Closed later, not by a decision entry: cross-entity Global Search landed as master-plan
+#26 and Analytics/Reports as #27 — see `PROJECT_STATUS.md`. The read-only-Sources position
+below is superseded by D-050.)*
 
 ---
 

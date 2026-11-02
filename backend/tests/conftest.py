@@ -4,6 +4,7 @@ import contextlib
 import uuid
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 import pytest
 from fastapi.testclient import TestClient
@@ -93,6 +94,69 @@ def _database_reachable() -> bool:
 def database_available() -> bool:
     """Probed once per session rather than once per test."""
     return _database_reachable()
+
+
+@pytest.fixture(autouse=True)
+def _preserve_source_observability(
+    database_available: bool,
+) -> Iterator[None]:
+    """Undo only this test's writes to the shared, unowned source tables.
+
+    `sources.health_status`, `source_health_checks` and `source_usage_records` are
+    global and have no owner column: they are a log of what a provider answered, not
+    rows one account owns. Per-owner deletion cannot scope to them correctly — an
+    early version of this cleanup deleted *every* probe for a source an account had
+    configured, which destroyed probes the operator made for real. So each test
+    snapshots the registry and, afterwards, restores those columns and deletes only
+    the rows stamped at or after its own start.
+    """
+    if not database_available:
+        yield
+        return
+
+    import asyncio
+
+    from sqlalchemy import delete, select
+
+    from app.core.database import session_scope
+    from app.modules.sources.models import (
+        Source,
+        SourceHealthCheck,
+        SourceUsageRecord,
+    )
+
+    async def snapshot() -> tuple[datetime, dict[uuid.UUID, tuple[str, str | None]]]:
+        async with session_scope() as session:
+            rows = await session.scalars(select(Source))
+            return datetime.now(UTC), {row.id: (row.health_status, row.last_error) for row in rows}
+
+    async def undo(
+        since: datetime, states: dict[uuid.UUID, tuple[str, str | None]]
+    ) -> None:
+        async with session_scope() as session:
+            for source_id, (health_status, last_error) in states.items():
+                await session.execute(
+                    delete(SourceHealthCheck).where(
+                        SourceHealthCheck.source_id == source_id,
+                        SourceHealthCheck.checked_at >= since,
+                    )
+                )
+                await session.execute(
+                    delete(SourceUsageRecord).where(
+                        SourceUsageRecord.source_id == source_id,
+                        SourceUsageRecord.measured_at >= since,
+                    )
+                )
+                row = await session.get(Source, source_id)
+                if row is not None:
+                    row.health_status = health_status
+                    row.last_error = last_error
+
+    since, states = asyncio.run(snapshot())
+    yield
+    # Cleanup must never mask a real test failure.
+    with contextlib.suppress(Exception):
+        asyncio.run(undo(since, states))
 
 
 @dataclass(frozen=True)
@@ -224,6 +288,18 @@ def make_account(
                 )
                 await connection.execute(
                     "delete from source_records where owner_user_id = $1", user_id
+                )
+                # Source Manager rows. `source_configurations` is owner-scoped, so it
+                # goes with the account; health checks and usage records are global
+                # logs handled by `_preserve_source_observability` above, and
+                # discovery-job usage rows are the only ones this owner can identify.
+                await connection.execute(
+                    "delete from source_usage_records where job_id in"
+                    " (select id from discovery_jobs where owner_user_id = $1)",
+                    user_id,
+                )
+                await connection.execute(
+                    "delete from source_configurations where owner_user_id = $1", user_id
                 )
                 await connection.execute(
                     "delete from job_logs where job_id in"
