@@ -17,113 +17,15 @@ from sqlalchemy import select
 
 from app.core.database import session_scope
 from app.modules.discovery import job_service, runner
-from app.modules.discovery.adapters.base import (
-    AccessDeniedError,
-    AdapterCapabilities,
-    DiscoveredItem,
-    HealthResult,
-)
+from app.modules.discovery.adapters.base import AccessDeniedError
 from app.modules.discovery.models import DiscoveryJob, SourceRecord
 from tests.conftest import Session
-
-CAPABILITIES = AdapterCapabilities(
-    adapter_key="overpass",
-    name="OpenStreetMap (Overpass API)",
-    slug="overpass",
-    category="geographic",
-    supported_query_types=("category", "radius"),
-    supported_filters=("radius_km",),
-    available_fields=("name", "latitude", "longitude"),
-    geographic_coverage="Fixture coverage note, standing in for the real source.",
+from tests.discovery_doubles import (
+    StubAdapter,
+    item,
+    unidentified,
+    unique_domain,
 )
-
-
-class StubAdapter:
-    """Returns prepared items, or fails on purpose when asked to."""
-
-    def __init__(self, items: list[DiscoveredItem] | None = None, error: Exception | None = None):
-        self._items = items or []
-        self._error = error
-        self.requests_made = 0
-
-    @property
-    def capabilities(self) -> AdapterCapabilities:
-        return CAPABILITIES
-
-    async def validate_config(self, config: dict[str, Any]) -> None:
-        del config
-
-    async def health_check(self) -> HealthResult:
-        return HealthResult(status="working")
-
-    async def discover(self, query: Any) -> list[DiscoveredItem]:
-        del query
-        self.requests_made += 1
-        if self._error is not None:
-            raise self._error
-        return list(self._items)
-
-    async def aclose(self) -> None:
-        return None
-
-
-def item(domain: str, name: str) -> DiscoveredItem:
-    """A distinct business. The phone is unique per fixture so two items are
-    never merged as duplicates of each other by accident."""
-    phone = f"+91 9{str(uuid.uuid4().int % 10**9).zfill(9)}"
-    return DiscoveredItem(
-        external_id=f"node-{domain}",
-        source_url=f"https://{domain}/",
-        title_hint=name,
-        raw_data={
-            "name": name,
-            "website": f"https://{domain}",
-            "city": "Bengaluru",
-            "phone": phone,
-        },
-    )
-
-
-def unidentified() -> DiscoveredItem:
-    """A record with no name and no domain: real noise from a real source."""
-    return DiscoveredItem(
-        external_id="node-junk",
-        source_url=None,
-        raw_data={"description": "something was mentioned here"},
-    )
-
-
-def unique_domain() -> str:
-    return f"stub-{uuid.uuid4().hex[:8]}.dev"
-
-
-@pytest.fixture(autouse=True)
-def _inline_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Jobs must run inline regardless of what the operator's `.env` says.
-
-    Without this, a machine configured for Celery would pass these tests having
-    proved only that a job can be queued.
-    """
-    monkeypatch.setenv("SPARKX_RUN_JOBS_SYNCHRONOUSLY", "true")
-    from app.core import config as config_module
-
-    config_module.get_settings.cache_clear()
-
-
-@pytest.fixture()
-def stub_adapters(monkeypatch: pytest.MonkeyPatch) -> Callable[[list[StubAdapter]], None]:
-    """Replace adapter construction with the given stubs."""
-
-    def install(adapters: list[StubAdapter]) -> None:
-        built = [(adapter.capabilities.slug, adapter) for adapter in adapters]
-
-        def build(settings: Any, slugs: Any) -> list[tuple[str, Any]]:
-            del settings, slugs
-            return built
-
-        monkeypatch.setattr(runner, "build_adapters", build)
-
-    return install
 
 
 def create_job(account: Session, payload: dict[str, Any]) -> dict[str, Any]:

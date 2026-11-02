@@ -27,6 +27,9 @@ from dataclasses import dataclass
 from app.shared.geo import Area, BoundingBox
 
 MAX_TILE_GRID_DIMENSION = 64
+# Relative slack when deciding how many tiles fit across a distance, so a region
+# that fits exactly is not counted as needing one more row.
+TILE_FIT_TOLERANCE = 1e-9
 
 
 class TilePlanError(ValueError):
@@ -55,6 +58,17 @@ class Tile:
         return {"west": west, "south": south, "east": east, "north": north}
 
 
+def _cells_across(distance_km: float, side_km: float) -> int:
+    """How many tile sides fit across a distance.
+
+    The tolerance is not cosmetic. A circle's bounding box is exactly 2 x radius
+    tall, and without it `ceil(4.0000000004 / 1.0)` rounds a 4x4 grid up to 5x5 —
+    25 requests where 16 fit, and a region near the per-job limit refused because of
+    arithmetic noise.
+    """
+    return max(1, math.ceil(distance_km / side_km - TILE_FIT_TOLERANCE))
+
+
 def _grid_dimensions(area: Area, target_area_km2: float) -> tuple[int, int]:
     """Rows and columns so each cell lands near `target_area_km2`."""
     if target_area_km2 <= 0:
@@ -64,8 +78,8 @@ def _grid_dimensions(area: Area, target_area_km2: float) -> tuple[int, int]:
     width_km = abs(bbox.east - bbox.west) * 111.32 * math.cos(math.radians(mid_latitude))
     height_km = abs(bbox.north - bbox.south) * 110.574
     side_km = math.sqrt(target_area_km2)
-    columns = max(1, math.ceil(width_km / side_km))
-    rows = max(1, math.ceil(height_km / side_km))
+    columns = _cells_across(width_km, side_km)
+    rows = _cells_across(height_km, side_km)
     return rows, columns
 
 

@@ -16,10 +16,12 @@ from app.modules.businesses.schemas import (
     BusinessOut,
     ContactOut,
     PinOut,
+    SelectedExportIn,
     ViewportOut,
 )
 from app.modules.crm.service import ensure_default_pipeline, stage_by_name
 from app.modules.exports.csv_export import to_csv
+from app.shared.geo import BoundingBox, GeometryError
 
 router = APIRouter(prefix="/businesses", tags=["businesses"])
 
@@ -29,20 +31,30 @@ MAX_SELECTED_EXPORT = 500
 
 
 def _parse_bbox(value: str | None) -> tuple[float, float, float, float] | None:
-    """Parse `west,south,east,north`. Anything unusable is treated as no filter.
+    """Parse and validate `west,south,east,north`.
 
-    The repository re-checks ordering and ranges, so a malformed or inverted box
-    narrows nothing rather than silently searching the wrong quadrant of the map.
+    An unusable box raises rather than degrades: if the ordering were wrong and the
+    filter simply dropped, the response would be every located record the user owns —
+    an unbounded read dressed up as a viewport.
     """
     if not value:
         return None
     parts = value.split(",")
     if len(parts) != 4:
-        return None
+        raise ValidationFailedError(
+            "A bounding box is west,south,east,north in decimal degrees",
+            details={"example": "77.5,28.5,77.7,28.7"},
+        )
     try:
         west, south, east, north = (float(part) for part in parts)
     except ValueError:
-        return None
+        raise ValidationFailedError(
+            "A bounding box must be four decimal numbers", details={"value": value}
+        ) from None
+    try:
+        BoundingBox(west=west, south=south, east=east, north=north)
+    except GeometryError as exc:
+        raise ValidationFailedError(exc.message, details={"field": exc.field}) from exc
     return (west, south, east, north)
 
 
@@ -172,6 +184,38 @@ async def export_csv(
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="sparkxflow-leads.csv"'},
     )
+
+
+@router.post("/export/selected", response_class=Response)
+async def export_selected(
+    request: Request,
+    payload: SelectedExportIn,
+    session: AsyncSessionDep,
+    user: CurrentUser,
+    _csrf: None = Csrf,
+) -> Response:
+    """CSV of exactly the records selected, whether picked on the map or in the table.
+
+    Ids that are not the caller's are not exported and are reported as skipped. The
+    response still downloads — a partial selection is useful — but the count is also
+    logged, because a silent shortfall is how a lead list starts lying about itself.
+    """
+    rows, skipped = await repository.export_rows_by_ids(session, user.id, payload.ids)
+    await record_audit(
+        session,
+        action="export.create",
+        owner_user_id=user.id,
+        entity_type="export_job",
+        ip_address=client_ip(request),
+        metadata={"format": "csv", "record_count": len(rows), "requested": len(payload.ids)},
+    )
+    body = to_csv(rows)
+    headers = {
+        "Content-Disposition": 'attachment; filename="sparkxflow-selection.csv"',
+        "X-Exported-Records": str(len(rows)),
+        "X-Export-Skipped": str(skipped),
+    }
+    return Response(content=body, media_type="text/csv; charset=utf-8", headers=headers)
 
 
 @router.get("/{business_id}", response_model=BusinessDetail)

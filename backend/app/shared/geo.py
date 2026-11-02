@@ -15,6 +15,7 @@ from __future__ import annotations
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Any
 
 # Mean metres per degree of latitude on the WGS84 ellipsoid, and the spherical
 # approximation used for areas. Areas here decide whether a request is *allowed*,
@@ -265,3 +266,41 @@ class Area:
 
     def within_ceiling(self, max_area_km2: float) -> bool:
         return self.area_km2 <= max_area_km2
+
+
+def area_to_payload(area: Area) -> dict[str, object]:
+    """A JSON-safe form that keeps the shape, not just its bounding box.
+
+    Worth the extra fields: a job stored as a box would re-run as a box, and a
+    3 km circle would silently become the 3.4 km square around it — a different
+    question than the one the user asked.
+    """
+    west, south, east, north = area.bbox.as_tuple()
+    return {
+        "shape_type": area.shape_type,
+        "bbox": [west, south, east, north],
+        "area_km2": round(area.area_km2, 4),
+        "latitude": area.latitude,
+        "longitude": area.longitude,
+        "radius_m": area.radius_m,
+        "polygon": [list(vertex) for vertex in area.polygon] if area.polygon else None,
+    }
+
+
+def area_from_payload(payload: dict[str, Any] | None) -> Area | None:
+    if not payload:
+        return None
+    west, south, east, north = payload["bbox"]
+    bbox = BoundingBox(west=float(west), south=float(south), east=float(east), north=float(north))
+    polygon = payload.get("polygon")
+    return Area(
+        shape_type=str(payload.get("shape_type", "administrative")),
+        bbox=bbox,
+        area_km2=float(payload.get("area_km2", bbox.area_km2)),
+        latitude=float(payload["latitude"]) if payload.get("latitude") is not None else None,
+        longitude=float(payload["longitude"]) if payload.get("longitude") is not None else None,
+        radius_m=int(payload["radius_m"]) if payload.get("radius_m") is not None else None,
+        polygon=(
+            tuple((float(vertex[0]), float(vertex[1])) for vertex in polygon) if polygon else None
+        ),
+    )

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Any
 
@@ -12,6 +13,10 @@ from app.modules.businesses.models import Business, BusinessContact
 from app.modules.crm.models import CrmBusinessRecord, CrmStage
 from app.modules.crm.service import move_stage
 from app.modules.exports.csv_export import BUSINESS_COLUMNS
+
+# An export is bounded so a runaway selection cannot turn one request into a
+# memory problem. Filters narrow further; this is the ceiling, not the target.
+EXPORT_ROW_LIMIT = 10_000
 
 SORTABLE = {
     "name": Business.name,
@@ -359,13 +364,41 @@ async def provenance_map(
 async def export_rows(
     session: AsyncSession, owner_user_id: uuid.UUID, filters: BusinessFilters
 ) -> list[dict[str, Any]]:
-    """Build CSV-ready rows, including provenance and verification state."""
+    """Build CSV-ready rows for a filter, including provenance and verification state."""
     filters = filters.normalized()
     statement = _apply_filters(_base_statement(owner_user_id), filters, owner_user_id).order_by(
         Business.first_discovered_at.desc()
     )
-    rows = (await session.scalars(statement.limit(10_000))).all()
-    business_ids = [business.id for business in rows]
+    rows = (await session.scalars(statement.limit(EXPORT_ROW_LIMIT))).all()
+    return await _build_export_rows(session, owner_user_id, list(rows))
+
+
+async def export_rows_by_ids(
+    session: AsyncSession, owner_user_id: uuid.UUID, ids: Sequence[uuid.UUID]
+) -> tuple[list[dict[str, Any]], int]:
+    """Export exactly the records selected on the map or in the table.
+
+    Ids are resolved through the same owner-scoped statement as every other read, so
+    another user's id simply is not found — and the count of those is returned rather
+    than swallowed, because a selection that silently exports fewer rows than the user
+    picked needs to say so out loud.
+    """
+    statement = (
+        _base_statement(owner_user_id)
+        .where(Business.id.in_(list(ids)))
+        .order_by(Business.first_discovered_at.desc())
+        .limit(EXPORT_ROW_LIMIT)
+    )
+    rows = (await session.scalars(statement)).all()
+    found = {row.id for row in rows}
+    skipped = len(set(ids)) - len(found)
+    return await _build_export_rows(session, owner_user_id, list(rows)), max(skipped, 0)
+
+
+async def _build_export_rows(
+    session: AsyncSession, owner_user_id: uuid.UUID, businesses: list[Business]
+) -> list[dict[str, Any]]:
+    business_ids = [business.id for business in businesses]
     provenance = await provenance_map(session, owner_user_id, business_ids)
 
     stage_rows = await session.execute(
@@ -379,7 +412,7 @@ async def export_rows(
     stages = dict(stage_rows.all())
 
     output: list[dict[str, Any]] = []
-    for business in rows:
+    for business in businesses:
         contacts = list(
             await session.scalars(
                 select(BusinessContact).where(BusinessContact.business_id == business.id)

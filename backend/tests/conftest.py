@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import create_app
+from tests.discovery_doubles import stub_adapters  # noqa: F401
 
 
 @pytest.fixture(autouse=True)
@@ -18,6 +19,19 @@ def _fresh_settings() -> Iterator[None]:
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
+
+
+@pytest.fixture(autouse=True)
+def _inline_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Discovery jobs run inline, whatever the operator's `.env` says.
+
+    A machine configured for Celery would otherwise pass the job tests having
+    proved only that a job can be queued, not that a job runs.
+    """
+    monkeypatch.setenv("SPARKX_RUN_JOBS_SYNCHRONOUSLY", "true")
+    from app.core import config as config_module
+
+    config_module.get_settings.cache_clear()
 
 
 @pytest.fixture(autouse=True)

@@ -7,7 +7,14 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.modules.discovery.adapters.base import DiscoveryQuery, LocationSpec
-from app.shared.geo import Area, Circle, Polygon, Rectangle
+from app.shared.geo import (
+    Area,
+    Circle,
+    Polygon,
+    Rectangle,
+    area_from_payload,
+    area_to_payload,
+)
 
 MAX_KEYWORDS = 10
 MAX_KEYWORD_LENGTH = 100
@@ -70,13 +77,12 @@ class DiscoveryJobIn(BaseModel):
 
         The resolved geometry is stored alongside the request that produced it, so
         a job re-read next month asks about the same ground even if the saved area
-        is edited or deleted in the meantime.
+        is edited or deleted in the meantime — and asks it in the same shape.
         """
         config = self.model_dump(mode="json", exclude={"geometry", "area_id"})
         config["geometry"] = self.geometry.model_dump(mode="json") if self.geometry else None
         config["area_id"] = str(self.area_id) if self.area_id else None
-        config["resolved_bbox"] = list(area.bbox.as_tuple()) if area else None
-        config["resolved_area_km2"] = round(area.area_km2, 4) if area else None
+        config["resolved_area"] = area_to_payload(area) if area else None
         return config
 
 
@@ -88,13 +94,7 @@ def query_from_config(config: dict[str, Any]) -> tuple[DiscoveryJobIn, Area | No
     caller is held to.
     """
     request = DiscoveryJobIn.model_validate(config)
-    area: Area | None = None
-    if config.get("resolved_bbox"):
-        west, south, east, north = config["resolved_bbox"]
-        from app.shared.geo import BoundingBox
-
-        area = Area.from_bounding_box(BoundingBox(west, south, east, north))
-    return request, area
+    return request, area_from_payload(config.get("resolved_area"))
 
 
 class AdminScopeIn(BaseModel):
