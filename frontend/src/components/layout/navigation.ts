@@ -48,7 +48,7 @@ export const navigation: NavSection[] = [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, available: true },
       { label: "Analytics", href: "/analytics", icon: BarChart3, available: false },
       { label: "Reports", href: "/reports", icon: FileText, available: false },
-      { label: "Global Search", href: "/search", icon: Search, available: false },
+      { label: "Global Search", href: "/search", icon: Search, available: true },
     ],
   },
   {

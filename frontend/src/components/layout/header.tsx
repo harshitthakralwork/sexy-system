@@ -1,6 +1,7 @@
 "use client";
 
-import { Monitor, Moon, Sun } from "lucide-react";
+import { Moon, Search, Sun } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 import { useSession } from "@/components/providers/session-provider";
@@ -58,11 +59,14 @@ export function Header({ title, subtitle }: { title: string; subtitle?: string }
       <div className="flex shrink-0 items-center gap-4">
         <StatusPill />
 
-        {/* Global search is Phase 2. It is absent rather than a dead input. */}
-        <span className="hidden items-center gap-2 rounded-md border border-border px-3 py-1.5 text-xs text-[var(--color-muted)] md:flex">
-          <Monitor size={14} aria-hidden />
-          Global search — Phase 2
-        </span>
+        {/* Global search is available; it queries the shared /search endpoint. */}
+        <Link
+          href="/search"
+          className="hidden items-center gap-2 rounded-md border border-border px-3 py-1.5 text-xs text-[var(--color-muted)] hover:border-[var(--color-primary)] hover:text-[var(--color-foreground)] md:flex"
+        >
+          <Search size={14} aria-hidden />
+          Global search
+        </Link>
 
         <UserMenu />
 

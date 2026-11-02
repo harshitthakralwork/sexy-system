@@ -9,6 +9,7 @@ from app.modules.businesses.router import router as businesses_router
 from app.modules.crm.router import router as crm_router
 from app.modules.discovery.router import router as discovery_router
 from app.modules.email.router import router as email_router
+from app.modules.search.router import router as search_router
 from app.modules.services_catalog.router import router as services_router
 from app.modules.social.router import router as social_router
 from app.modules.startups.router import router as startups_router
@@ -24,3 +25,4 @@ api_router.include_router(startups_router)
 api_router.include_router(social_router)
 api_router.include_router(automation_router)
 api_router.include_router(email_router)
+api_router.include_router(search_router)

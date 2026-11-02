@@ -6,6 +6,43 @@ In Progress · Blocked · Deferred.
 
 ---
 
+## 2026-11-03 (Master plan) — Global Search across every owned entity
+
+Returned to the original roadmap (after the Social & Demand Engine directive) with
+the first genuinely-incomplete master-plan task: **#26 Global Search**.
+
+### What changed
+
+- **New `search` module** — `GET /api/v1/search?q=&limit=&offset=` aggregates one
+  ILIKE query across five owned surfaces, calling the **existing** list functions
+  rather than re-implementing search: businesses (`list_businesses`), startups
+  (`list_startups`), social intelligence results and saved items
+  (`social.tracks.list_intelligence`), and discovery tracks (a small name/keywords
+  query). Results come back grouped with each group's own total; the only aggregate
+  reported is the sum of those totals — no invented ranking. Ownership is enforced by
+  the reused functions (every one is owner-scoped), so cross-entity search cannot leak.
+- **Frontend** — `/search` page (query box + grouped result cards, each hit linking
+  to its real destination: a lead, a startup, the intelligence/saved/track views);
+  the header's stale "Global search — Phase 2" placeholder is replaced with a working
+  link; the nav entry is enabled.
+- **`/api/v1/info`** now reports `search` among enabled modules.
+
+### Tests + verification
+
+- 3 new tests (real PostgreSQL): a single query reaches all seeded entities, empty
+  query returns nothing, and cross-owner isolation (another user finds none of it).
+- Backend **378 passed**; ruff + mypy clean (110 files). Frontend tsc/eslint/next build
+  clean; `/search` prerenders.
+- **Browser-verified live**: searching "agency" returned the discovery track by name
+  via the real backend and rendered as a "Discovery tracks · 1" group card.
+
+Deferred honestly: this is entity-level text search over the owner's own data (ILIKE),
+matching the existing convention — Postgres full-text/tsvector and relevance ranking
+are not introduced, and the engine's intelligence results remain the highest-value
+searchable surface.
+
+---
+
 ## 2026-11-03 (Social & Demand Intelligence Engine) — two tracks, keyless connectors, deterministic classification
 
 A separate standing directive, built inside the existing `social` module — no new

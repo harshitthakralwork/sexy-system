@@ -841,3 +841,27 @@ export interface SavedItem {
   updated_at: string;
 }
 
+// --- Global Search (master-plan Phase 6) ------------------------------------
+
+export interface GlobalSearchItem {
+  kind: string;
+  id: string;
+  title: string;
+  subtitle: string | null;
+  url: string | null;
+  confidence: number | null;
+}
+
+export interface SearchGroup {
+  items: GlobalSearchItem[];
+  total: number;
+}
+
+export interface GlobalSearchOut {
+  query: string;
+  limit: number;
+  offset: number;
+  groups: Record<string, SearchGroup>;
+  total: number;
+}
+
