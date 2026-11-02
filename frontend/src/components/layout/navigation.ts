@@ -85,6 +85,7 @@ export const navigation: NavSection[] = [
       { label: "Business Intelligence", href: "/intelligence/business", icon: Building2, available: true },
       { label: "Discovery Tracks", href: "/intelligence/tracks", icon: Radar, available: true },
       { label: "Saved Items", href: "/intelligence/saved", icon: Bookmark, available: true },
+      { label: "Sources", href: "/social/sources", icon: Globe, available: true },
     ],
   },
   {
