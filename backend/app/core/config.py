@@ -95,6 +95,16 @@ class Settings(BaseSettings):
     reddit_user_agent: str = "sparkxflow-nexus/0.1 (local research tool)"
     reddit_timeout_seconds: float = 20.0
 
+    # Social & Demand Intelligence Engine — keyless sources. Hacker News and
+    # RSS/Atom need no credentials; SearXNG (above) is reused for publicly
+    # indexed-snippet search. Each is bounded independently of configuration.
+    hn_base_url: str = "https://hn.algolia.com"
+    hn_timeout_seconds: float = 20.0
+    rss_timeout_seconds: float = 20.0
+    rss_max_entries_per_feed: int = 100
+    social_max_query_terms: int = 10
+    social_user_agent: str = "sparkxflow-nexus/0.1 (local research tool)"
+
     # Email sending (Automation Engine). SMTP is the first adapter because it is
     # testable without credentials; Gmail OAuth stays credential-gated. Secrets
     # live in the environment, referenced by `secret_reference` in the database.
@@ -192,6 +202,27 @@ class Settings(BaseSettings):
     def _bounded_reddit_timeout(cls, value: float) -> float:
         if not 1.0 <= value <= 60.0:
             raise ValueError("reddit_timeout_seconds must be between 1 and 60")
+        return value
+
+    @field_validator("hn_timeout_seconds", "rss_timeout_seconds")
+    @classmethod
+    def _bounded_social_timeout(cls, value: float) -> float:
+        if not 1.0 <= value <= 60.0:
+            raise ValueError("social source timeout must be between 1 and 60")
+        return value
+
+    @field_validator("rss_max_entries_per_feed")
+    @classmethod
+    def _bounded_rss_entries(cls, value: int) -> int:
+        if not 1 <= value <= 500:
+            raise ValueError("rss_max_entries_per_feed must be between 1 and 500")
+        return value
+
+    @field_validator("social_max_query_terms")
+    @classmethod
+    def _bounded_social_terms(cls, value: int) -> int:
+        if not 1 <= value <= 50:
+            raise ValueError("social_max_query_terms must be between 1 and 50")
         return value
 
     @field_validator("smtp_port")

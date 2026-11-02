@@ -17,7 +17,12 @@ from app.core.exceptions import (
 )
 from app.modules.businesses.models import Business, BusinessSocialProfile
 from app.modules.discovery.adapters.base import AdapterError
-from app.modules.social.adapters import RedditAdapter, SocialResult
+from app.modules.social.adapters import RedditAdapter, SocialAdapter, SocialResult
+from app.modules.social.connectors import (
+    HackerNewsAdapter,
+    RssAtomAdapter,
+    SearxngSocialAdapter,
+)
 from app.modules.social.models import (
     SocialContent,
     SocialPlatform,
@@ -78,12 +83,31 @@ async def _get_platform(session: AsyncSession, platform_id: uuid.UUID) -> Social
     )
 
 
-def _build_adapter(settings: Settings, adapter_key: str) -> RedditAdapter:
+def _build_adapter(settings: Settings, adapter_key: str) -> SocialAdapter:
     if adapter_key == "reddit":
         return RedditAdapter(
             settings.reddit_base_url,
             user_agent=settings.reddit_user_agent,
             timeout_seconds=settings.reddit_timeout_seconds,
+        )
+    if adapter_key == "hackernews":
+        return HackerNewsAdapter(
+            settings.hn_base_url,
+            user_agent=settings.social_user_agent,
+            timeout_seconds=settings.hn_timeout_seconds,
+        )
+    if adapter_key == "rss":
+        return RssAtomAdapter(
+            user_agent=settings.social_user_agent,
+            timeout_seconds=settings.rss_timeout_seconds,
+            max_entries_per_feed=settings.rss_max_entries_per_feed,
+        )
+    if adapter_key == "searxng":
+        return SearxngSocialAdapter(
+            settings.searxng_base_url,
+            user_agent=settings.social_user_agent,
+            timeout_seconds=settings.searxng_timeout_seconds,
+            results_per_page=settings.searxng_results_per_page,
         )
     raise SourceUnavailableError(adapter_key, "no adapter is registered for this platform")
 
