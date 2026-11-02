@@ -1,0 +1,33 @@
+# Line-ending policy. Without this, Git normalises every file to the operator's
+# core.autocrlf setting, and a plain checkout rewrites the entire tree.
+# Source stays LF (tools and Docker images assume it); PowerShell stays CRLF.
+
+* text=auto
+
+*.py text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.mjs text eol=lf
+*.css text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.sql text eol=lf
+*.sh text eol=lf
+*.ps1 text eol=crlf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.glb binary
+*.pdf binary
+
+# Generated files: not worth diffing.
+package-lock.json -diff
+uv.lock -diff
