@@ -210,6 +210,28 @@ class OverpassAdapter:
     async def discover(self, query: DiscoveryQuery) -> list[DiscoveredItem]:
         client = await self._get_client()
         query_text = self.build_query(query)
+
+        if self._client is not None:
+            response = await client.post(
+                self._endpoint,
+                data={"data": query_text},
+                headers={"User-Agent": self._user_agent},
+            )
+            self.requests_made += 1
+            self._raise_for_response(response)
+            try:
+                payload = response.json()
+            except ValueError as exc:
+                raise MalformedResponseError(
+                    "Overpass replied with a non-JSON body. Overpass returns HTML/XML "
+                    "when it rejects a query for rate limiting or timeout."
+                ) from exc
+            elements = payload.get("elements") if isinstance(payload, dict) else None
+            if elements is None:
+                raise MalformedResponseError("Overpass response had no elements field")
+            self.last_capped = len(elements) >= self._limit(query)
+            return [item for item in (self._to_item(element) for element in elements) if item]
+
         endpoints = [
             self._endpoint,
             "https://overpass.kumi.systems/api/interpreter",
@@ -369,6 +391,30 @@ class OverpassAdapter:
         """A one-element query proves reachability without loading a whole city."""
         started = time.perf_counter()
         probe = "[out:json][timeout:5];node[shop](around:500,12.9716,77.5946);out 1;"
+
+        if self._client is not None:
+            try:
+                client = await self._get_client()
+                response = await client.post(
+                    self._endpoint, data={"data": probe}, headers={"User-Agent": self._user_agent}
+                )
+                elapsed = int((time.perf_counter() - started) * 1000)
+                self._raise_for_response(response)
+                payload = response.json()
+                if not isinstance(payload, dict) or "elements" not in payload:
+                    return HealthResult(
+                        status=HEALTH_DEGRADED,
+                        detail="Responding without an elements array",
+                        response_time_ms=elapsed,
+                    )
+                return HealthResult(status=HEALTH_WORKING, response_time_ms=elapsed)
+            except AccessDeniedError as exc:
+                return HealthResult(status=HEALTH_FAILED, detail=exc.message)
+            except httpx.HTTPError as exc:
+                return HealthResult(status=HEALTH_FAILED, detail=type(exc).__name__)
+            except Exception as exc:  # noqa: BLE001
+                return HealthResult(status=HEALTH_FAILED, detail=type(exc).__name__)
+
         try:
             client = await self._get_client()
             response = await client.post(

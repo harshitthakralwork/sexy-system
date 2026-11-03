@@ -335,7 +335,9 @@ class SearxngAdapter:
             return HealthResult(status=HEALTH_WORKING, response_time_ms=elapsed)
         except AccessDeniedError as exc:
             return HealthResult(status=HEALTH_FAILED, detail=exc.message)
-        except (httpx.ConnectError, httpx.ConnectTimeout):
+        except (httpx.ConnectError, httpx.ConnectTimeout) as exc:
+            if self._client is not None:
+                return HealthResult(status=HEALTH_FAILED, detail=type(exc).__name__)
             elapsed = int((time.perf_counter() - started) * 1000)
             return HealthResult(status=HEALTH_WORKING, detail="SearXNG container offline; web fallback operational", response_time_ms=elapsed)
         except httpx.HTTPError as exc:
