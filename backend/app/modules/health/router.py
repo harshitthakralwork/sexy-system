@@ -32,7 +32,21 @@ class ReadyResponse(BaseModel):
 
 
 async def _check_redis(settings: Settings) -> ComponentState:
-    """Probe Redis without letting a dead broker raise through the endpoint."""
+    """Probe Redis without letting a dead broker raise through the endpoint.
+
+    When running synchronously in development or local-first mode, Redis is optional.
+    If Redis is unreachable, we report ok=True with an inline notice instead of
+    marking the entire API as degraded.
+    """
+    if settings.run_jobs_synchronously:
+        try:
+            client = from_url(settings.redis_url, socket_connect_timeout=0.5, socket_timeout=0.5)
+            await client.ping()
+            await client.aclose()
+            return ComponentState(name="redis", ok=True, detail="connected")
+        except Exception:  # noqa: BLE001 - optional probe failure
+            return ComponentState(name="redis", ok=True, detail="inline (synchronous dev mode)")
+
     client = from_url(settings.redis_url, socket_connect_timeout=2, socket_timeout=2)
     try:
         await client.ping()

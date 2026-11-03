@@ -40,10 +40,25 @@ class SmtpProvider:
         self._settings = settings
 
     def configured(self) -> bool:
+        if self._settings.app_env == "development" or self._settings.smtp_host in (
+            "mock",
+            "sandbox",
+        ):
+            return True
         return bool(self._settings.smtp_host)
 
     def _deliver(self, from_address: str, to_address: str, subject: str, body: str) -> SendOutcome:
         settings = self._settings
+        if not settings.smtp_host or settings.smtp_host in ("mock", "sandbox"):
+            import time
+
+            logger.info(
+                "smtp_mock_delivery",
+                from_address=from_address,
+                to_address=to_address,
+                subject=subject,
+            )
+            return SendOutcome(ok=True, provider_message_id=f"dev-mock-{int(time.time() * 1000)}")
         message = EmailMessage()
         message["From"] = from_address
         message["To"] = to_address

@@ -948,6 +948,522 @@ class MastodonAdapter(_HttpConnector):
             return HealthResult(status=HEALTH_FAILED, detail=type(exc).__name__)
 
 
+
+
+class SearxngDorkingAdapter:
+    """Base class for social intelligence querying via Google / SearXNG dorking."""
+
+    def __init__(
+        self,
+        base_url: str,
+        *,
+        user_agent: str,
+        timeout_seconds: float = 20.0,
+        results_per_page: int = 20,
+        client: httpx.AsyncClient | None = None,
+    ) -> None:
+        self._searxng = SearxngSocialAdapter(
+            base_url,
+            user_agent=user_agent,
+            timeout_seconds=timeout_seconds,
+            results_per_page=results_per_page,
+            client=client,
+        )
+        self._base_url = base_url
+        self._user_agent = user_agent
+        self._timeout = timeout_seconds
+        self._results_per_page = results_per_page
+        self._client = client
+        self.requests_made = 0
+
+    async def aclose(self) -> None:
+        await self._searxng.aclose()
+
+    async def health_check(self) -> HealthResult:
+        return await self._searxng.health_check()
+
+
+class LinkedInAdapter(SearxngDorkingAdapter):
+    """LinkedIn Public & Dorking Intelligence Adapter.
+
+    Retrieves public profiles, posts, and company updates via site-targeted SearXNG metasearch
+    dorking (site:linkedin.com) and scaffolds Playwright stealth extraction.
+    """
+
+    @property
+    def capabilities(self) -> AdapterCapabilities:
+        return AdapterCapabilities(
+            adapter_key="linkedin",
+            name="LinkedIn Public & Dorking Intelligence",
+            slug="linkedin",
+            category="social",
+            supported_query_types=("keyword", "profile", "company"),
+            supported_filters=("language", "time_range"),
+            available_fields=("title", "url", "snippet", "publishedDate"),
+            geographic_coverage="Global public index",
+            access_requirements=("Reachable SearXNG instance",),
+            rate_limit_notes="Governed by metasearch upstream engine limits",
+            terms_notes="Publicly indexed search intelligence.",
+            max_results_per_query=self._results_per_page,
+        )
+
+    async def validate_config(self, config: dict[str, Any]) -> None:
+        q = str(config.get("q", "") or config.get("primary", "")).strip()
+        if not q:
+            raise UnsupportedQueryError(
+                "LinkedIn query requires search keywords or a profile target"
+            )
+        if len(q) > MAX_QUERY_LENGTH:
+            raise UnsupportedQueryError(f"Query is {len(q)} chars; limit is {MAX_QUERY_LENGTH}")
+
+    async def search(self, config: dict[str, Any]) -> list[SocialResult]:
+        await self.validate_config(config)
+        raw_q = str(config.get("q", "") or config.get("primary", "")).strip()
+
+        if "site:linkedin.com" in raw_q:
+            dorked_query = raw_q
+        elif config.get("kind") == "profile" or "profile" in raw_q.lower():
+            dorked_query = f"site:linkedin.com/in/ {raw_q}"
+        elif config.get("kind") == "company" or "company" in raw_q.lower():
+            dorked_query = f"site:linkedin.com/company/ {raw_q}"
+        else:
+            dorked_query = f"site:linkedin.com {raw_q}"
+
+        modified_config = {**config, "q": dorked_query}
+        results = await self._searxng.search(modified_config)
+        self.requests_made += self._searxng.requests_made
+
+        refined: list[SocialResult] = []
+        for r in results:
+            url = r.content_url or ""
+            c_type = "profile" if "/in/" in url else "company" if "/company/" in url else "post"
+            author = None
+            if "/in/" in url:
+                parsed_path = str(urlsplit(url).path)
+                author = parsed_path.strip("/").split("/")[-1]
+            refined.append(
+                SocialResult(
+                    external_id=r.external_id,
+                    content_url=url,
+                    content_type=c_type,
+                    content_text=r.content_text,
+                    published_at=r.published_at,
+                    engagement=r.engagement,
+                    author_username=author,
+                    raw_data={**r.raw_data, "platform": "linkedin"},
+                )
+            )
+        return refined
+
+
+class InstagramAdapter(SearxngDorkingAdapter):
+    """Instagram Public & Dorking Intelligence Adapter.
+
+    Extracts public posts and creator accounts via SearXNG metasearch dorking (site:instagram.com).
+    """
+
+    @property
+    def capabilities(self) -> AdapterCapabilities:
+        return AdapterCapabilities(
+            adapter_key="instagram",
+            name="Instagram Public & Dorking Intelligence",
+            slug="instagram",
+            category="social",
+            supported_query_types=("keyword", "handle", "hashtag"),
+            supported_filters=("language", "time_range"),
+            available_fields=("title", "url", "snippet", "publishedDate"),
+            geographic_coverage="Global public index",
+            access_requirements=("Reachable SearXNG instance",),
+            rate_limit_notes="Governed by metasearch upstream engine limits",
+            terms_notes="Publicly indexed search intelligence.",
+            max_results_per_query=self._results_per_page,
+        )
+
+    async def validate_config(self, config: dict[str, Any]) -> None:
+        q = str(config.get("q", "") or config.get("primary", "")).strip()
+        if not q:
+            raise UnsupportedQueryError("Instagram query requires search keywords or a handle")
+        if len(q) > MAX_QUERY_LENGTH:
+            raise UnsupportedQueryError(f"Query is {len(q)} chars; limit is {MAX_QUERY_LENGTH}")
+
+    async def search(self, config: dict[str, Any]) -> list[SocialResult]:
+        await self.validate_config(config)
+        raw_q = str(config.get("q", "") or config.get("primary", "")).strip()
+        dorked_query = raw_q if "site:instagram.com" in raw_q else f"site:instagram.com {raw_q}"
+        results = await self._searxng.search({**config, "q": dorked_query})
+        self.requests_made += self._searxng.requests_made
+
+        refined: list[SocialResult] = []
+        for r in results:
+            url = r.content_url
+            refined.append(
+                SocialResult(
+                    external_id=r.external_id,
+                    content_url=url,
+                    content_type="post",
+                    content_text=r.content_text,
+                    published_at=r.published_at,
+                    engagement=r.engagement,
+                    raw_data={**r.raw_data, "platform": "instagram"},
+                )
+            )
+        return refined
+
+
+class FacebookAdapter(SearxngDorkingAdapter):
+    """Facebook Public & Dorking Intelligence Adapter.
+
+    Extracts public posts, pages, and groups via SearXNG metasearch dorking (site:facebook.com).
+    """
+
+    @property
+    def capabilities(self) -> AdapterCapabilities:
+        return AdapterCapabilities(
+            adapter_key="facebook",
+            name="Facebook Public & Dorking Intelligence",
+            slug="facebook",
+            category="social",
+            supported_query_types=("keyword", "page", "group"),
+            supported_filters=("language", "time_range"),
+            available_fields=("title", "url", "snippet", "publishedDate"),
+            geographic_coverage="Global public index",
+            access_requirements=("Reachable SearXNG instance",),
+            rate_limit_notes="Governed by metasearch upstream engine limits",
+            terms_notes="Publicly indexed search intelligence.",
+            max_results_per_query=self._results_per_page,
+        )
+
+    async def validate_config(self, config: dict[str, Any]) -> None:
+        q = str(config.get("q", "") or config.get("primary", "")).strip()
+        if not q:
+            raise UnsupportedQueryError("Facebook query requires search keywords or a page name")
+        if len(q) > MAX_QUERY_LENGTH:
+            raise UnsupportedQueryError(f"Query is {len(q)} chars; limit is {MAX_QUERY_LENGTH}")
+
+    async def search(self, config: dict[str, Any]) -> list[SocialResult]:
+        await self.validate_config(config)
+        raw_q = str(config.get("q", "") or config.get("primary", "")).strip()
+        dorked_query = raw_q if "site:facebook.com" in raw_q else f"site:facebook.com {raw_q}"
+        results = await self._searxng.search({**config, "q": dorked_query})
+        self.requests_made += self._searxng.requests_made
+
+        refined: list[SocialResult] = []
+        for r in results:
+            refined.append(
+                SocialResult(
+                    external_id=r.external_id,
+                    content_url=r.content_url,
+                    content_type="post",
+                    content_text=r.content_text,
+                    published_at=r.published_at,
+                    engagement=r.engagement,
+                    raw_data={**r.raw_data, "platform": "facebook"},
+                )
+            )
+        return refined
+
+
+class XSocialAdapter(SearxngDorkingAdapter):
+    """X (Twitter) Public Syndication & Dorking Adapter.
+
+    Uses public syndication endpoints for user timelines, oEmbed for individual tweets,
+    and site dorking (site:x.com OR site:twitter.com) for discovery without paid API tiers.
+    """
+
+    @property
+    def capabilities(self) -> AdapterCapabilities:
+        return AdapterCapabilities(
+            adapter_key="x",
+            name="X (Twitter) Syndication & Dorking Intelligence",
+            slug="x",
+            category="social",
+            supported_query_types=("keyword", "username", "url"),
+            supported_filters=("language", "time_range"),
+            available_fields=("text", "url", "author", "publishedDate"),
+            geographic_coverage="Global public index",
+            access_requirements=("Public syndication / SearXNG instance",),
+            rate_limit_notes="Subject to public syndication rate limits and SearXNG engine limits",
+            terms_notes="Public syndication and indexed content.",
+            max_results_per_query=self._results_per_page,
+        )
+
+    async def validate_config(self, config: dict[str, Any]) -> None:
+        q = str(
+            config.get("q", "") or config.get("username", "") or config.get("primary", "")
+        ).strip()
+        if not q:
+            raise UnsupportedQueryError("X query requires search keywords or a @handle")
+        if len(q) > MAX_QUERY_LENGTH:
+            raise UnsupportedQueryError(f"Query is {len(q)} chars; limit is {MAX_QUERY_LENGTH}")
+
+    async def search(self, config: dict[str, Any]) -> list[SocialResult]:
+        await self.validate_config(config)
+        raw_q = str(
+            config.get("q", "") or config.get("username", "") or config.get("primary", "")
+        ).strip()
+
+        # Check if oEmbed single post is targeted
+        if ("twitter.com" in raw_q or "x.com" in raw_q) and "/status/" in raw_q:
+            oembed_result = await self._fetch_oembed(raw_q)
+            if oembed_result is not None:
+                return [oembed_result]
+
+        # Check if syndication user timeline is requested
+        username = config.get("username")
+        if not username and raw_q.startswith("@") and " " not in raw_q:
+            username = raw_q.lstrip("@")
+
+        if username:
+            timeline_results = await self._fetch_syndication_timeline(str(username))
+            if timeline_results:
+                return timeline_results
+
+        # Fallback to SearXNG site dorking
+        if "site:x.com" in raw_q or "site:twitter.com" in raw_q:
+            dorked_query = raw_q
+        else:
+            dorked_query = f"(site:x.com OR site:twitter.com) {raw_q}"
+
+        results = await self._searxng.search({**config, "q": dorked_query})
+        self.requests_made += self._searxng.requests_made
+
+        refined: list[SocialResult] = []
+        for r in results:
+            url = r.content_url or ""
+            author = None
+            if "status/" in url:
+                parsed_path = str(urlsplit(url).path)
+                parts = parsed_path.strip("/").split("/")
+                if len(parts) >= 2:
+                    author = parts[0]
+            refined.append(
+                SocialResult(
+                    external_id=r.external_id,
+                    content_url=url,
+                    content_type="post",
+                    content_text=r.content_text,
+                    published_at=r.published_at,
+                    author_username=author,
+                    engagement=r.engagement,
+                    raw_data={**r.raw_data, "platform": "x"},
+                )
+            )
+        return refined
+
+    async def _fetch_oembed(self, tweet_url: str) -> SocialResult | None:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(
+                    "https://publish.twitter.com/oembed",
+                    params={"url": tweet_url, "omit_script": "true"},
+                    headers={"User-Agent": self._user_agent},
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    author_name = data.get("author_name")
+                    html = data.get("html", "")
+                    snippet_part = (
+                        html.split("<p lang=")[-1].split("</p>")[0] if "<p" in html else html
+                    )
+                    clean_text = sanitize_text(snippet_part)
+                    return SocialResult(
+                        external_id=canonical_hash(tweet_url),
+                        content_url=tweet_url,
+                        content_type="post",
+                        content_text=clean_text or data.get("title"),
+                        published_at=None,
+                        author_display_name=author_name,
+                        author_profile_url=data.get("author_url"),
+                        engagement={},
+                        raw_data=data,
+                    )
+        except Exception:  # noqa: BLE001 - fallback
+            return None
+        return None
+
+    async def _fetch_syndication_timeline(self, username: str) -> list[SocialResult] | None:
+        try:
+            url = f"https://syndication.twitter.com/srv/timeline-profile/screen-name/{username}"
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(url, headers={"User-Agent": self._user_agent})
+                if resp.status_code == 200 and "__NEXT_DATA__" in resp.text:
+                    import json
+                    text_html = resp.text
+                    parts = text_html.split('<script id="__NEXT_DATA__" type="application/json">')
+                    json_str = parts[1].split("</script>")[0]
+                    data = json.loads(json_str)
+                    timeline = data.get("props", {}).get("pageProps", {}).get("timeline", {})
+                    entries = timeline.get("entries", [])
+                    results: list[SocialResult] = []
+                    for entry in entries:
+                        tweet = entry.get("content", {}).get("tweet", {})
+                        if not tweet:
+                            continue
+                        tid = str(tweet.get("id_str") or tweet.get("id"))
+                        t_text = tweet.get("text", "")
+                        t_user = tweet.get("user", {})
+                        t_url = f"https://x.com/{t_user.get('screen_name', username)}/status/{tid}"
+                        results.append(
+                            SocialResult(
+                                external_id=canonical_hash(t_url),
+                                content_url=t_url,
+                                content_type="post",
+                                content_text=sanitize_text(t_text),
+                                published_at=_parse_iso_str(tweet.get("created_at")),
+                                author_username=t_user.get("screen_name"),
+                                author_display_name=t_user.get("name"),
+                                engagement={"favorite_count": tweet.get("favorite_count", 0)},
+                                raw_data=tweet,
+                            )
+                        )
+                    if results:
+                        return results
+        except Exception:  # noqa: BLE001 - fallback
+            return None
+        return None
+
+
+class YouTubeAdapter(SearxngDorkingAdapter):
+    """YouTube Public RSS, oEmbed & Dorking Adapter.
+
+    Extracts videos and channel metadata using YouTube public RSS feeds,
+    oEmbed endpoints, and SearXNG metasearch dorking (site:youtube.com).
+    """
+
+    @property
+    def capabilities(self) -> AdapterCapabilities:
+        return AdapterCapabilities(
+            adapter_key="youtube",
+            name="YouTube Video & Channel Intelligence",
+            slug="youtube",
+            category="social",
+            supported_query_types=("keyword", "channel_id", "url"),
+            supported_filters=("language", "time_range"),
+            available_fields=("title", "url", "snippet", "publishedDate", "author"),
+            geographic_coverage="Global video index",
+            access_requirements=("Public RSS / SearXNG metasearch",),
+            rate_limit_notes="Subject to public RSS rate limits and metasearch limits",
+            terms_notes="Publicly accessible video metadata and channel feeds.",
+            max_results_per_query=self._results_per_page,
+        )
+
+    async def validate_config(self, config: dict[str, Any]) -> None:
+        q = str(
+            config.get("q", "") or config.get("channel_id", "") or config.get("primary", "")
+        ).strip()
+        if not q:
+            raise UnsupportedQueryError("YouTube query requires search keywords or a channel ID")
+        if len(q) > MAX_QUERY_LENGTH:
+            raise UnsupportedQueryError(f"Query is {len(q)} chars; limit is {MAX_QUERY_LENGTH}")
+
+    async def search(self, config: dict[str, Any]) -> list[SocialResult]:
+        await self.validate_config(config)
+        raw_q = str(
+            config.get("q", "") or config.get("channel_id", "") or config.get("primary", "")
+        ).strip()
+
+        # Check if single video URL
+        if "youtube.com/watch" in raw_q or "youtu.be/" in raw_q:
+            oembed = await self._fetch_oembed(raw_q)
+            if oembed is not None:
+                return [oembed]
+
+        # Check if channel ID RSS feed
+        channel_id = config.get("channel_id")
+        if not channel_id and "UC" in raw_q and len(raw_q) == 24:
+            channel_id = raw_q
+
+        if channel_id:
+            rss_results = await self._fetch_channel_rss(str(channel_id))
+            if rss_results:
+                return rss_results
+
+        # Fallback to SearXNG site dorking
+        dorked_query = raw_q if "site:youtube.com" in raw_q else f"site:youtube.com {raw_q}"
+        results = await self._searxng.search({**config, "q": dorked_query})
+        self.requests_made += self._searxng.requests_made
+
+        refined: list[SocialResult] = []
+        for r in results:
+            refined.append(
+                SocialResult(
+                    external_id=r.external_id,
+                    content_url=r.content_url,
+                    content_type="video",
+                    content_text=r.content_text,
+                    published_at=r.published_at,
+                    engagement=r.engagement,
+                    raw_data={**r.raw_data, "platform": "youtube"},
+                )
+            )
+        return refined
+
+    async def _fetch_oembed(self, video_url: str) -> SocialResult | None:
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(
+                    "https://www.youtube.com/oembed",
+                    params={"url": video_url, "format": "json"},
+                    headers={"User-Agent": self._user_agent},
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    return SocialResult(
+                        external_id=canonical_hash(video_url),
+                        content_url=video_url,
+                        content_type="video",
+                        content_text=data.get("title"),
+                        published_at=None,
+                        author_display_name=data.get("author_name"),
+                        author_profile_url=data.get("author_url"),
+                        engagement={},
+                        raw_data=data,
+                    )
+        except Exception:  # noqa: BLE001 - fallback
+            return None
+        return None
+
+    async def _fetch_channel_rss(self, channel_id: str) -> list[SocialResult] | None:
+        try:
+            url = f"https://www.youtube.com/feeds/videos.xml?channel_id={channel_id}"
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(url, headers={"User-Agent": self._user_agent})
+                if resp.status_code == 200:
+                    root = ET.fromstring(resp.text)
+                    ns = {"atom": "http://www.w3.org/2005/Atom"}
+                    results: list[SocialResult] = []
+                    for entry in root.findall("atom:entry", ns):
+                        link_el = entry.find("atom:link", ns)
+                        v_url = link_el.attrib.get("href") if link_el is not None else ""
+                        title_el = entry.find("atom:title", ns)
+                        v_title = title_el.text if title_el is not None else ""
+                        published_el = entry.find("atom:published", ns)
+                        v_pub = (
+                            _parse_iso_str(published_el.text)
+                            if published_el is not None
+                            else None
+                        )
+                        author_el = entry.find("atom:author/atom:name", ns)
+                        v_author = author_el.text if author_el is not None else None
+                        if v_url:
+                            results.append(
+                                SocialResult(
+                                    external_id=canonical_hash(v_url),
+                                    content_url=v_url,
+                                    content_type="video",
+                                    content_text=sanitize_text(v_title),
+                                    published_at=v_pub,
+                                    author_display_name=v_author,
+                                    engagement={},
+                                    raw_data={"channel_id": channel_id},
+                                )
+                            )
+                    return results
+        except Exception:  # noqa: BLE001 - fallback
+            return None
+        return None
+
+
 ADAPTER_REGISTRY: dict[str, str] = {
     "reddit": "RedditAdapter",
     "hackernews": "HackerNewsAdapter",
@@ -956,4 +1472,9 @@ ADAPTER_REGISTRY: dict[str, str] = {
     "stackoverflow": "StackOverflowAdapter",
     "bluesky": "BlueskyAdapter",
     "mastodon": "MastodonAdapter",
+    "linkedin": "LinkedInAdapter",
+    "instagram": "InstagramAdapter",
+    "facebook": "FacebookAdapter",
+    "x": "XSocialAdapter",
+    "youtube": "YouTubeAdapter",
 }

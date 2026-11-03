@@ -23,11 +23,16 @@ from app.modules.discovery.adapters.base import (
 from app.modules.social import service
 from app.modules.social.connectors import (
     BlueskyAdapter,
+    FacebookAdapter,
     HackerNewsAdapter,
+    InstagramAdapter,
+    LinkedInAdapter,
     MastodonAdapter,
     RssAtomAdapter,
     SearxngSocialAdapter,
     StackOverflowAdapter,
+    XSocialAdapter,
+    YouTubeAdapter,
 )
 
 HN_BASE = "https://hn.algolia.com"
@@ -79,6 +84,11 @@ def test_factory_builds_each_keyless_connector() -> None:
     assert isinstance(service._build_adapter(settings, "stackoverflow"), StackOverflowAdapter)
     assert isinstance(service._build_adapter(settings, "bluesky"), BlueskyAdapter)
     assert isinstance(service._build_adapter(settings, "mastodon"), MastodonAdapter)
+    assert isinstance(service._build_adapter(settings, "linkedin"), LinkedInAdapter)
+    assert isinstance(service._build_adapter(settings, "instagram"), InstagramAdapter)
+    assert isinstance(service._build_adapter(settings, "facebook"), FacebookAdapter)
+    assert isinstance(service._build_adapter(settings, "x"), XSocialAdapter)
+    assert isinstance(service._build_adapter(settings, "youtube"), YouTubeAdapter)
 
 
 def test_factory_rejects_unknown_adapter() -> None:
@@ -342,3 +352,57 @@ def test_mastodon_maps_statuses() -> None:
     assert results[0].external_id == "99"
     assert "<p>" not in (results[0].content_text or "")
     assert results[0].author_username == "ops"
+
+
+# --- Dorking & Syndication Connectors ----------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_linkedin_adapter_dorks_and_refines() -> None:
+    payload = {
+        "results": [
+            {
+                "url": "https://www.linkedin.com/in/jane-doe",
+                "title": "Jane Doe - VP Engineering",
+                "content": "Building next-gen fintech solutions.",
+                "engine": "google",
+            }
+        ]
+    }
+    adapter = LinkedInAdapter(
+        SEARXNG_BASE,
+        user_agent="test-agent",
+        client=_client(lambda r: httpx.Response(200, json=payload)),
+    )
+    assert adapter.capabilities.slug == "linkedin"
+    results = await adapter.search({"q": "Jane Doe", "kind": "profile"})
+    assert len(results) == 1
+    assert results[0].content_type == "profile"
+    assert results[0].author_username == "jane-doe"
+    assert "fintech" in results[0].content_text
+
+
+@pytest.mark.asyncio
+async def test_x_adapter_oembed_and_dorking() -> None:
+    oembed_payload = {
+        "url": "https://twitter.com/jack/status/20",
+        "author_name": "jack",
+        "author_url": "https://twitter.com/jack",
+        "html": "<blockquote>just setting up my twttr</blockquote>",
+    }
+    adapter = XSocialAdapter(
+        SEARXNG_BASE,
+        user_agent="test-agent",
+        client=_client(lambda r: httpx.Response(200, json=oembed_payload)),
+    )
+    assert adapter.capabilities.slug == "x"
+    with pytest.raises(UnsupportedQueryError):
+        await adapter.validate_config({"q": ""})
+
+
+@pytest.mark.asyncio
+async def test_youtube_adapter_capabilities() -> None:
+    adapter = YouTubeAdapter(SEARXNG_BASE, user_agent="test-agent")
+    assert adapter.capabilities.slug == "youtube"
+    with pytest.raises(UnsupportedQueryError):
+        await adapter.validate_config({"q": ""})

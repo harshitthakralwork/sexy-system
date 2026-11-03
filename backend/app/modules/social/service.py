@@ -20,11 +20,16 @@ from app.modules.discovery.adapters.base import AdapterError
 from app.modules.social.adapters import RedditAdapter, SocialAdapter, SocialResult
 from app.modules.social.connectors import (
     BlueskyAdapter,
+    FacebookAdapter,
     HackerNewsAdapter,
+    InstagramAdapter,
+    LinkedInAdapter,
     MastodonAdapter,
     RssAtomAdapter,
     SearxngSocialAdapter,
     StackOverflowAdapter,
+    XSocialAdapter,
+    YouTubeAdapter,
 )
 from app.modules.social.models import (
     SocialContent,
@@ -65,8 +70,13 @@ async def ensure_platforms(session: AsyncSession) -> list[SocialPlatform]:
             )
             session.add(row)
             created.append(row)
-    if created:
-        await session.flush()
+        else:
+            row.name = definition["name"]
+            row.adapter_key = definition["adapter_key"]
+            row.capabilities = definition["capabilities"]
+            row.limitations = definition["limitations"]
+            row.is_enabled = definition["is_enabled"]
+    await session.flush()
     return list(existing.values()) + created
 
 
@@ -129,6 +139,41 @@ def _build_adapter(settings: Settings, adapter_key: str) -> SocialAdapter:
             settings.mastodon_base_url,
             user_agent=settings.social_user_agent,
             timeout_seconds=settings.social_timeout_seconds,
+        )
+    if adapter_key == "linkedin":
+        return LinkedInAdapter(
+            settings.searxng_base_url,
+            user_agent=settings.social_user_agent,
+            timeout_seconds=settings.searxng_timeout_seconds,
+            results_per_page=settings.searxng_results_per_page,
+        )
+    if adapter_key == "instagram":
+        return InstagramAdapter(
+            settings.searxng_base_url,
+            user_agent=settings.social_user_agent,
+            timeout_seconds=settings.searxng_timeout_seconds,
+            results_per_page=settings.searxng_results_per_page,
+        )
+    if adapter_key == "facebook":
+        return FacebookAdapter(
+            settings.searxng_base_url,
+            user_agent=settings.social_user_agent,
+            timeout_seconds=settings.searxng_timeout_seconds,
+            results_per_page=settings.searxng_results_per_page,
+        )
+    if adapter_key == "x":
+        return XSocialAdapter(
+            settings.searxng_base_url,
+            user_agent=settings.social_user_agent,
+            timeout_seconds=settings.searxng_timeout_seconds,
+            results_per_page=settings.searxng_results_per_page,
+        )
+    if adapter_key == "youtube":
+        return YouTubeAdapter(
+            settings.searxng_base_url,
+            user_agent=settings.social_user_agent,
+            timeout_seconds=settings.searxng_timeout_seconds,
+            results_per_page=settings.searxng_results_per_page,
         )
     raise SourceUnavailableError(adapter_key, "no adapter is registered for this platform")
 

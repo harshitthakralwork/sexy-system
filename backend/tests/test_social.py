@@ -112,20 +112,15 @@ def test_platform_catalogue_seeds_honestly(session_account: Session) -> None:
     listed = session_account.api.get("/api/v1/social/platforms")
     assert listed.status_code == 200
     body = listed.json()
-    # Reddit + five keyless connectors (Hacker News, RSS, SearXNG, Stack Overflow,
-    # Bluesky, Mastodon) are enabled; the five platforms with no permitted key-free
-    # access stay disabled and honestly labelled.
+    # All 12 platforms are now enabled via public endpoints, dorking adapters, and syndication.
     assert len(body) == 12
     by_slug = {row["slug"]: row for row in body}
-    assert by_slug["reddit"]["is_enabled"] is True
-    assert by_slug["reddit"]["adapter_key"] == "reddit"
-    for slug in ("hackernews", "rss", "searxng", "stackoverflow", "bluesky", "mastodon"):
+    for slug in (
+        "reddit", "hackernews", "rss", "searxng", "stackoverflow", "bluesky", "mastodon",
+        "linkedin", "instagram", "facebook", "x", "youtube"
+    ):
         assert by_slug[slug]["is_enabled"] is True, slug
         assert by_slug[slug]["adapter_key"] == slug, slug
-        assert by_slug[slug]["limitations"], slug
-    for slug in ("linkedin", "instagram", "facebook", "x", "youtube"):
-        assert by_slug[slug]["is_enabled"] is False
-        assert by_slug[slug]["adapter_key"] == "none"
         assert by_slug[slug]["limitations"], slug
 
 
@@ -133,9 +128,19 @@ def test_disabled_platform_rejected(
     session_account: Session, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     _install_reddit_transport(monkeypatch)
+    from app.modules.social import service
+    orig_get = service._get_platform_by_slug
+
+    async def mock_get(session, slug):
+        plat = await orig_get(session, slug)
+        if plat and slug == "reddit":
+            plat.is_enabled = False
+        return plat
+
+    monkeypatch.setattr(service, "_get_platform_by_slug", mock_get)
     response = session_account.api.post(
         "/api/v1/social/research-queries",
-        json={"platform_slug": "linkedin", "query_config": {"kind": "search", "q": "x"}},
+        json={"platform_slug": "reddit", "query_config": {"kind": "search", "q": "x"}},
         headers=session_account.csrf_headers(),
     )
     assert response.status_code == 409, response.text

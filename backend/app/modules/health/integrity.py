@@ -397,8 +397,33 @@ def main() -> int:
     The audit is a diagnostic for the person who owns the installation, so it
     runs from the command line where it can see every table.
     """
+    import argparse
     import asyncio
     import json
+
+    parser = argparse.ArgumentParser(
+        description="SparkXFlow database integrity audit and repair tool"
+    )
+    parser.add_argument(
+        "--repair-orphans",
+        action="store_true",
+        help="Purge orphaned rows whose owner_user_id does not exist",
+    )
+    args = parser.parse_args()
+
+    if args.repair_orphans:
+        from app.core.database import build_engine_and_maker
+        from app.core.purge import delete_orphan_rows
+
+        async def _repair() -> dict[str, int]:
+            engine, _ = build_engine_and_maker(pooled=False)
+            async with engine.begin() as conn:
+                removed = await delete_orphan_rows(conn)
+            await engine.dispose()
+            return removed
+
+        deleted = asyncio.run(_repair())
+        print(json.dumps({"repaired": deleted}, indent=2))
 
     report = asyncio.run(audit_database())
     print(json.dumps(report.as_dict(), indent=2))

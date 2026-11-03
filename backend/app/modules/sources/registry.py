@@ -54,13 +54,14 @@ async def sync_described(
     source = await session.scalar(select(Source).where(Source.slug == capabilities.slug))
     described = _described(capabilities, repair_name=repair_name)
     if source is None:
-        source = Source(
-            slug=capabilities.slug,
-            name=capabilities.name,
-            category=capabilities.category,
-            adapter_key=capabilities.adapter_key,
-            **described,
-        )
+        kwargs = {
+            "slug": capabilities.slug,
+            "name": capabilities.name,
+            "category": capabilities.category,
+            "adapter_key": capabilities.adapter_key,
+        }
+        kwargs.update(described)
+        source = Source(**kwargs)
         session.add(source)
         await session.flush()
         return source

@@ -89,8 +89,7 @@ export function SocialDashboard() {
             Platform catalogue
           </h3>
           <p className="mt-1 text-sm text-[var(--color-muted)]">
-            Only Reddit offers a permitted, key-free public access method. The rest are
-            disabled rather than implied.
+            Cross-platform social intelligence engine. Query public discussions, developer communities, and dorking feeds across all indexed platforms.
           </p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {(platforms.data ?? []).map((platform) => (
