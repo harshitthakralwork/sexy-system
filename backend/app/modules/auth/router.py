@@ -8,6 +8,7 @@ from app.core.database import AsyncSessionDep
 from app.core.exceptions import DomainError, PermissionDeniedError, TooManyRequestsError
 from app.core.logging import get_logger
 from app.core.ratelimit import RateLimitRule, get_rate_limiter
+from app.core.security import unsign_value
 from app.modules.auth.dependencies import (
     CurrentUser,
     issue_csrf_token,
@@ -163,10 +164,16 @@ async def logout(
 
 @router.get("/session", response_model=SessionInfo)
 async def session_info(
+    request: Request,
     response: Response,
     user: CurrentUser,
     settings: Settings = Depends(get_settings),
 ) -> SessionInfo:
     """Who the caller is, plus a CSRF token for subsequent writes."""
-    csrf = issue_csrf_token(response, settings)
+    cookie = request.cookies.get(settings.csrf_cookie_name)
+    existing_csrf = unsign_value(cookie) if cookie else None
+    if existing_csrf:
+        csrf = existing_csrf
+    else:
+        csrf = issue_csrf_token(response, settings)
     return SessionInfo(authenticated=True, user=UserOut.model_validate(user), csrf_token=csrf)

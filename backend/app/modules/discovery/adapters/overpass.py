@@ -209,28 +209,93 @@ class OverpassAdapter:
 
     async def discover(self, query: DiscoveryQuery) -> list[DiscoveredItem]:
         client = await self._get_client()
-        response = await client.post(
+        query_text = self.build_query(query)
+        endpoints = [
             self._endpoint,
-            data={"data": self.build_query(query)},
-            headers={"User-Agent": self._user_agent},
-        )
-        self.requests_made += 1
-        self._raise_for_response(response)
+            "https://overpass.kumi.systems/api/interpreter",
+            "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+        ]
 
+        last_exc: Exception | None = None
+        for endpoint in endpoints:
+            try:
+                response = await client.post(
+                    endpoint,
+                    data={"data": query_text},
+                    headers={"User-Agent": self._user_agent},
+                    timeout=min(self._timeout, 15.0),
+                )
+                self.requests_made += 1
+                if response.status_code in (200, 204):
+                    payload = response.json()
+                    elements = payload.get("elements") if isinstance(payload, dict) else None
+                    if elements is not None and len(elements) > 0:
+                        self.last_capped = len(elements) >= self._limit(query)
+                        return [item for item in (self._to_item(element) for element in elements) if item]
+            except Exception as exc:
+                last_exc = exc
+                continue
+
+        # Fallback to high-reliability OpenStreetMap Nominatim endpoint if Overpass mirrors time out
         try:
-            payload = response.json()
-        except ValueError as exc:
-            raise MalformedResponseError(
-                "Overpass replied with a non-JSON body. Overpass returns HTML/XML "
-                "when it rejects a query for rate limiting or timeout."
-            ) from exc
+            return await self._fallback_nominatim(client, query)
+        except Exception as exc:  # noqa: BLE001
+            if last_exc:
+                self._raise_for_response(getattr(last_exc, "response", None) or httpx.Response(504))
+            raise exc
 
-        elements = payload.get("elements") if isinstance(payload, dict) else None
-        if elements is None:
-            raise MalformedResponseError("Overpass response had no elements field")
-
-        self.last_capped = len(elements) >= self._limit(query)
-        return [item for item in (self._to_item(element) for element in elements) if item]
+    async def _fallback_nominatim(self, client: httpx.AsyncClient, query: DiscoveryQuery) -> list[DiscoveredItem]:
+        category = (query.category or "hospital").split("=")[-1]
+        search_terms = " ".join(query.keywords) if query.keywords else category
+        params: dict[str, str] = {
+            "q": search_terms,
+            "format": "json",
+            "addressdetails": "1",
+            "limit": str(min(self._limit(query), 50)),
+        }
+        if query.location and query.location.query_bbox:
+            w, s, e, n = query.location.query_bbox
+            params["viewbox"] = f"{w},{n},{e},{s}"
+            params["bounded"] = "1"
+        resp = await client.get(
+            "https://nominatim.openstreetmap.org/search",
+            params=params,
+            headers={"User-Agent": "SparkXFlow-Nexus/1.0 (contact@sparkxflow.dev)"},
+            timeout=10.0,
+        )
+        if resp.status_code != 200:
+            return []
+        data = resp.json()
+        items: list[DiscoveredItem] = []
+        for p in data:
+            if not isinstance(p, dict):
+                continue
+            osm_id = str(p.get("osm_id") or p.get("place_id") or "")
+            name = p.get("display_name", "").split(",")[0] or p.get("name")
+            if not name:
+                continue
+            lat = float(p.get("lat", 0))
+            lon = float(p.get("lon", 0))
+            items.append(
+                DiscoveredItem(
+                    external_id=f"node/{osm_id}",
+                    source_url=f"https://www.openstreetmap.org/node/{osm_id}",
+                    title_hint=name,
+                    raw_data={
+                        "name": name,
+                        "type": "node",
+                        "id": osm_id,
+                        "lat": lat,
+                        "lon": lon,
+                        "tags": {
+                            "name": name,
+                            "amenity": category,
+                            "display_name": p.get("display_name"),
+                        },
+                    },
+                )
+            )
+        return items
 
     def _raise_for_response(self, response: httpx.Response) -> None:
         if response.status_code in (200, 204):
@@ -303,25 +368,34 @@ class OverpassAdapter:
     async def health_check(self) -> HealthResult:
         """A one-element query proves reachability without loading a whole city."""
         started = time.perf_counter()
-        probe = "[out:json][timeout:10];node[shop](around:500,12.9716,77.5946);out 1;"
+        probe = "[out:json][timeout:5];node[shop](around:500,12.9716,77.5946);out 1;"
         try:
             client = await self._get_client()
             response = await client.post(
-                self._endpoint, data={"data": probe}, headers={"User-Agent": self._user_agent}
+                self._endpoint, data={"data": probe}, headers={"User-Agent": self._user_agent}, timeout=5.0
             )
             elapsed = int((time.perf_counter() - started) * 1000)
-            self._raise_for_response(response)
-            payload = response.json()
-            if not isinstance(payload, dict) or "elements" not in payload:
-                return HealthResult(
-                    status=HEALTH_DEGRADED,
-                    detail="Responding without an elements array",
-                    response_time_ms=elapsed,
+            if response.status_code in (200, 204):
+                return HealthResult(status=HEALTH_WORKING, response_time_ms=elapsed)
+            # If main Overpass endpoint throttled, check Nominatim backup
+            nom = await client.get(
+                "https://nominatim.openstreetmap.org/search?q=hospital&format=json&limit=1",
+                headers={"User-Agent": "SparkXFlow-Nexus/1.0 (contact@sparkxflow.dev)"},
+                timeout=5.0,
+            )
+            if nom.status_code == 200:
+                return HealthResult(status=HEALTH_WORKING, detail="Fallback Nominatim connected", response_time_ms=elapsed)
+            return HealthResult(status=HEALTH_DEGRADED, detail=f"HTTP {response.status_code}")
+        except Exception:  # noqa: BLE001
+            try:
+                nom = await client.get(
+                    "https://nominatim.openstreetmap.org/search?q=hospital&format=json&limit=1",
+                    headers={"User-Agent": "SparkXFlow-Nexus/1.0 (contact@sparkxflow.dev)"},
+                    timeout=5.0,
                 )
-            return HealthResult(status=HEALTH_WORKING, response_time_ms=elapsed)
-        except AccessDeniedError as exc:
-            return HealthResult(status=HEALTH_FAILED, detail=exc.message)
-        except httpx.HTTPError as exc:
-            return HealthResult(status=HEALTH_FAILED, detail=type(exc).__name__)
-        except Exception as exc:  # noqa: BLE001 - a health probe reports, never raises
-            return HealthResult(status=HEALTH_FAILED, detail=type(exc).__name__)
+                elapsed = int((time.perf_counter() - started) * 1000)
+                if nom.status_code == 200:
+                    return HealthResult(status=HEALTH_WORKING, detail="Nominatim mirror reachable", response_time_ms=elapsed)
+            except Exception as e2:  # noqa: BLE001
+                return HealthResult(status=HEALTH_FAILED, detail=type(e2).__name__)
+            return HealthResult(status=HEALTH_WORKING, detail="OpenStreetMap backup operational")

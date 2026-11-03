@@ -91,6 +91,13 @@ async def board(session: AsyncSessionDep, user: CurrentUser) -> BoardOut:
     return BoardOut(stages=[StageOut.model_validate(stage) for stage in stages], cards=cards)
 
 
+@router.get("/stages", response_model=list[StageOut])
+async def list_stages(session: AsyncSessionDep, user: CurrentUser) -> list[StageOut]:
+    pipeline = await service.ensure_default_pipeline(session, user.id)
+    stages = await service.stages_for(session, pipeline.id)
+    return [StageOut.model_validate(stage) for stage in stages]
+
+
 @router.post("/stages", response_model=StageOut, status_code=201, dependencies=[Csrf])
 async def create_stage(
     request: Request,

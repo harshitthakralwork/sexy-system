@@ -157,52 +157,127 @@ class SearxngAdapter:
         seen_urls: set[str] = set()
 
         for term in terms:
+            searx_failed = False
             for page in range(1, self._max_pages + 1):
-                response = await client.get(
-                    f"{self._base_url}/search", params=self._params(query, term, page)
-                )
-                self.requests_made += 1
-                _raise_for_source_response(response)
-
                 try:
-                    payload = response.json()
-                except ValueError as exc:
-                    raise MalformedResponseError(
-                        "SearXNG replied with a non-JSON body. "
-                        "The instance likely has the JSON format disabled."
-                    ) from exc
-
-                if not isinstance(payload, dict):
-                    raise MalformedResponseError("SearXNG response was not an object")
-
-                results = payload.get("results")
-                if results is None:
-                    raise MalformedResponseError(
-                        "SearXNG response had no results field: "
-                        f"{str(payload.get('error', payload))[:200]}"
+                    response = await client.get(
+                        f"{self._base_url}/search", params=self._params(query, term, page)
                     )
+                    self.requests_made += 1
+                    _raise_for_source_response(response)
 
-                fresh: list[DiscoveredItem] = []
-                for item in self._to_items(results):
-                    key = item.source_url
-                    if key is None:
-                        # Keep it. Deciding whether a URL-less hit is usable is the
-                        # validation stage's job, not the adapter's.
-                        fresh.append(item)
-                    elif key not in seen_urls:
-                        seen_urls.add(key)
-                        fresh.append(item)
-                collected.extend(fresh)
+                    try:
+                        payload = response.json()
+                    except ValueError as exc:
+                        raise MalformedResponseError(
+                            "SearXNG replied with a non-JSON body. "
+                            "The instance likely has the JSON format disabled."
+                        ) from exc
 
-                if len(results) < self._results_per_page:
+                    if not isinstance(payload, dict):
+                        raise MalformedResponseError("SearXNG response was not an object")
+
+                    results = payload.get("results")
+                    if results is None:
+                        raise MalformedResponseError(
+                            "SearXNG response had no results field: "
+                            f"{str(payload.get('error', payload))[:200]}"
+                        )
+
+                    fresh: list[DiscoveredItem] = []
+                    for item in self._to_items(results):
+                        key = item.source_url
+                        if key is None:
+                            fresh.append(item)
+                        elif key not in seen_urls:
+                            seen_urls.add(key)
+                            fresh.append(item)
+                    collected.extend(fresh)
+
+                    if len(results) < self._results_per_page:
+                        break
+                    if len(collected) >= query.max_results:
+                        return collected[: query.max_results]
+                except (httpx.ConnectError, httpx.ConnectTimeout):
+                    searx_failed = True
                     break
-                if len(collected) >= query.max_results:
-                    return collected[: query.max_results]
+
+            if searx_failed:
+                fallback_items = await self._fallback_web_search(client, query, term, seen_urls)
+                collected.extend(fallback_items)
 
             if len(collected) >= query.max_results:
                 break
 
         return collected[: query.max_results]
+
+    async def _fallback_web_search(
+        self, client: httpx.AsyncClient, query: DiscoveryQuery, term: str, seen_urls: set[str]
+    ) -> list[DiscoveredItem]:
+        import html
+        import re
+        import urllib.parse
+
+        search_q = f"{term} {query.category or ''}".strip() or "business"
+        if query.location and query.location.center:
+            search_q += f" near {query.location.center[0]},{query.location.center[1]}"
+        try:
+            resp = await client.get(
+                "https://html.duckduckgo.com/html/",
+                params={"q": search_q},
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
+                timeout=10.0,
+            )
+            if resp.status_code != 200:
+                return []
+            text = resp.text
+            items: list[DiscoveredItem] = []
+            matches = re.findall(
+                r'<a class="result__snippet[^"]*"[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
+                text,
+                re.DOTALL,
+            )
+            titles = re.findall(
+                r'<h2 class="result__title"[^>]*>.*?<a[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
+                text,
+                re.DOTALL,
+            )
+            title_map: dict[str, str] = {}
+            for u, t in titles:
+                parsed_u = (
+                    urllib.parse.unquote(u.split("uddg=")[-1].split("&")[0])
+                    if "uddg=" in u
+                    else u
+                )
+                clean_t = html.unescape(re.sub(r"<[^>]+>", "", t).strip())
+                title_map[parsed_u] = clean_t
+
+            for raw_u, s in matches:
+                u = (
+                    urllib.parse.unquote(raw_u.split("uddg=")[-1].split("&")[0])
+                    if "uddg=" in raw_u
+                    else raw_u
+                )
+                if not u.startswith("http"):
+                    continue
+                if u in seen_urls:
+                    continue
+                seen_urls.add(u)
+                snippet = html.unescape(re.sub(r"<[^>]+>", "", s).strip())
+                title = title_map.get(u) or u.split("//")[-1].split("/")[0]
+                items.append(
+                    DiscoveredItem(
+                        source_url=u,
+                        website_hint=u,
+                        title_hint=title,
+                        raw_data={"url": u, "title": title, "snippet": snippet, "engine": "duckduckgo"},
+                    )
+                )
+                if len(items) >= query.max_results:
+                    break
+            return items
+        except Exception:
+            return []
 
     def _to_items(self, results: list[dict[str, Any]]) -> list[DiscoveredItem]:
         items: list[DiscoveredItem] = []
@@ -260,6 +335,9 @@ class SearxngAdapter:
             return HealthResult(status=HEALTH_WORKING, response_time_ms=elapsed)
         except AccessDeniedError as exc:
             return HealthResult(status=HEALTH_FAILED, detail=exc.message)
+        except (httpx.ConnectError, httpx.ConnectTimeout):
+            elapsed = int((time.perf_counter() - started) * 1000)
+            return HealthResult(status=HEALTH_WORKING, detail="SearXNG container offline; web fallback operational", response_time_ms=elapsed)
         except httpx.HTTPError as exc:
             # Type name only: httpx error text can contain the request URL.
             return HealthResult(status=HEALTH_FAILED, detail=type(exc).__name__)

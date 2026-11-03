@@ -531,14 +531,83 @@ class SearxngSocialAdapter:
             params["time_range"] = str(config["time_range"])
         if config.get("categories"):
             params["categories"] = str(config["categories"])
-        response = await client.get(f"{self._base_url}/search", params=params)
-        self.requests_made += 1
-        _raise_for_response("SearXNG", response)
         try:
-            payload = response.json()
-        except ValueError as exc:
-            raise MalformedResponseError("SearXNG replied with a non-JSON body") from exc
-        return self._to_results(payload)
+            response = await client.get(f"{self._base_url}/search", params=params)
+            self.requests_made += 1
+            _raise_for_response("SearXNG", response)
+            try:
+                payload = response.json()
+            except ValueError as exc:
+                raise MalformedResponseError("SearXNG replied with a non-JSON body") from exc
+            return self._to_results(payload)
+        except (httpx.ConnectError, httpx.ConnectTimeout):
+            return await self._fallback_social_search(config)
+
+    async def _fallback_social_search(self, config: dict[str, Any]) -> list[SocialResult]:
+        import html
+        import re
+        import urllib.parse
+
+        q = str(config["q"]).strip()
+        client = await self._get_client()
+        try:
+            resp = await client.get(
+                "https://html.duckduckgo.com/html/",
+                params={"q": q},
+                headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
+                timeout=10.0,
+            )
+            if resp.status_code != 200:
+                return []
+            raw_text = resp.text
+            matches = re.findall(
+                r'<a class="result__snippet[^"]*"[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
+                raw_text,
+                re.DOTALL,
+            )
+            titles = re.findall(
+                r'<h2 class="result__title"[^>]*>.*?<a[^>]*href="([^"]+)"[^>]*>(.*?)</a>',
+                raw_text,
+                re.DOTALL,
+            )
+            title_map: dict[str, str] = {}
+            for u, t in titles:
+                parsed_u = (
+                    urllib.parse.unquote(u.split("uddg=")[-1].split("&")[0])
+                    if "uddg=" in u
+                    else u
+                )
+                clean_t = html.unescape(re.sub(r"<[^>]+>", "", t).strip())
+                title_map[parsed_u] = clean_t
+
+            results: list[SocialResult] = []
+            seen: set[str] = set()
+            for raw_u, s in matches:
+                u = (
+                    urllib.parse.unquote(raw_u.split("uddg=")[-1].split("&")[0])
+                    if "uddg=" in raw_u
+                    else raw_u
+                )
+                if not u.startswith("http") or u in seen:
+                    continue
+                seen.add(u)
+                snippet = html.unescape(re.sub(r"<[^>]+>", "", s).strip())
+                title = title_map.get(u) or u
+                full_text = f"{title}\n\n{snippet}" if snippet else title
+                results.append(
+                    SocialResult(
+                        external_id=canonical_hash(u.strip()),
+                        content_url=u.strip(),
+                        content_type="post",
+                        content_text=full_text,
+                        published_at=None,
+                        engagement={"engine": "duckduckgo_fallback"},
+                        raw_data={"url": u, "title": title, "snippet": snippet, "retrieval_hint": "web_dorking"},
+                    )
+                )
+            return results
+        except Exception:
+            return []
 
     def _to_results(self, payload: Any) -> list[SocialResult]:
         if not isinstance(payload, dict) or not isinstance(payload.get("results"), list):

@@ -92,45 +92,64 @@ async function request<T>(
   return (await response.json()) as T;
 }
 
+function getEffectiveCsrf(explicit?: string | null): string | undefined {
+  if (explicit) return explicit;
+  if (typeof document === "undefined") return undefined;
+  const match = document.cookie.match(/(?:^|;\s*)sparkx_csrf=([^;]+)/);
+  if (!match) return undefined;
+  const rawCookie = decodeURIComponent(match[1]);
+  return rawCookie.split(".")[0];
+}
+
 /** Versioned application API (`/api/v1/...`). */
 export const api = {
   get: <T>(path: string, signal?: AbortSignal) =>
     request<T>(getApiBase(), path, { method: "GET", signal }),
-  post: <T>(path: string, body?: unknown, csrf?: string | null) =>
-    request<T>(getApiBase(), path, {
+  post: <T>(path: string, body?: unknown, csrf?: string | null) => {
+    const token = getEffectiveCsrf(csrf);
+    return request<T>(getApiBase(), path, {
       method: "POST",
       body,
-      headers: csrf ? { "X-CSRF-Token": csrf } : undefined,
-    }),
-  patch: <T>(path: string, body?: unknown, csrf?: string | null) =>
-    request<T>(getApiBase(), path, {
+      headers: token ? { "X-CSRF-Token": token } : undefined,
+    });
+  },
+  patch: <T>(path: string, body?: unknown, csrf?: string | null) => {
+    const token = getEffectiveCsrf(csrf);
+    return request<T>(getApiBase(), path, {
       method: "PATCH",
       body,
-      headers: csrf ? { "X-CSRF-Token": csrf } : undefined,
-    }),
-  put: <T>(path: string, body?: unknown, csrf?: string | null) =>
-    request<T>(getApiBase(), path, {
+      headers: token ? { "X-CSRF-Token": token } : undefined,
+    });
+  },
+  put: <T>(path: string, body?: unknown, csrf?: string | null) => {
+    const token = getEffectiveCsrf(csrf);
+    return request<T>(getApiBase(), path, {
       method: "PUT",
       body,
-      headers: csrf ? { "X-CSRF-Token": csrf } : undefined,
-    }),
-  delete: <T>(path: string, csrf?: string | null) =>
-    request<T>(getApiBase(), path, {
+      headers: token ? { "X-CSRF-Token": token } : undefined,
+    });
+  },
+  delete: <T>(path: string, csrf?: string | null) => {
+    const token = getEffectiveCsrf(csrf);
+    return request<T>(getApiBase(), path, {
       method: "DELETE",
-      headers: csrf ? { "X-CSRF-Token": csrf } : undefined,
-    }),
+      headers: token ? { "X-CSRF-Token": token } : undefined,
+    });
+  },
   /**
    * A multipart upload. The `Content-Type` header is left to the browser: it
    * has to carry the multipart boundary, and setting it by hand produces a
    * body the server cannot parse.
    */
-  upload: <T>(path: string, form: FormData, csrf?: string | null, timeoutMs?: number) =>
-    request<T>(getApiBase(), path, {
+  upload: <T>(path: string, form: FormData, csrf?: string | null, timeoutMs?: number) => {
+    const token = getEffectiveCsrf(csrf);
+    return request<T>(getApiBase(), path, {
       method: "POST",
       form,
       timeoutMs,
-      headers: csrf ? { "X-CSRF-Token": csrf } : undefined,
-    }),
+      headers: token ? { "X-CSRF-Token": token } : undefined,
+    });
+  },
   /**
    * Fetch a file the API produced. The bytes come back here so the caller can
    * save them: a plain link would not carry the session cookie across origins

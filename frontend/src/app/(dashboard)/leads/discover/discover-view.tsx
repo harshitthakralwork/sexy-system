@@ -28,7 +28,7 @@ export function DiscoverBusinessesView() {
   const [query, setQuery] = useState("");
   const [city, setCity] = useState("");
   const [category, setCategory] = useState("all");
-  const [selectedSources, setSelectedSources] = useState<string[]>(["osm", "searxng"]);
+  const [selectedSources, setSelectedSources] = useState<string[]>(["overpass", "searxng"]);
   const [selectedAreaId, setSelectedAreaId] = useState<string>("");
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -48,25 +48,34 @@ export function DiscoverBusinessesView() {
     mutationFn: async () => {
       setError(null);
       setNotice(null);
+      const cleanSources = (selectedSources.length > 0 ? selectedSources : ["overpass", "searxng"])
+        .map((s) => (s === "osm" ? "overpass" : s))
+        .filter((s) => s === "overpass" || s === "searxng");
+
       const payload: Record<string, unknown> = {
-        sources: selectedSources.length > 0 ? selectedSources : ["osm"],
+        sources: cleanSources.length > 0 ? cleanSources : ["overpass"],
+        country: "IN",
+        max_results: 100,
       };
 
       if (selectedAreaId) {
         payload.area_id = selectedAreaId;
       } else {
-        // Administrative or keyword-based area fallback
-        payload.admin = {
-          city: city.trim() || undefined,
-          country: "US",
+        payload.geometry = {
+          shape_type: "circle",
+          latitude: 28.6139,
+          longitude: 77.2090,
+          radius_km: 5,
         };
       }
 
       if (query.trim()) {
-        payload.query = query.trim();
+        payload.keywords = [query.trim()];
       }
       if (category !== "all") {
         payload.category = category;
+      } else if (!query.trim()) {
+        payload.category = "amenity=hospital";
       }
 
       return api.post<DiscoveryJob>("/discovery/jobs", payload, csrf);
@@ -206,11 +215,11 @@ export function DiscoverBusinessesView() {
                 <label className="flex items-center gap-1.5 text-xs cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={selectedSources.includes("osm")}
-                    onChange={() => toggleSource("osm")}
+                    checked={selectedSources.includes("overpass")}
+                    onChange={() => toggleSource("overpass")}
                     className="rounded border-border accent-[var(--color-primary)]"
                   />
-                  <span>OpenStreetMap (POI)</span>
+                  <span>OpenStreetMap / Overpass (POI)</span>
                 </label>
                 <label className="flex items-center gap-1.5 text-xs cursor-pointer">
                   <input
@@ -219,16 +228,7 @@ export function DiscoverBusinessesView() {
                     onChange={() => toggleSource("searxng")}
                     className="rounded border-border accent-[var(--color-primary)]"
                   />
-                  <span>SearXNG (Web Snippets)</span>
-                </label>
-                <label className="flex items-center gap-1.5 text-xs cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={selectedSources.includes("overpass")}
-                    onChange={() => toggleSource("overpass")}
-                    className="rounded border-border accent-[var(--color-primary)]"
-                  />
-                  <span>Overpass Turbo</span>
+                  <span>SearXNG (Web Metasearch)</span>
                 </label>
               </div>
 
