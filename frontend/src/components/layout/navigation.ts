@@ -55,10 +55,10 @@ export const navigation: NavSection[] = [
     title: "Leads Intelligence",
     items: [
       { label: "Leads Dashboard", href: "/leads", icon: Radar, available: true },
-      { label: "Discover Businesses", href: "/leads/discover", icon: Compass, available: false },
+      { label: "Discover Businesses", href: "/leads/discover", icon: Compass, available: true },
       { label: "Map Explorer", href: "/leads/map", icon: MapPinned, available: true },
-      { label: "Raw Results", href: "/leads/raw", icon: ListChecks, available: false },
-      { label: "Qualified Leads", href: "/leads/qualified", icon: CheckSquare, available: false },
+      { label: "Raw Results", href: "/leads/raw", icon: ListChecks, available: true },
+      { label: "Qualified Leads", href: "/leads/qualified", icon: CheckSquare, available: true },
       { label: "CRM Pipeline", href: "/leads/crm", icon: FolderKanban, available: true },
       { label: "Service Catalog", href: "/leads/services", icon: Briefcase, available: true },
     ],
@@ -67,7 +67,7 @@ export const navigation: NavSection[] = [
     title: "Startup Intelligence",
     items: [
       { label: "Startup Dashboard", href: "/startups", icon: Sparkles, available: true },
-      { label: "Discover Startups", href: "/startups/discover", icon: Compass, available: false },
+      { label: "Discover Startups", href: "/startups/discover", icon: Compass, available: true },
       { label: "Watchlists", href: "/startups/watchlists", icon: Users, available: true },
     ],
   },
@@ -102,7 +102,7 @@ export const navigation: NavSection[] = [
     items: [
       { label: "Source Manager", href: "/sources", icon: Shield, available: true },
       { label: "Settings", href: "/settings", icon: Settings, available: true },
-      { label: "Notifications", href: "/notifications", icon: Bell, available: false },
+      { label: "Notifications", href: "/notifications", icon: Bell, available: true },
     ],
   },
 ];

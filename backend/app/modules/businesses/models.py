@@ -64,7 +64,11 @@ class Business(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
         Index("ix_business_owner_coordinates", "owner_user_id", "latitude", "longitude"),
     )
 
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_businesses_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     normalized_name: Mapped[str | None] = mapped_column(String(255), nullable=True, index=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)

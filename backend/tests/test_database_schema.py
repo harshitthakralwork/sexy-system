@@ -96,6 +96,12 @@ async def test_composite_key_rejects_duplicate_tag_links() -> None:
     async with database() as connection:
         try:
             await connection.execute(
+                "insert into users (id, email, password_hash, display_name)"
+                " values ($1, $2, 'hash', 'Test')",
+                owner_id,
+                f"test-{owner_id}@example.com",
+            )
+            await connection.execute(
                 "insert into businesses (id, owner_user_id, name, website_status, lifecycle_status,"
                 " first_discovered_at) values ($1, $2, 'Integrity Test Co',"
                 " 'unknown', 'active', now())",
@@ -124,6 +130,7 @@ async def test_composite_key_rejects_duplicate_tag_links() -> None:
             )
             await connection.execute("delete from tags where id = $1", tag_id)
             await connection.execute("delete from businesses where id = $1", business_id)
+            await connection.execute("delete from users where id = $1", owner_id)
 
 
 @pytest.mark.asyncio
@@ -173,6 +180,12 @@ async def test_jsonb_and_timestamptz_round_trip() -> None:
     async with database() as connection:
         try:
             await connection.execute(
+                "insert into users (id, email, password_hash, display_name)"
+                " values ($1, $2, 'hash', 'Test')",
+                owner_id,
+                f"test-{owner_id}@example.com",
+            )
+            await connection.execute(
                 "insert into businesses (id, owner_user_id, name, website_status, lifecycle_status,"
                 " first_discovered_at, enrichment)"
                 " values ($1, $2, 'TZ Test Co', 'unknown', 'active',"
@@ -190,3 +203,4 @@ async def test_jsonb_and_timestamptz_round_trip() -> None:
             assert '"source": "test"' in row["enrichment"]
         finally:
             await connection.execute("delete from businesses where id = $1", business_id)
+            await connection.execute("delete from users where id = $1", owner_id)

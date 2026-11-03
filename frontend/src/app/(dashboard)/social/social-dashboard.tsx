@@ -175,7 +175,7 @@ export function SocialDashboard() {
               </h3>
               <a
                 className="rounded-md border border-border px-2.5 py-1.5 text-xs text-[var(--color-muted)] hover:border-[var(--color-primary)]"
-                href={`${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1"}/social/content/export?platform_slug=${encodeURIComponent(
+                href={`${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1"}/social/content/export?platform_slug=${encodeURIComponent(
                   platformFilter,
                 )}&content_type=${encodeURIComponent(typeFilter)}&query=${encodeURIComponent(appliedText)}`}
               >

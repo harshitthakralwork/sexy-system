@@ -5,7 +5,6 @@ import Link from "next/link";
 
 import { Header } from "@/components/layout/header";
 import { Card, EmptyState } from "@/components/ui/card";
-import { useSession } from "@/components/providers/session-provider";
 import { api } from "@/lib/api/client";
 import type { GlobalSearchItem, GlobalSearchOut, SearchGroup } from "@/lib/api/types";
 
@@ -36,7 +35,6 @@ function itemHref(kind: string, id: string): string | null {
 }
 
 export function SearchView() {
-  const { user } = useSession();
   const [term, setTerm] = useState("");
   const [submitted, setSubmitted] = useState("");
   const [data, setData] = useState<GlobalSearchOut | null>(null);
@@ -60,8 +58,6 @@ export function SearchView() {
       setLoading(false);
     }
   }
-
-  if (!user) return null;
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -89,7 +85,26 @@ export function SearchView() {
           </button>
         </form>
 
-        {error && <p className="mt-3 text-sm text-[var(--color-error)]">{error}</p>}
+        {error && (
+          <div className="mt-4 rounded-md border border-[var(--color-error)]/30 bg-[var(--color-error)]/10 p-3 text-sm">
+            <p className="font-medium text-[var(--color-error)]">Search failed</p>
+            <p className="mt-1 text-xs text-[var(--color-muted)]">{error}</p>
+            <button
+              type="button"
+              onClick={() => void runSearch(submitted || term)}
+              className="mt-2 rounded border border-[var(--color-primary)] bg-[var(--color-primary)] px-3 py-1 text-xs text-white hover:opacity-90"
+            >
+              Retry search
+            </button>
+          </div>
+        )}
+
+        {loading && (
+          <div className="mt-4 flex items-center gap-2 text-sm text-[var(--color-muted)]">
+            <span className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-[var(--color-primary)] border-t-transparent" />
+            Searching across leads, startups and social intelligence…
+          </div>
+        )}
 
         {submitted && !loading && data && (
           <p className="mt-3 text-sm text-[var(--color-muted)]">
@@ -105,8 +120,8 @@ export function SearchView() {
 
         <div className="mt-4 space-y-4">
           {data &&
-            Object.entries(data.groups).map(([key, group]) =>
-              group.items.length > 0 ? (
+            Object.entries(data.groups ?? {}).map(([key, group]) =>
+              group && Array.isArray(group.items) && group.items.length > 0 ? (
                 <GroupCard key={key} label={GROUP_LABELS[key] ?? key} group={group} />
               ) : null,
             )}
@@ -117,29 +132,31 @@ export function SearchView() {
 }
 
 function GroupCard({ label, group }: { label: string; group: SearchGroup }) {
+  const items = Array.isArray(group?.items) ? group.items : [];
   return (
     <Card>
       <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">
-        {label} · {group.total}
+        {label} · {group?.total ?? items.length}
       </h3>
       <ul className="mt-2 space-y-1.5">
-        {group.items.map((item: GlobalSearchItem) => {
-          const href = itemHref(item.kind, item.id);
+        {items.map((item: GlobalSearchItem, idx: number) => {
+          const href = itemHref(item.kind ?? "", item.id ?? "");
+          const title = item.title || "Untitled";
           return (
-            <li key={`${item.kind}-${item.id}`} className="text-sm">
+            <li key={item.id ? `${item.kind ?? "item"}-${item.id}` : `search-item-${idx}`} className="text-sm">
               {href ? (
                 <Link href={href} className="hover:text-[var(--color-primary)]">
-                  <span className="font-medium">{item.title}</span>
+                  <span className="font-medium">{title}</span>
                 </Link>
               ) : item.url ? (
                 <a href={item.url} target="_blank" rel="noreferrer" className="hover:text-[var(--color-primary)]">
-                  <span className="font-medium">{item.title}</span>
+                  <span className="font-medium">{title}</span>
                 </a>
               ) : (
-                <span className="font-medium">{item.title}</span>
+                <span className="font-medium">{title}</span>
               )}
               <span className="ml-2 text-xs text-[var(--color-muted)]">
-                {item.subtitle}
+                {item.subtitle ?? ""}
                 {item.confidence != null ? ` · ${item.confidence}%` : ""}
               </span>
             </li>

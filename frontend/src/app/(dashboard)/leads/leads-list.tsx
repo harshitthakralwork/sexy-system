@@ -11,7 +11,7 @@ import { api } from "@/lib/api/client";
 import type { ActionOut, Business, BusinessList } from "@/lib/api/types";
 
 const PAGE_SIZE = 25;
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
 
 /** The standalone results table: real rows, real filters, real pagination. */
 export function LeadsList() {

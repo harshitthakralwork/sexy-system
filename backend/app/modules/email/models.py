@@ -69,7 +69,11 @@ class EmailAccount(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         Index("ix_email_account_owner_address", "owner_user_id", "email_address", unique=True),
     )
 
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_email_accounts_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     provider: Mapped[str] = mapped_column(
         String(50), nullable=False, default="smtp", server_default=text("'smtp'")
     )
@@ -92,7 +96,11 @@ class Campaign(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         ),
     )
 
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_campaigns_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     workflow_id: Mapped[uuid.UUID | None] = mapped_column(
         UUIDType, ForeignKey("workflows.id", ondelete="SET NULL"), nullable=True, index=True
     )
@@ -139,7 +147,11 @@ class EmailMessage(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=True,
         index=True,
     )
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_email_messages_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     recipient_email: Mapped[str] = mapped_column(String(320), nullable=False)
     subject: Mapped[str | None] = mapped_column(Text, nullable=True)
     body: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -188,7 +200,11 @@ class SuppressionEntry(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         Index("ix_suppression_owner_email", "owner_user_id", "normalized_email", unique=True),
     )
 
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_suppression_list_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     email_address: Mapped[str] = mapped_column(String(320), nullable=False)
     normalized_email: Mapped[str] = mapped_column(String(320), nullable=False)
     reason: Mapped[str | None] = mapped_column(String(100), nullable=True)

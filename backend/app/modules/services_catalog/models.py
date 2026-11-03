@@ -35,7 +35,11 @@ class Service(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "services"
     __table_args__ = (Index("ix_service_owner_slug", "owner_user_id", "slug", unique=True),)
 
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_services_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     slug: Mapped[str] = mapped_column(String(150), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -148,7 +152,11 @@ class BusinessOpportunity(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     service_profile_id: Mapped[uuid.UUID] = mapped_column(
         UUIDType, ForeignKey("service_profiles.id", ondelete="RESTRICT"), nullable=False, index=True
     )
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_business_opportunities_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     score: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=0)
     confidence: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=0)
     status: Mapped[str] = mapped_column(

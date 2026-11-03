@@ -103,7 +103,11 @@ class SocialProfile(Base, UUIDPrimaryKeyMixin):
     platform_id: Mapped[uuid.UUID] = mapped_column(
         UUIDType, ForeignKey("social_platforms.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_social_profiles_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     external_id: Mapped[str] = mapped_column(String(255), nullable=False)
     username: Mapped[str | None] = mapped_column(String(255), nullable=True)
     profile_url: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -162,7 +166,11 @@ class SocialContent(Base, UUIDPrimaryKeyMixin):
     platform_id: Mapped[uuid.UUID] = mapped_column(
         UUIDType, ForeignKey("social_platforms.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_social_content_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     research_query_id: Mapped[uuid.UUID | None] = mapped_column(
         UUIDType,
         ForeignKey("social_research_queries.id", ondelete="SET NULL"),
@@ -420,7 +428,11 @@ class SocialResearchQuery(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     __tablename__ = "social_research_queries"
 
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_social_research_queries_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     platform_id: Mapped[uuid.UUID] = mapped_column(
         UUIDType, ForeignKey("social_platforms.id", ondelete="CASCADE"), nullable=False, index=True
     )

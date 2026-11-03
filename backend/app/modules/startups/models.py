@@ -51,7 +51,11 @@ class Startup(Base, UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin):
         Index("ix_startup_owner_stage", "owner_user_id", "funding_stage"),
     )
 
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_startups_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     normalized_name: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
     website_url: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -224,7 +228,11 @@ class StartupResearchRecord(Base, UUIDPrimaryKeyMixin):
 class StartupWatchlist(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "startup_watchlists"
 
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_startup_watchlists_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 

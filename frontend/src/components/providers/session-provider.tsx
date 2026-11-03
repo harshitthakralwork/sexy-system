@@ -4,14 +4,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useMemo, type ReactNode } from "react";
 
-import { ApiError, api } from "@/lib/api/client";
+import { ApiError, isApiError, api } from "@/lib/api/client";
 import type { AuthUser, LoginPayload, SessionInfo } from "@/lib/api/types";
 
 interface SessionValue {
   user: AuthUser | null;
   csrf: string | null;
   /** `checking` means the first response has not arrived; it is not "signed out". */
-  state: "checking" | "signedIn" | "signedOut";
+  state: "checking" | "signedIn" | "signedOut" | "error";
   error: string | null;
   login: (payload: LoginPayload) => Promise<{ ok: boolean; error: string | null }>;
   logout: () => Promise<void>;
@@ -32,11 +32,31 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     staleTime: 60_000,
   });
 
-  const signedOut = session.isError && session.error instanceof ApiError && session.error.status === 401;
+  const is401 =
+    session.isError &&
+    ((isApiError(session.error) && session.error.status === 401) ||
+      (typeof session.error === "object" &&
+        session.error !== null &&
+        (session.error as { status?: unknown }).status === 401));
+
+  const signedOut = is401 || (session.data ? !session.data.authenticated : false);
+
+  const state: SessionValue["state"] = session.isPending
+    ? "checking"
+    : signedOut
+      ? "signedOut"
+      : session.isError
+        ? "error"
+        : session.data?.user
+          ? "signedIn"
+          : "signedOut";
 
   const login = useMutation({
     mutationFn: (payload: LoginPayload) => api.post<SessionInfo>("/auth/login", payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["session"] }),
+    onSuccess: (data) => {
+      queryClient.setQueryData(["session"], data);
+      queryClient.invalidateQueries({ queryKey: ["session"] });
+    },
   });
 
   const submit = useCallback(
@@ -60,22 +80,29 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     try {
       await api.post("/auth/logout", undefined, csrf);
     } finally {
+      queryClient.setQueryData(["session"], null);
       queryClient.removeQueries({ queryKey: ["session"] });
       queryClient.clear();
       router.replace("/login");
     }
   }, [queryClient, router, session.data?.csrf_token]);
 
+  const sessionError = session.isError
+    ? session.error instanceof Error
+      ? session.error.message
+      : "Failed to connect to authentication service"
+    : null;
+
   const value = useMemo<SessionValue>(
     () => ({
       user: session.data?.user ?? null,
       csrf: session.data?.csrf_token ?? null,
-      state: session.isPending ? "checking" : signedOut ? "signedOut" : "signedIn",
-      error: login.isError ? "Sign-in failed" : null,
+      state,
+      error: login.isError ? "Sign-in failed" : sessionError,
       login: submit,
       logout,
     }),
-    [session.isPending, session.data, signedOut, login.isError, submit, logout],
+    [session.data, state, sessionError, login.isError, submit, logout],
   );
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;

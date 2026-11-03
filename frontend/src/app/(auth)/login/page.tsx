@@ -41,7 +41,11 @@ export default function LoginPage() {
     try {
       if (mode === "login") {
         const result = await login({ email, password });
-        if (!result.ok) setError(result.error);
+        if (!result.ok) {
+          setError(result.error);
+        } else {
+          router.replace("/dashboard");
+        }
       } else {
         await api.post("/auth/register", {
           email,
@@ -49,7 +53,11 @@ export default function LoginPage() {
           display_name: email.split("@")[0] ?? "Operator",
         });
         const result = await login({ email, password });
-        if (!result.ok) setError(result.error);
+        if (!result.ok) {
+          setError(result.error);
+        } else {
+          router.replace("/dashboard");
+        }
       }
     } finally {
       setBusy(false);

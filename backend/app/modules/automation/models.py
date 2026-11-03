@@ -51,7 +51,11 @@ class Workflow(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         CheckConstraint("version >= 1", name="ck_workflow_version"),
     )
 
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_workflows_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     module: Mapped[str] = mapped_column(
@@ -91,7 +95,11 @@ class WorkflowExecution(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     workflow_id: Mapped[uuid.UUID] = mapped_column(
         UUIDType, ForeignKey("workflows.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_workflow_executions_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     trigger_type: Mapped[str] = mapped_column(
         String(50), nullable=False, default="manual", server_default=text("'manual'")
     )
@@ -166,7 +174,11 @@ class Schedule(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     workflow_id: Mapped[uuid.UUID] = mapped_column(
         UUIDType, ForeignKey("workflows.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_schedules_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     timezone: Mapped[str] = mapped_column(
         String(100), nullable=False, default="UTC", server_default=text("'UTC'")
     )

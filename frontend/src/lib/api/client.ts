@@ -1,7 +1,19 @@
 import type { ApiErrorBody } from "./types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
-const API_ORIGIN = new URL(API_BASE).origin;
+export function getApiBase(): string {
+  if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+    return process.env.NEXT_PUBLIC_API_BASE_URL;
+  }
+  if (typeof window !== "undefined") {
+    return `${window.location.protocol}//${window.location.hostname}:8000/api/v1`;
+  }
+  return "http://localhost:8000/api/v1";
+}
+
+export function getApiOrigin(): string {
+  return new URL(getApiBase()).origin;
+}
+
 const DEFAULT_TIMEOUT_MS = 8000;
 
 export class ApiError extends Error {
@@ -17,7 +29,18 @@ export class ApiError extends Error {
     this.code = body?.error?.code ?? "request_failed";
     this.correlationId = body?.error?.correlation_id ?? null;
     this.details = body?.error?.details;
+    Object.setPrototypeOf(this, ApiError.prototype);
   }
+}
+
+export function isApiError(err: unknown): err is ApiError {
+  return (
+    err instanceof ApiError ||
+    (typeof err === "object" &&
+      err !== null &&
+      "status" in err &&
+      typeof (err as { status: unknown }).status === "number")
+  );
 }
 
 interface RequestOptions {
@@ -72,27 +95,27 @@ async function request<T>(
 /** Versioned application API (`/api/v1/...`). */
 export const api = {
   get: <T>(path: string, signal?: AbortSignal) =>
-    request<T>(API_BASE, path, { method: "GET", signal }),
+    request<T>(getApiBase(), path, { method: "GET", signal }),
   post: <T>(path: string, body?: unknown, csrf?: string | null) =>
-    request<T>(API_BASE, path, {
+    request<T>(getApiBase(), path, {
       method: "POST",
       body,
       headers: csrf ? { "X-CSRF-Token": csrf } : undefined,
     }),
   patch: <T>(path: string, body?: unknown, csrf?: string | null) =>
-    request<T>(API_BASE, path, {
+    request<T>(getApiBase(), path, {
       method: "PATCH",
       body,
       headers: csrf ? { "X-CSRF-Token": csrf } : undefined,
     }),
   put: <T>(path: string, body?: unknown, csrf?: string | null) =>
-    request<T>(API_BASE, path, {
+    request<T>(getApiBase(), path, {
       method: "PUT",
       body,
       headers: csrf ? { "X-CSRF-Token": csrf } : undefined,
     }),
   delete: <T>(path: string, csrf?: string | null) =>
-    request<T>(API_BASE, path, {
+    request<T>(getApiBase(), path, {
       method: "DELETE",
       headers: csrf ? { "X-CSRF-Token": csrf } : undefined,
     }),
@@ -102,7 +125,7 @@ export const api = {
    * body the server cannot parse.
    */
   upload: <T>(path: string, form: FormData, csrf?: string | null, timeoutMs?: number) =>
-    request<T>(API_BASE, path, {
+    request<T>(getApiBase(), path, {
       method: "POST",
       form,
       timeoutMs,
@@ -114,7 +137,7 @@ export const api = {
    * on every browser.
    */
   download: async (path: string, timeoutMs = 60_000): Promise<Blob> => {
-    const response = await fetch(`${API_BASE}${path}`, {
+    const response = await fetch(`${getApiBase()}${path}`, {
       credentials: "include",
       signal: AbortSignal.timeout(timeoutMs),
     });
@@ -134,5 +157,5 @@ export const api = {
 /** Service endpoints outside the versioned API — health and readiness. */
 export const infra = {
   get: <T>(path: string, signal?: AbortSignal) =>
-    request<T>(API_ORIGIN, path, { method: "GET", signal }),
+    request<T>(getApiOrigin(), path, { method: "GET", signal }),
 };

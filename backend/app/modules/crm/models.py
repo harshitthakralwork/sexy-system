@@ -43,7 +43,11 @@ class CrmPipeline(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "crm_pipelines"
     __table_args__ = (Index("ix_pipeline_owner_default", "owner_user_id", "is_default"),)
 
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_crm_pipelines_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     is_default: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("false")
@@ -90,7 +94,11 @@ class CrmBusinessRecord(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     stage_id: Mapped[uuid.UUID] = mapped_column(
         UUIDType, ForeignKey("crm_stages.id", ondelete="RESTRICT"), nullable=False, index=True
     )
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_crm_business_records_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     assigned_service_id: Mapped[uuid.UUID | None] = mapped_column(
         UUIDType, ForeignKey("services.id", ondelete="SET NULL"), nullable=True
     )
@@ -141,7 +149,11 @@ class CrmActivity(Base):
     crm_record_id: Mapped[uuid.UUID | None] = mapped_column(
         UUIDType, ForeignKey("crm_business_records.id", ondelete="SET NULL"), nullable=True
     )
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_crm_activities_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     activity_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -158,7 +170,11 @@ class Tag(Base, UUIDPrimaryKeyMixin):
     __tablename__ = "tags"
     __table_args__ = (UniqueConstraint("owner_user_id", "name", name="uq_tag_name_per_owner"),)
 
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_tags_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     color: Mapped[str | None] = mapped_column(String(30), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -191,5 +207,9 @@ class BusinessNote(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     business_id: Mapped[uuid.UUID] = mapped_column(
         UUIDType, ForeignKey("businesses.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_business_notes_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     content: Mapped[str] = mapped_column(Text, nullable=False)

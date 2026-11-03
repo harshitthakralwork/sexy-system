@@ -28,7 +28,11 @@ EXECUTION_TARGETS = ("cloud_preferred", "local_preferred", "either", "local_only
 class SearchPreset(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "search_presets"
 
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_search_presets_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     module: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     keywords: Mapped[dict] = mapped_column(
@@ -51,7 +55,11 @@ class SearchPreset(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 class Search(Base, UUIDPrimaryKeyMixin):
     __tablename__ = "searches"
 
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_searches_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     preset_id: Mapped[uuid.UUID | None] = mapped_column(
         UUIDType, ForeignKey("search_presets.id", ondelete="SET NULL"), nullable=True
     )
@@ -105,7 +113,11 @@ class SearchArea(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         ),
     )
 
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_search_areas_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     module: Mapped[str] = mapped_column(String(50), nullable=False, index=True, default="leads")
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     shape_type: Mapped[str] = mapped_column(String(20), nullable=False)
@@ -151,7 +163,11 @@ class DiscoveryJob(Base, UUIDPrimaryKeyMixin):
     search_id: Mapped[uuid.UUID | None] = mapped_column(
         UUIDType, ForeignKey("searches.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_discovery_jobs_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     job_type: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     execution_target: Mapped[str] = mapped_column(
         String(30),
@@ -277,7 +293,11 @@ class SourceRecord(Base):
     batch_id: Mapped[uuid.UUID | None] = mapped_column(
         UUIDType, ForeignKey("job_batches.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_source_records_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     module: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
     external_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     source_url: Mapped[str | None] = mapped_column(Text, nullable=True)

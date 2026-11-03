@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import asyncio
+import uuid
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from redis.asyncio import from_url
 
 from app.core.config import Settings, get_settings
 from app.core.database import check_database_connection
+from app.modules.auth.dependencies import get_current_user
+from app.modules.auth.models import User
+from app.modules.health.integrity import audit_database
 
 router = APIRouter(tags=["health"])
 
@@ -90,3 +94,43 @@ async def ready(
     ]
     all_ok = all(component.ok for component in components)
     return ReadyResponse(status="ok" if all_ok else "degraded", components=components)
+
+
+class IntegrityFindingOut(BaseModel):
+    code: str
+    severity: str
+    count: int
+    description: str
+    detail: dict = Field(default_factory=dict)
+
+
+class IntegrityReportOut(BaseModel):
+    """What is wrong with this account's data, and how much of it."""
+
+    checked_at: str
+    scope: str
+    ok: bool
+    findings: list[IntegrityFindingOut]
+
+
+@router.get("/integrity", response_model=IntegrityReportOut)
+async def integrity(
+    user: User = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
+) -> IntegrityReportOut:
+    """Report the data problems this account can see.
+
+    Scoped to the caller on purpose: the report describes rows, and rows
+    belong to an account. The global audit — every table, including the rows
+    whose owner no longer exists — is the operator's command-line tool, not
+    an endpoint any signed-in account can read.
+    """
+    report = await audit_database(
+        settings=settings, owner_user_id=uuid.UUID(str(user.id))
+    )
+    return IntegrityReportOut(
+        checked_at=report.checked_at.isoformat(),
+        scope=report.scope,
+        ok=report.ok,
+        findings=[IntegrityFindingOut(**finding.as_dict()) for finding in report.findings],
+    )

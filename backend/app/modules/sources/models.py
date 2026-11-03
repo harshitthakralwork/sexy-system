@@ -58,7 +58,11 @@ class SourceConfiguration(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     source_id: Mapped[uuid.UUID] = mapped_column(
         UUIDType, ForeignKey("sources.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_source_configurations_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     configuration: Mapped[dict] = mapped_column(
         JSONType, nullable=False, default=dict, server_default=text("'{}'::jsonb")
     )

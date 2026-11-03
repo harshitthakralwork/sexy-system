@@ -188,11 +188,9 @@ def make_account(
 
     import asyncio
 
-    import asyncpg
+    from app.core.database import session_scope
+    from app.core.purge import delete_account_rows
 
-    from app.core.config import get_settings
-
-    dsn = get_settings().database_url.replace("postgresql+asyncpg://", "postgresql://")
     created_user_ids: list[str] = []
     open_clients: list[TestClient] = []
 
@@ -225,176 +223,10 @@ def make_account(
             api.__exit__(None, None, None)
 
     async def cleanup() -> None:
-        connection = await asyncpg.connect(dsn=dsn, timeout=10)
-        try:
+        async with session_scope() as session:
+            connection = await session.connection()
             for raw_id in created_user_ids:
-                user_id = uuid.UUID(raw_id)
-                await connection.execute(
-                    "delete from business_tags where business_id in"
-                    " (select id from businesses where owner_user_id = $1)",
-                    user_id,
-                )
-                await connection.execute(
-                    "delete from business_contacts where business_id in"
-                    " (select id from businesses where owner_user_id = $1)",
-                    user_id,
-                )
-                await connection.execute(
-                    "delete from business_notes where owner_user_id = $1", user_id
-                )
-                await connection.execute(
-                    "delete from crm_stage_history where crm_record_id in"
-                    " (select id from crm_business_records where owner_user_id = $1)",
-                    user_id,
-                )
-                await connection.execute(
-                    "delete from crm_activities where owner_user_id = $1", user_id
-                )
-                await connection.execute(
-                    "delete from crm_business_records where owner_user_id = $1", user_id
-                )
-                await connection.execute(
-                    "delete from crm_stages where pipeline_id in"
-                    " (select id from crm_pipelines where owner_user_id = $1)",
-                    user_id,
-                )
-                await connection.execute(
-                    "delete from crm_pipelines where owner_user_id = $1", user_id
-                )
-                await connection.execute(
-                    "delete from opportunity_evidence where opportunity_id in"
-                    " (select id from business_opportunities where owner_user_id = $1)",
-                    user_id,
-                )
-                await connection.execute(
-                    "delete from business_opportunities where owner_user_id = $1", user_id
-                )
-                await connection.execute(
-                    "delete from scoring_rules where service_profile_id in"
-                    " (select id from service_profiles where service_id in"
-                    " (select id from services where owner_user_id = $1))",
-                    user_id,
-                )
-                await connection.execute(
-                    "delete from service_profiles where service_id in"
-                    " (select id from services where owner_user_id = $1)",
-                    user_id,
-                )
-                await connection.execute("delete from services where owner_user_id = $1", user_id)
-                await connection.execute(
-                    "delete from source_record_links where source_record_id in"
-                    " (select id from source_records where owner_user_id = $1)",
-                    user_id,
-                )
-                await connection.execute(
-                    "delete from source_records where owner_user_id = $1", user_id
-                )
-                # Source Manager rows. `source_configurations` is owner-scoped, so it
-                # goes with the account; health checks and usage records are global
-                # logs handled by `_preserve_source_observability` above, and
-                # discovery-job usage rows are the only ones this owner can identify.
-                await connection.execute(
-                    "delete from source_usage_records where job_id in"
-                    " (select id from discovery_jobs where owner_user_id = $1)",
-                    user_id,
-                )
-                await connection.execute(
-                    "delete from source_configurations where owner_user_id = $1", user_id
-                )
-                await connection.execute(
-                    "delete from job_logs where job_id in"
-                    " (select id from discovery_jobs where owner_user_id = $1)",
-                    user_id,
-                )
-                await connection.execute(
-                    "delete from discovery_jobs where owner_user_id = $1", user_id
-                )
-                await connection.execute("delete from searches where owner_user_id = $1", user_id)
-                await connection.execute(
-                    "delete from social_classification_history where content_id in"
-                    " (select id from social_content where owner_user_id = $1)",
-                    user_id,
-                )
-                await connection.execute(
-                    "delete from social_saved_items where owner_user_id = $1", user_id
-                )
-                await connection.execute(
-                    "delete from social_discovery_runs where owner_user_id = $1", user_id
-                )
-                await connection.execute(
-                    "delete from social_search_tracks where owner_user_id = $1", user_id
-                )
-                await connection.execute(
-                    "delete from social_content where owner_user_id = $1", user_id
-                )
-                await connection.execute(
-                    "delete from social_profiles where owner_user_id = $1", user_id
-                )
-                await connection.execute(
-                    "delete from social_research_queries where owner_user_id = $1", user_id
-                )
-                await connection.execute(
-                    "delete from business_social_profiles where business_id in"
-                    " (select id from businesses where owner_user_id = $1)",
-                    user_id,
-                )
-                await connection.execute(
-                    "delete from email_events where email_message_id in"
-                    " (select id from email_messages where owner_user_id = $1)",
-                    user_id,
-                )
-                await connection.execute(
-                    "delete from email_messages where owner_user_id = $1", user_id
-                )
-                await connection.execute(
-                    "delete from suppression_list where owner_user_id = $1", user_id
-                )
-                await connection.execute(
-                    "delete from campaigns where owner_user_id = $1", user_id
-                )
-                await connection.execute(
-                    "delete from email_accounts where owner_user_id = $1", user_id
-                )
-                await connection.execute(
-                    "delete from workflow_approvals where execution_id in"
-                    " (select id from workflow_executions where owner_user_id = $1)",
-                    user_id,
-                )
-                await connection.execute(
-                    "delete from workflow_step_executions where execution_id in"
-                    " (select id from workflow_executions where owner_user_id = $1)",
-                    user_id,
-                )
-                await connection.execute(
-                    "delete from workflow_executions where owner_user_id = $1", user_id
-                )
-                await connection.execute(
-                    "delete from schedules where owner_user_id = $1", user_id
-                )
-                await connection.execute(
-                    "delete from workflows where owner_user_id = $1", user_id
-                )
-                await connection.execute("delete from businesses where owner_user_id = $1", user_id)
-                await connection.execute("delete from tags where owner_user_id = $1", user_id)
-                await connection.execute(
-                    "delete from startup_watchlists where owner_user_id = $1", user_id
-                )
-                await connection.execute("delete from startups where owner_user_id = $1", user_id)
-                await connection.execute(
-                    "delete from saved_reports where owner_user_id = $1", user_id
-                )
-                await connection.execute(
-                    "delete from export_jobs where owner_user_id = $1", user_id
-                )
-                await connection.execute(
-                    "delete from import_jobs where owner_user_id = $1", user_id
-                )
-                await connection.execute("delete from audit_logs where owner_user_id = $1", user_id)
-                await connection.execute("delete from user_sessions where user_id = $1", user_id)
-                await connection.execute("delete from user_settings where user_id = $1", user_id)
-                await connection.execute("delete from users where id = $1", user_id)
-        finally:
-            await connection.close()
+                await delete_account_rows(connection, uuid.UUID(raw_id))
 
     asyncio.run(cleanup())
 

@@ -11,6 +11,7 @@ from app.modules.crm.router import router as crm_router
 from app.modules.discovery.router import router as discovery_router
 from app.modules.email.router import router as email_router
 from app.modules.exports.router import exports_router, imports_router
+from app.modules.notifications.router import router as notifications_router
 from app.modules.search.router import router as search_router
 from app.modules.services_catalog.router import router as services_router
 from app.modules.social.router import router as social_router
@@ -33,3 +34,4 @@ api_router.include_router(analytics_router)
 api_router.include_router(sources_router)
 api_router.include_router(exports_router)
 api_router.include_router(imports_router)
+api_router.include_router(notifications_router)

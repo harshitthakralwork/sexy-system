@@ -6,6 +6,7 @@ from datetime import datetime
 from sqlalchemy import (
     Boolean,
     DateTime,
+    ForeignKey,
     Index,
     Integer,
     String,
@@ -39,7 +40,11 @@ class Notification(Base, UUIDPrimaryKeyMixin):
         Index("ix_notification_owner_read", "owner_user_id", "is_read", "created_at"),
     )
 
-    owner_user_id: Mapped[uuid.UUID] = mapped_column(UUIDType, nullable=False, index=True)
+    owner_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_notifications_owner_user_id_users"),
+        nullable=False, index=True,
+    )
     notification_type: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
@@ -60,7 +65,11 @@ class AuditLog(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUIDType, primary_key=True, default=uuid.uuid4, server_default=text("gen_random_uuid()")
     )
-    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(UUIDType, nullable=True, index=True)
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_audit_logs_owner_user_id_users"),
+        nullable=True, index=True,
+    )
     action: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
     entity_type: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     entity_id: Mapped[uuid.UUID | None] = mapped_column(UUIDType, nullable=True)
@@ -85,7 +94,11 @@ class RetentionPolicy(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "retention_policies"
     __table_args__ = (Index("ix_retention_category_active", "data_category", "is_active"),)
 
-    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(UUIDType, nullable=True, index=True)
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUIDType,
+        ForeignKey("users.id", name="fk_retention_policies_owner_user_id_users"),
+        nullable=True, index=True,
+    )
     data_category: Mapped[str] = mapped_column(String(100), nullable=False)
     retention_days: Mapped[int] = mapped_column(Integer, nullable=False)
     is_active: Mapped[bool] = mapped_column(

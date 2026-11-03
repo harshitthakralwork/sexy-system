@@ -1042,3 +1042,19 @@ export interface ImportJobList {
   items: ImportJob[];
   total: number;
 }
+
+export interface NotificationItem {
+  id: string;
+  notification_type: string;
+  title: string;
+  message: string;
+  related_entity_type: string | null;
+  related_entity_id: string | null;
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface NotificationList {
+  items: NotificationItem[];
+  total: number;
+}
