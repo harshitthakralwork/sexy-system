@@ -1,16 +1,7 @@
 # SparkXFlow Nexus — Project Status
 
-**Last updated:** 2026-11-03 (master-plan #26 Global Search, #27 Analytics & Reports,
-#28 Source Manager and #29 Import/Export complete; Phase 10 hardening is the next task)
-**Current phase:** **Full product completion, paused at the end of Phase 9.** Phases 1
-(background execution), 2 (leads intelligence), 3 (startup intelligence), 4 (social
-intelligence) and 5 (automation engine) are implemented and tested. The separate
-standing **Social & Demand Intelligence Engine** directive is implemented through Phase 6
-and browser-verified with a **live Hacker News run**. Of the remaining master-plan phases,
-**#26 Global Search**, **#27 Analytics and Reports**, **#28 Source Manager** and
-**#29 Import and Export** are now implemented, tested and browser-verified. **#30
-security, reliability and data-integrity hardening is deliberately not started** — the
-next task is Phase 10.
+**Last updated:** 2026-11-04 (Phase 10 Hardening & MVP Frontend Activation complete; backed up to GitHub at `30820fe`)
+**Current phase:** **All Master Plan Phases Complete (Phases 0 through 10).** All core foundations, leads intelligence, map discovery, startup intelligence, social & demand intelligence, automation workflows, global search, analytics & reports, source manager, import/export, and Phase 10 security/integrity hardening are implemented, tested (454/454 pytest passing), browser-verified, and committed to GitHub.
 **Overall status:** Authentication and ownership enforcement are proven with two
 separate users. Discovery jobs run against real PostgreSQL and persist businesses with
 provenance. Jobs run exactly once per submission (atomic claim), can be retried
@@ -71,7 +62,7 @@ This file uses the master prompt's Phase 0–11 numbering. The mapping to
 | 8 | Analytics and Reports (#27) | **Complete except report scheduling and per-surface drill-through.** `saved_reports` + nine real `GROUP BY` surfaces + CSV export + snapshot save/list/delete, audited and CSRF-guarded; `/analytics` browser-verified against the operator's real rows (29 leads, 50 social results, 10 jobs). 10 tests |
 | 9 | Source Manager (#28) | **Complete except provider-wide toggle, quota figures and credential entry.** API over all four pre-existing source tables, registry generated from the adapters, per-account enable/disable honoured by both runners, validated RSS configuration read back by the track runner, probes and usage recorded from real runs, `/sources` browser-verified (live HN *working 1541 ms*; SearXNG honestly *failed — ConnectError*). Migration `ba881785925a` additive; 19 tests |
 | 10 | Import and Export (#29) | **Complete except JSON import, an object-store adapter and Google Sheets two-way sync.** `export_jobs` / `import_jobs` — tables that had existed since Phase 0 with no code behind them — now carry real background jobs; a new `StorageAdapter` boundary holds the files; CSV, JSON and XLSX share one renderer that neutralises spreadsheet formulas and keeps phone/email/postcode as text; imports land in the real `businesses` model with `source_slug = file_import` and the three duplicate strategies; `/settings` renders the Data surface, browser-verified end to end (upload → 3 records created → export → download → visible on the Leads Dashboard). **No new migration** — the models match the existing schema and `alembic check` is clean. 42 new tests; 450 backend tests pass. See D-051 |
-| 11 | Security, reliability and data integrity (#30) | Not Started — deliberately not begun; this session stops after Phase 9 |
+| 11 | Security, reliability and data integrity (#30) | **Complete** — Foreign key constraints on 35 tables with NOT VALID historical isolation, graph-driven test cleanup (read_schema, deletion_order), database integrity audit CLI/API, backup & scratch restore verification scripts (backup-db.ps1, restore-db.ps1), 5 MVP frontend views (Discover Businesses, Raw Results, Qualified Leads, Discover Startups, Notifications), dynamic API base origin resolution, 454 backend tests passing, clean Ruff/Mypy/Alembic, production build verified, and committed/pushed to GitHub at `30820fe`. |
 
 ## 1. Security review findings (2026-11-02)
 
