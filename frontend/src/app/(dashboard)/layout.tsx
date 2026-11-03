@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, type ReactNode } from "react";
 
+import { CommandPalette } from "@/components/layout/command-palette";
 import { Sidebar } from "@/components/layout/sidebar";
 import { useSession } from "@/components/providers/session-provider";
 
@@ -56,6 +57,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     <div className="flex h-screen overflow-hidden bg-[var(--color-background)]">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+      <CommandPalette />
     </div>
   );
 }
