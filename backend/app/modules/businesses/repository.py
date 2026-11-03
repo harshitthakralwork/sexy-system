@@ -154,6 +154,19 @@ def _apply_filters(statement: Select, filters: BusinessFilters, owner_user_id: u
             .subquery()
         )
         statement = statement.where(Business.id.in_(select(linked.c.entity_id)))
+    if filters.shortlisted_only:
+        # Shortlisted is a CRM stage, not a column on the business. The filter
+        # was accepted by the API and never applied, so a request for the
+        # shortlisted list returned every record instead.
+        shortlisted = (
+            select(CrmBusinessRecord.business_id)
+            .join(CrmStage, CrmStage.id == CrmBusinessRecord.stage_id)
+            .where(
+                CrmBusinessRecord.owner_user_id == owner_user_id,
+                func.lower(CrmStage.name) == "shortlisted",
+            )
+        )
+        statement = statement.where(Business.id.in_(shortlisted))
     return statement
 
 

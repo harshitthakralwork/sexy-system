@@ -114,12 +114,30 @@ This slice must run end-to-end against real network sources with visible provena
 **2b — Breadth, only after 2a works:**
 Map Explorer, dedup review queue, Service Catalog + scoring rules, CRM Kanban, filters/bulk actions, Overpass adapter, crawler enrichment adapter.
 
+**2c — Data management (master plan #29, delivered 2026-11-03):**
+`upload → header + suggested mapping → validated run → businesses/business_contacts → export job → download`
+
+The roadmap's "Data management" scope — CSV and Excel import/export, JSON export,
+duplicate-safe imports, retention — is implemented on the architecture that already
+existed: the `export_jobs` and `import_jobs` tables from Phase 0 now carry real
+background jobs, the files live behind a new `StorageAdapter` boundary, the CSV/JSON/
+XLSX renderers share one formula-neutralisation rule, and imports write into the real
+Businesses model with `source_slug = file_import`. The UI is the Data surface at
+`/settings`. See D-051.
+
+**2d — Master-plan phases delivered after the slice:** #26 Global Search, #27 Analytics
+and Reports, #28 Source Manager and #29 Import and Export are all implemented, tested
+and browser-verified. The remaining master-plan phase is #30 — security, reliability
+and data integrity — which has not been started.
+
 ## 7. Deferred with documented reason
 
 | Item | Roadmap location | Reason |
 |---|---|---|
 | Hybrid local/cloud worker dispatch, worker registration, heartbeats | `architecture.md` §8.3–8.4 | No cloud deployment exists. `execution_target` column and runner-agnostic interface are kept so this is additive later. |
 | Google Sheets two-way sync | PRD §7.8 | Conflict-prone and quota-limited; one-way export satisfies MVP. |
+| Object-store (S3) storage adapter | `architecture.md` §6 | The `StorageAdapter` boundary exists so the local filesystem implementation can be swapped without touching a caller, but no cloud deployment exists to need one. |
+| JSON as an import format | PRD §7.8 | The PRD asks for CSV and Excel on the way in. JSON is export-only and is not advertised as an import format. |
 | Playwright-based browser automation in cloud | `architecture.md` §3.2 | Free containers lack RAM; datacenter IPs get blocked, and circumvention is forbidden by D8/PRD §17. |
 | PostGIS | `database-schema.md` §21 | Radius queries can use haversine SQL at MVP volumes. |
 | Dedicated search engine | `architecture.md` §17 | Postgres FTS + trigrams is the specified start. |

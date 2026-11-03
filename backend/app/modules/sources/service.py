@@ -20,7 +20,7 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
-from app.core.exceptions import NotFoundError, ValidationFailedError
+from app.core.exceptions import NotFoundError, SourceUnavailableError, ValidationFailedError
 from app.modules.discovery.adapters.base import AdapterError, HealthResult
 from app.modules.sources import registry
 from app.modules.sources.models import (
@@ -368,15 +368,21 @@ async def test_connection(
 ) -> dict[str, Any]:
     """Ask the adapter itself whether the provider answers right now."""
     source = await _source_or_404(session, slug)
-    _, adapter = registry.adapter_for(settings, slug)
     try:
-        result = await adapter.health_check()
-    except AdapterError as exc:
-        result = HealthResult(status="failed", detail=exc.message[:500])
-    except Exception as exc:  # noqa: BLE001 - a probe must never break the request
-        result = HealthResult(status="failed", detail=type(exc).__name__)
-    finally:
-        await adapter.aclose()
+        _, adapter = registry.adapter_for(settings, slug)
+    except SourceUnavailableError as exc:
+        # A source fed by uploaded files has no provider to probe. Reporting it
+        # as a failure would blame a provider that never refused anything.
+        result = HealthResult(status="unknown", detail=exc.details.get("reason"))
+    else:
+        try:
+            result = await adapter.health_check()
+        except AdapterError as exc:
+            result = HealthResult(status="failed", detail=exc.message[:500])
+        except Exception as exc:  # noqa: BLE001 - a probe must never break the request
+            result = HealthResult(status="failed", detail=type(exc).__name__)
+        finally:
+            await adapter.aclose()
 
     check = await record_health(session, source, result)
     return {

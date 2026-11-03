@@ -78,3 +78,27 @@ def social_tick_tracks_task() -> int:
     from app.modules.social.tracks import run_due_tracks
 
     return asyncio.run(run_due_tracks())
+
+
+@celery_app.task(name="sparkxflow.exports.run_export")
+def run_export_task(job_id: str) -> str:
+    """Worker entry point for a queued export."""
+    from app.modules.exports.service import execute_export
+
+    return asyncio.run(execute_export(uuid.UUID(job_id)))
+
+
+@celery_app.task(name="sparkxflow.exports.run_import")
+def run_import_task(job_id: str) -> str:
+    """Worker entry point for a queued import."""
+    from app.modules.exports.importer import execute_import
+
+    return asyncio.run(execute_import(uuid.UUID(job_id)))
+
+
+@celery_app.task(name="sparkxflow.exports.purge_expired")
+def purge_expired_files_task() -> int:
+    """Worker entry point for the scheduled expiry sweep of generated files."""
+    from app.modules.exports.service import purge_expired_files
+
+    return asyncio.run(purge_expired_files())

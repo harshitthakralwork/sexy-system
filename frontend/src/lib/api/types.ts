@@ -974,3 +974,71 @@ export interface SourceHistory {
   checks: HealthCheckRow[];
   runs: UsageRecordRow[];
 }
+
+// --- Import and export (master-plan #29) -------------------------------------
+
+export interface ExportModule {
+  key: string;
+  label: string;
+  filters: string[];
+  columns: string[];
+  boolean_filters: string[];
+  numeric_filters: string[];
+}
+
+export interface ExportCatalogue {
+  modules: ExportModule[];
+  formats: string[];
+}
+
+export interface ExportJob {
+  id: string;
+  module: string;
+  export_format: string;
+  status: string;
+  filters: Record<string, unknown>;
+  selected_fields: string[];
+  total_records: number | null;
+  error_details: Record<string, unknown> | null;
+  created_at: string;
+  completed_at: string | null;
+  expires_at: string | null;
+  downloadable: boolean;
+}
+
+export interface ExportJobList {
+  items: ExportJob[];
+  total: number;
+}
+
+export interface ImportField {
+  key: string;
+  label: string;
+}
+
+export interface ImportVocabulary {
+  fields: ImportField[];
+  duplicate_strategies: string[];
+  formats: string[];
+}
+
+export interface ImportJob {
+  id: string;
+  file_name: string;
+  file_format: string;
+  status: string;
+  columns: string[];
+  suggested_mapping: Record<string, string>;
+  total_rows: number;
+  processed_rows: number;
+  failed_rows: number;
+  error_details: Record<string, unknown> | null;
+  created_at: string;
+  completed_at: string | null;
+  mapping_config: Record<string, unknown>;
+}
+
+export interface ImportJobList {
+  items: ImportJob[];
+  total: number;
+}

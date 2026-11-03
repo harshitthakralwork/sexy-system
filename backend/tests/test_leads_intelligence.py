@@ -236,6 +236,35 @@ def test_crm_board_seeds_default_stages_and_shows_cards(session_account: Session
     assert card["name"] == "Filter Coffee House"
 
 
+def test_the_shortlisted_filter_returns_only_the_shortlisted_records(
+    session_account: Session,
+) -> None:
+    """`shortlisted_only` was accepted by the API and then ignored.
+
+    The filter reached the query layer and was never applied, so a request for
+    the shortlisted list came back with every record the account owned — a
+    silently wrong answer to a question the operator asked on purpose.
+    """
+    shortlisted_id = _insert_business(session_account.user_id, name="Shortlisted Cafe")
+    _insert_business(session_account.user_id, name="Ordinary Cafe")
+
+    response = session_account.api.post(
+        f"/api/v1/businesses/{shortlisted_id}/shortlist",
+        headers=session_account.csrf_headers(),
+    )
+    assert response.status_code == 200, response.text
+
+    listed = session_account.api.get("/api/v1/businesses?shortlisted_only=true")
+    assert listed.status_code == 200, listed.text
+    body = listed.json()
+    names = {item["name"] for item in body["items"]}
+    assert names == {"Shortlisted Cafe"}
+    assert body["total"] == 1
+
+    unfiltered = session_account.api.get("/api/v1/businesses")
+    assert unfiltered.json()["total"] == 2
+
+
 def test_custom_stage_creation_and_rename(session_account: Session) -> None:
     created = session_account.api.post(
         "/api/v1/crm/stages",

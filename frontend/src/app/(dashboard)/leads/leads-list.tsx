@@ -248,17 +248,10 @@ function LeadRow({
       <td className="px-3 py-2 text-[var(--color-muted)]">{business.primary_category ?? "—"}</td>
       <td className="px-3 py-2 text-[var(--color-muted)]">{business.city ?? "—"}</td>
       <td className="px-3 py-2">
-        <span
-          className={
-            business.website_status === "missing"
-              ? "text-[var(--color-warning)]"
-              : business.website_status === "available"
-                ? "text-[var(--color-success)]"
-                : "text-[var(--color-muted)]"
-          }
-        >
-          {business.website_status}
-        </span>
+        <WebsiteCell
+          url={business.website_url}
+          status={business.website_status}
+        />
       </td>
       <td className="px-3 py-2 text-[var(--color-muted)]">{business.phone ?? "none reported"}</td>
       <td className="px-3 py-2 text-[var(--color-muted)]">
@@ -296,6 +289,45 @@ function StagePill({ businessId }: { businessId: string }) {
     <span className="rounded bg-[var(--color-surface-elevated)] px-1.5 py-0.5 text-xs">{stage}</span>
   ) : (
     <span className="text-xs text-[var(--color-muted)]">—</span>
+  );
+}
+
+/**
+ * The address the operator gave us, plus what we know about it.
+ *
+ * The status alone is not enough: an imported record carries a website but has
+ * never been probed, so "unknown" would hide the only thing the row has. The
+ * status stays visible because "we have not checked" and "there is none" are
+ * different facts.
+ */
+function WebsiteCell({ url, status }: { url: string | null; status: string }) {
+  const safe = url && /^https?:\/\//i.test(url) ? url : null;
+  return (
+    <div className="flex flex-col gap-0.5">
+      {safe ? (
+        <a
+          className="text-[var(--color-foreground)] underline-offset-2 hover:underline"
+          href={safe}
+          rel="noopener noreferrer"
+          target="_blank"
+        >
+          {safe.replace(/^https?:\/\//i, "")}
+        </a>
+      ) : (
+        <span className="text-[var(--color-muted)]">{url ?? "none reported"}</span>
+      )}
+      <span
+        className={
+          status === "missing"
+            ? "text-xs text-[var(--color-warning)]"
+            : status === "available"
+              ? "text-xs text-[var(--color-success)]"
+              : "text-xs text-[var(--color-muted)]"
+        }
+      >
+        {status}
+      </span>
+    </div>
   );
 }
 

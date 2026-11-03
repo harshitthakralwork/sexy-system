@@ -56,7 +56,7 @@ verified by hand, and the backend behind every control is covered.
 | 6 | Evaluate businesses against configurable services | `shared/signals`, `shared/scoring`, `services_catalog` | **Tested** | Deterministic evaluator (12 tests) + canonical signal vocabulary. Qualification endpoint exercised end to end: score, status, evidence and missing signals render in the browser from real stored opportunities |
 | 7 | Shortlist promising opportunities | `modules/crm/service.py`, `modules/businesses` | **Tested** | Shortlist endpoint with ownership enforcement, stage history and activity; cross-owner shortlist rejected |
 | 8 | Manage shortlisted businesses through a CRM pipeline | `modules/crm` | **Tested** | Per-owner default pipeline with the 12 documented stages, stage moves recorded with history; kanban board (`/leads/crm`) renders the 12 columns and moves cards. Browser-verified |
-| 9 | Export data to CSV or Excel | `modules/exports/csv_export.py` | **Implemented** | CSV writer **Tested** (13 tests) incl. spreadsheet-formula neutralisation. Excel export and job persistence pending the database |
+| 9 | Export data to CSV or Excel | `modules/exports/` | **Tested** | CSV, JSON and XLSX writers **Tested** (13 original CSV tests plus 42 import/export tests) incl. spreadsheet-formula neutralisation and text-only columns. Jobs persist in the existing `export_jobs` table; Excel and job persistence are implemented (master-plan #29) |
 | 10 | See job status, source health and processing errors | `modules/health`, `discovery/pipeline.py`, `modules/sources` | In Progress | Readiness + per-source failure reporting in `PipelineReport` are **Tested**. Job rows and Source Manager UI need the database |
 
 ## Product principles (PRD section 3)
@@ -125,7 +125,7 @@ as hostile input. They are recorded here so they cannot be dropped later.
 | Authorization / ownership enforcement | PRD §17 | **Tested** — two users; read, shortlist, stage change, delete and export are cross-owner rejected with 404, and the store is owner-scoped at construction |
 | CSRF protection | `architecture.md` §19 | **Tested** — missing, mismatched and forged cookie cases all rejected |
 | Rate limiting | PRD §19, `architecture.md` §19 | **Tested** for login/registration. Limitation: in-process window, not shared between workers, resets on restart — Redis-backed later |
-| Audit logging of important actions | PRD §17 | In Progress — auth paths **Tested** incl. durable failed-attempt writes; business/export actions done, CRM and source-config writes still to wire |
+| Audit logging of important actions | PRD §17 | In Progress — auth paths **Tested** incl. durable failed-attempt writes; business, CRM, source-config, startup, social, export/import, analytics, automation and email writes all audit. Still to wire: the qualification, deduplication, enrichment and notification modules |
 | Security headers / CSP | Not specified | Not Started — Phase 11 |
 | Dependency vulnerability triage | Not specified | Not Started — 16 moderate npm advisories still untriaged |
 
@@ -309,10 +309,39 @@ Credential entry is out of scope: only `secret_reference` is stored, never a val
 startup connectors (Product Hunt, GitHub) are still unimplemented from Phase 3, so they are
 absent from the manager rather than listed as broken.
 
+## Import and Export (master-plan #29, implemented 2026-11-03)
+
+| Requirement (PRD §7.8, roadmap "Data management") | Status | Evidence |
+|---|---|---|
+| CSV export | **Tested**, browser-verified | `POST /exports` → `GET /exports/{id}/download`; the exported CSV carried the leading-zero phone number quoted rather than coerced to a number |
+| Excel (XLSX) export | **Tested** | `openpyxl` writer; `phone`, `email` and `postal_code` are written as text cells, and a value starting `=`, `+`, `-` or `@` is neutralised instead of becoming a formula |
+| JSON export | **Tested** | the same renderer serves `application/json` for the same rows |
+| Excel and CSV import | **Tested**, browser-verified | a real CSV uploaded through `/settings` produced 3 businesses with their phone numbers intact as text, visible on the Leads Dashboard |
+| Duplicate-safe imports | **Tested** | the three strategies the roadmap names — `skip`, `merge`, `create` — each covered; the run reports created / merged / duplicates skipped separately |
+| The import lands in the real model | **Tested** | rows are written to `businesses` and `business_contacts`, with `source_slug = file_import` so provenance survives |
+| Import errors are reported honestly | **Tested** | the job row carries processed / failed counts and the per-row errors with their spreadsheet row numbers; reported errors are capped at 100 so a broken file cannot produce a megabyte of JSON |
+| An impossible mapping is refused before work is queued | **Tested** | the mapping is validated against the uploaded file before the job is queued, so a bad mapping is a 422 rather than a job that fails later (`test_a_mapping_naming_a_column_the_file_does_not_have_is_refused`) |
+| Import provenance is visible | Implemented, browser-verified | the Source Manager shows `File import` under **Imported files**, states that there is no provider behind it, and offers no Enable or Test control for it |
+| The platform's own data can be exported per module | **Tested** | four modules — leads, collected content, classified demand results, startups — each using the column set its owning module already uses, so the ad-hoc CSV endpoints and the exporter cannot drift |
+| An export filter is really applied | **Tested** | `shortlisted_only` was accepted by the API and then silently ignored, returning every record the account owned; it now resolves against the CRM stage, owner-scoped, and the export honours it |
+| Exports are real jobs, not a held-open request | **Tested** | the create returns `queued`; the file appears on a later read of the job row. The row records what was asked for and what came out |
+| Retention and cleanup | **Tested** | `purge_expired_files` deletes files past `export_retention_hours` / `import_retention_hours`, driven by the row's own `expires_at`, with a file-age sweep as an orphan backstop |
+| Ownership | **Tested** | storage keys are `exports/{owner}/{job}.{ext}`; another account's job is a 404 and its file cannot be addressed |
+| CSRF and audit | **Tested** | writes are CSRF-guarded; `export.create`, `export.download`, `export.delete`, `import.create`, `import.run` and `import.delete` are reserved audit actions |
+| Rate limits | Implemented | 20 exports per 5 minutes, 5 uploads per hour, per account |
+| The Data surface | Implemented, browser-verified | `/settings` renders the export panel (module, format, filters, column selection, recent exports, download) and the import panel (upload, mapping, duplicate strategy, per-row outcome) |
+
+**Not built.** JSON *import* — the PRD asks for CSV and Excel on the way in; JSON is
+export-only and is not advertised as an import format. Google Sheets two-way sync
+remains deferred under D6. There is no object-store adapter: `LocalFileStorage` writes
+under `backend/var/`, and the `StorageAdapter` boundary exists so one can replace it,
+but no cloud adapter is implemented and none is claimed.
+
 ## Deferred (with reason — see IMPLEMENTATION_PLAN.md section 7)
 
 Hybrid worker dispatch and heartbeats · Google Sheets two-way sync · cloud browser
-automation · PostGIS · dedicated search engine · multi-tenancy · auto-send email.
+automation · PostGIS · dedicated search engine · multi-tenancy · auto-send email ·
+object-store storage adapter · JSON as an import format.
 
 ## Known gaps to close before they become expensive
 

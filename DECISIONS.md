@@ -7,6 +7,61 @@ Format: decision, driver, alternatives rejected, consequence.
 
 ---
 
+## D-051 | Import and export: files behind a storage boundary, jobs as the truth
+
+**Decision:** Master-plan #29 builds import and export on the architecture that already
+exists rather than beside it. Generated and uploaded files live behind a new
+`StorageAdapter` boundary (`app/integrations/storage/`) with a local-filesystem
+implementation; `export_jobs` and `import_jobs` — tables that had been in the schema
+since Phase 0 with no code behind them — become the record of what was asked for and
+what came out. Both are **background jobs**: the request records the intent and returns
+`queued`; the file appears on a later read of the job row. The format layer
+(`app/modules/exports/formats.py`) renders CSV, JSON and XLSX under one rule — a value
+that came from a public page never becomes something a spreadsheet executes, and the
+columns that must stay text stay text. Imports write into the existing `businesses` and
+`business_contacts` tables with `source_slug = file_import`, so an imported record
+carries provenance like any other.
+
+**Driver:** PRD §7.8 asks for CSV and Excel import, JSON export, duplicate-safe imports
+and retention; the roadmap's "Data management" section asks for the same. The tables
+already existed, so the gap was not a missing design — it was missing code, and any
+implementation that invented a second file store, a second job model or a parallel
+business record would have created a system that disagrees with the rest of the
+platform. The standing mandates (reuse the architecture, never fake completeness, no
+mandatory paid service) point the same way.
+
+**Alternatives rejected:**
+- *A streaming export that returns the file in the response* — rejected: a 10,000-row
+  export would hold a request open, and there would be no record of what was produced.
+  The job row is what makes "3 of 3 rows processed" possible to state truthfully.
+- *Validating the column mapping inside the background run* — rejected on evidence: the
+  first implementation queued the work and failed later, so the operator was told the
+  import had started when nothing could have been imported. The mapping is now checked
+  against the uploaded file *before* the job is queued, and an impossible mapping is
+  refused with a 422.
+- *Storage keys derived from the file name* — rejected: a client-supplied name is not a
+  safe path. Keys are `exports/{owner}/{job}.{ext}` and `imports/{owner}/{job}.{ext}`,
+  so one account's key can never address another's file even if a key were guessed.
+- *Sweeping expired files by modification time* — rejected: it is the wrong clock. A
+  job's `expires_at` is the authoritative expiry; the file-age sweep is kept only as a
+  backstop for orphans whose row is already gone.
+
+**Consequence:** The storage boundary is the platform's first, and its only, file store;
+an object-store adapter can replace the local one without changing a caller, but no such
+adapter exists yet and none is claimed. JSON is an export format only — the PRD asks for
+CSV and Excel on the way in, and importing JSON is not implemented rather than
+advertised. Google Sheets two-way sync remains deferred under D6. The importer writes
+`website_status = "unknown"` on every imported record even when the operator supplied a
+website, because "we have not checked" and "there is none" are different claims
+(D-009); the Leads table therefore shows the address alongside the status rather than
+the status alone.
+
+Supersedes the implicit position in D-024 (the initial schema revision deferred, not
+hand-written) for these two tables only: the tables are now implemented exactly as the
+schema drew them, and `alembic check` reports no pending operations.
+
+---
+
 ## D-050 | Source Manager: shared registry, per-account switches, generated descriptions
 
 **Decision:** Master-plan #28 builds the Source Manager over the four tables that already

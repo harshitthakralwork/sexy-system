@@ -15,6 +15,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   social: "Social",
   startup: "Startup",
   directory: "Public directories",
+  import: "Imported files",
 };
 
 const HEALTH_COPY: Record<string, string> = {
@@ -218,23 +219,35 @@ function SourceCard({ source }: { source: SourceItem }) {
 
       {error && <p className="text-xs text-[var(--color-error)]">{error}</p>}
 
+      {source.slug === "file_import" && (
+        <p className="text-xs text-[var(--color-muted)]">
+          This source is fed by the files you import. There is no provider behind it, so
+          there is nothing to enable or probe &mdash; imported records point at the file
+          they came from.
+        </p>
+      )}
+
       <div className="mt-auto flex flex-wrap items-center gap-2">
-        <button
-          className={buttonClass(!source.enabled_for_user)}
-          disabled={toggle.isPending}
-          onClick={() => toggle.mutate()}
-          type="button"
-        >
-          {source.enabled_for_user ? "Disable" : "Enable"}
-        </button>
-        <button
-          className={buttonClass(false)}
-          disabled={test.isPending}
-          onClick={() => test.mutate()}
-          type="button"
-        >
-          {test.isPending ? "Testing…" : "Test connection"}
-        </button>
+        {source.slug !== "file_import" && (
+          <>
+            <button
+              className={buttonClass(!source.enabled_for_user)}
+              disabled={toggle.isPending}
+              onClick={() => toggle.mutate()}
+              type="button"
+            >
+              {source.enabled_for_user ? "Disable" : "Enable"}
+            </button>
+            <button
+              className={buttonClass(false)}
+              disabled={test.isPending}
+              onClick={() => test.mutate()}
+              type="button"
+            >
+              {test.isPending ? "Testing…" : "Test connection"}
+            </button>
+          </>
+        )}
         <button className={buttonClass(false)} onClick={() => setOpen(!open)} type="button">
           {open ? "Hide history" : "View history"}
         </button>

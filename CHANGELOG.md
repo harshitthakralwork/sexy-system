@@ -6,6 +6,119 @@ In Progress · Blocked · Deferred.
 
 ---
 
+## 2026-11-03 (Master plan #29) — Import and Export
+
+`export_jobs` and `import_jobs` had been in the schema since Phase 0 and had no code
+behind them. There was a CSV writer for businesses and a `GET /businesses/export`; there
+was no job, no file, no upload, and no way to bring the operator's own data in. This
+builds both halves on the existing architecture — the same dispatcher, the same audit
+trail, the same Businesses model — and finds five real defects on the way.
+
+### What changed
+
+- **A storage boundary the rest of the platform can reuse.** `app/integrations/storage/`
+  defines a `StorageAdapter` protocol (`save`, `read`, `exists`, `delete`, `list_keys`,
+  `purge_older_than`) with a local-filesystem implementation. Keys are resolved under a
+  single root and a key that tries to escape it is refused, so a job id can never name a
+  path outside the store. This is the first consumer of that boundary; the next one will
+  be able to swap in S3 without touching a caller.
+- **A format layer for CSV, JSON and Excel** — `app/modules/exports/formats.py`. All
+  three formats share the rule that a value from a public page never becomes something a
+  spreadsheet executes: `=`, `+`, `-` and `@` prefixes are neutralised, and the columns
+  that must stay text (`phone`, `email`, `postal_code`) are written as text cells so a
+  leading zero survives the round trip.
+- **Exports as real background jobs.** `GET /exports/catalogue` publishes what can be
+  exported, in which formats, with which filters (and which filters take a yes/no or a
+  number, so the UI can offer the right control instead of guessing). `POST /exports`
+  records what was asked for; the file is produced by the background run and appears on
+  a later read of the job row. `GET /exports/{id}/download` streams it back with the
+  right media type. Four modules are exportable — leads, collected content, classified
+  demand results and startups — each using the column set the owning module already
+  uses, so the ad-hoc CSV endpoints and the exporter cannot drift apart.
+- **Imports that land in the real model.** `POST /imports` accepts a CSV or XLSX
+  upload, reads its header and suggests a mapping; `POST /imports/{id}/run` validates
+  that mapping and writes rows into `businesses` and `business_contacts`, with the
+  three duplicate strategies the roadmap asks for (`skip`, `merge`, `create`). Every
+  imported record is written with `source_slug = file_import`, so provenance survives
+  the import and the Source Manager can show where a record came from.
+- **An honest report for every import.** The job row carries the counts the run
+  actually observed — rows processed, rows failed — plus the per-row errors and
+  warnings, capped at 100 reported errors so a file with ten thousand broken rows does
+  not produce a megabyte of JSON.
+- **Ownership, CSRF, rate limits and audit on every write.** Storage keys are scoped by
+  owner (`exports/{owner}/{job}.{ext}`), so one account's key can never address
+  another's file. Writes are CSRF-guarded, rate-limited (20 exports per 5 minutes, 5
+  uploads per hour) and audited under `export.create`, `export.download`,
+  `export.delete`, `import.create`, `import.run` and `import.delete`.
+- **A Data surface** at `/settings`, with the export panel (module, format, filters,
+  column selection, recent exports, download) and the import panel (upload, mapping,
+  duplicate strategy, per-row outcome). The Leads table's Website column now shows the
+  address the operator gave us next to the status, instead of the status alone.
+- **Retention that is enforced.** `purge_expired_files` deletes files past
+  `export_retention_hours` / `import_retention_hours`, driven by the row's own
+  `expires_at`, with a file-age sweep behind it for orphans whose row is already gone.
+
+### Defects this task found
+
+1. **Every import imported zero rows.** The row normaliser was reading a payload keyed
+   by *field* name while the caller had keyed it by *column* name, so every value came
+   back empty and the run reported success having written nothing. The two sides are now
+   keyed the same way, and the round trip is asserted against a real file in the test
+   suite rather than against the parser alone.
+2. **Expiry was enforced against the wrong clock.** The sweep compared the file's
+   modification time, so a job whose `expires_at` had passed but whose file was written
+   recently was never cleaned, while a fresh file with a stale row survived. Deletion is
+   now driven by the row's `expires_at` — the authoritative value — with the file-age
+   sweep kept only as a backstop for orphans.
+3. **A blank spreadsheet line was being reported as a failed row.** The reader skips
+   entirely blank lines by design, so they never reached the counter; the test that
+   asserted a failure was asserting the wrong thing. The distinction is now explicit in
+   the code and in the test: a blank line is not data, a row that carries values but no
+   identifier is a real failure and is reported with its spreadsheet row number.
+4. **The UI said "Queued" about a job that had already finished.** TanStack Query v5
+   gates `refetchInterval` on window focus, so a job completed in the background while
+   the operator looked at another tab never updated. Both job lists now set
+   `refetchIntervalInBackground`, and the panel reports the real transition
+   (`Completed · 3 of 3 rows processed · 3 created · 0 merged · 0 duplicates skipped`).
+5. **The `shortlisted_only` filter was accepted and then ignored.** `BusinessFilters`
+   carried the flag, the API accepted it, and `_apply_filters` never applied it — so a
+   request for the shortlisted list returned every record the account owned. It now
+   resolves against the CRM stage, owner-scoped, like every other filter.
+
+### Tests + verification
+
+42 new tests in `backend/tests/test_import_export.py` cover the format layer (CSV, JSON
+and XLSX rendering, formula neutralisation, text-only columns), the importer (mapping
+suggestion, mapping validation, the three duplicate strategies, per-row failures, the
+ownership boundary, the row cap) and the API (catalogue, create, list, detail, download,
+delete, upload, run, retention). A 43rd, in `tests/test_leads_intelligence.py`, pins the
+`shortlisted_only` filter: it fails against the code as it was before this phase.
+**450 backend tests pass.** `ruff`, `mypy` (127 files)
+and `alembic check` are clean, and the frontend passes `tsc`, `eslint` and `npm run
+build`.
+
+Browser-verified against real PostgreSQL: a real CSV was uploaded through `/settings`,
+the mapping was accepted, the run created 3 businesses with their phone numbers intact
+as text, the records appeared on the Leads Dashboard with their website addresses, an
+export of the same rows was produced and downloaded, and the exported CSV carried the
+leading-zero phone number quoted rather than coerced to a number.
+
+### Honest limitations
+
+- **No new migration.** `export_jobs` and `import_jobs` were already in the initial
+  schema and the models match it exactly; `alembic check` reports no pending
+  operations. The existing database was not reset, altered or re-created.
+- **The file lives on local disk.** `LocalFileStorage` writes under `backend/var/`; the
+  adapter boundary exists so an object store can replace it, but no S3 adapter is
+  implemented and no claim is made about one.
+- **JSON is an export format, not an import format.** The PRD asks for CSV and Excel
+  import; JSON export is supported because the same renderer serves it. Importing JSON
+  is not implemented and is not advertised.
+- **Google Sheets two-way sync remains deferred** (D6 / roadmap §7) — this phase covers
+  file import and export only.
+
+---
+
 ## 2026-11-03 (Master plan #28) — Source Manager that can actually manage
 
 `sources`, `source_configurations`, `source_health_checks` and `source_usage_records`

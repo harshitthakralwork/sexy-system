@@ -52,6 +52,10 @@ def make_celery() -> Celery:
                 "task": "sparkxflow.social.tick_tracks",
                 "schedule": 60.0,
             },
+            "purge-expired-export-files": {
+                "task": "sparkxflow.exports.purge_expired",
+                "schedule": 900.0,
+            },
         },
         broker_transport_options={"visibility_timeout": 3600},
     )

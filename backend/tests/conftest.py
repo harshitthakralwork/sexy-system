@@ -383,6 +383,12 @@ def make_account(
                 await connection.execute(
                     "delete from saved_reports where owner_user_id = $1", user_id
                 )
+                await connection.execute(
+                    "delete from export_jobs where owner_user_id = $1", user_id
+                )
+                await connection.execute(
+                    "delete from import_jobs where owner_user_id = $1", user_id
+                )
                 await connection.execute("delete from audit_logs where owner_user_id = $1", user_id)
                 await connection.execute("delete from user_sessions where user_id = $1", user_id)
                 await connection.execute("delete from user_settings where user_id = $1", user_id)

@@ -219,21 +219,8 @@ async def export_content(
     )
     export_rows = []
     for content, slug, author_username, author_profile_url in rows:
-        engagement = content.engagement_data or {}
         export_rows.append(
-            {
-                "platform": slug,
-                "content_type": content.content_type,
-                "content_url": content.content_url,
-                "content_text": content.content_text,
-                "author_username": author_username,
-                "author_profile_url": author_profile_url,
-                "published_at": content.published_at.isoformat() if content.published_at else "",
-                "collected_at": content.collected_at.isoformat() if content.collected_at else "",
-                "engagement_score": engagement.get("score", ""),
-                "engagement_comments": engagement.get("num_comments", ""),
-                "subreddit": engagement.get("subreddit", ""),
-            }
+            service.content_export_row(content, slug, author_username, author_profile_url)
         )
     await record_audit(
         session,
@@ -533,25 +520,7 @@ async def export_results(
     )
     export_rows = []
     for content, slug, username in rows:
-        export_rows.append(
-            {
-                "platform": slug,
-                "track_type": content.track_type or "",
-                "classification": content.classification or "",
-                "confidence_score": float(content.confidence_score)
-                if content.confidence_score is not None
-                else "",
-                "retrieval_status": content.retrieval_status or "",
-                "title": content.title or "",
-                "content_url": content.content_url or "",
-                "content_text": content.content_text or "",
-                "matched_terms": ",".join(content.matched_terms or []),
-                "published_at": content.published_at.isoformat() if content.published_at else "",
-                "discovered_at": content.discovered_at.isoformat() if content.discovered_at else "",
-                "author_username": username or "",
-                "needs_review": content.needs_review,
-            }
-        )
+        export_rows.append(service.intelligence_export_row(content, slug, username))
     await record_audit(
         session,
         action="export.create",

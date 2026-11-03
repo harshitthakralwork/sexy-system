@@ -26,6 +26,8 @@ interface RequestOptions {
   signal?: AbortSignal;
   timeoutMs?: number;
   headers?: Record<string, string>;
+  /** Send the body as multipart instead of JSON. */
+  form?: FormData;
 }
 
 async function request<T>(
@@ -33,7 +35,7 @@ async function request<T>(
   path: string,
   options: RequestOptions,
 ): Promise<T> {
-  const { method = "GET", body, signal, timeoutMs = DEFAULT_TIMEOUT_MS, headers } = options;
+  const { method = "GET", body, form, signal, timeoutMs = DEFAULT_TIMEOUT_MS, headers } = options;
 
   const timeout = AbortSignal.timeout(timeoutMs);
   const response = await fetch(`${base}${path}`, {
@@ -42,8 +44,10 @@ async function request<T>(
     // as the user, which is why it is HttpOnly and why these requests must not
     // be sent from a page the operator did not open.
     credentials: "include",
-    headers: { "Content-Type": "application/json", ...headers },
-    body: body === undefined ? undefined : JSON.stringify(body),
+    headers: form
+      ? headers
+      : { "Content-Type": "application/json", ...headers },
+    body: form ?? (body === undefined ? undefined : JSON.stringify(body)),
     // A hung request would otherwise leave a panel spinning with no message, so
     // every call is bounded. Caller cancellation and our timeout both apply.
     signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
@@ -92,6 +96,39 @@ export const api = {
       method: "DELETE",
       headers: csrf ? { "X-CSRF-Token": csrf } : undefined,
     }),
+  /**
+   * A multipart upload. The `Content-Type` header is left to the browser: it
+   * has to carry the multipart boundary, and setting it by hand produces a
+   * body the server cannot parse.
+   */
+  upload: <T>(path: string, form: FormData, csrf?: string | null, timeoutMs?: number) =>
+    request<T>(API_BASE, path, {
+      method: "POST",
+      form,
+      timeoutMs,
+      headers: csrf ? { "X-CSRF-Token": csrf } : undefined,
+    }),
+  /**
+   * Fetch a file the API produced. The bytes come back here so the caller can
+   * save them: a plain link would not carry the session cookie across origins
+   * on every browser.
+   */
+  download: async (path: string, timeoutMs = 60_000): Promise<Blob> => {
+    const response = await fetch(`${API_BASE}${path}`, {
+      credentials: "include",
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!response.ok) {
+      let parsed: ApiErrorBody | null = null;
+      try {
+        parsed = (await response.json()) as ApiErrorBody;
+      } catch {
+        parsed = null;
+      }
+      throw new ApiError(response.status, parsed, `${path} failed`);
+    }
+    return await response.blob();
+  },
 };
 
 /** Service endpoints outside the versioned API — health and readiness. */

@@ -144,6 +144,16 @@ class Settings(BaseSettings):
 
     default_region: str = "IN"
     export_dir: Path = Path("var/exports")
+    # How long a generated export stays downloadable. Expiry is a policy, not a
+    # courtesy: an export file is the account's own data sitting on disk, and it
+    # has no reason to outlive the session that asked for it.
+    export_retention_hours: int = 24
+    # Uploaded import files are held for the same reason and no longer.
+    import_retention_hours: int = 24
+    # An import is a bulk write. A cap keeps one upload from becoming a
+    # table-wide rewrite that holds locks for minutes.
+    max_import_rows: int = 5_000
+    max_import_file_bytes: int = 10 * 1024 * 1024
     retention_raw_days: int = 15
     retention_enrichment_days: int = 15
     # A job whose worker died mid-run leaves a row stuck in `running`. The
@@ -300,6 +310,27 @@ class Settings(BaseSettings):
             raise ValueError("stale_job_after_seconds must be between 300 and 604800")
         return value
 
+    @field_validator("export_retention_hours", "import_retention_hours")
+    @classmethod
+    def _bounded_file_expiry(cls, value: int) -> int:
+        if not 1 <= value <= 24 * 30:
+            raise ValueError("file retention hours must be between 1 and 720")
+        return value
+
+    @field_validator("max_import_rows")
+    @classmethod
+    def _bounded_import_rows(cls, value: int) -> int:
+        if not 1 <= value <= 100_000:
+            raise ValueError("max_import_rows must be between 1 and 100000")
+        return value
+
+    @field_validator("max_import_file_bytes")
+    @classmethod
+    def _bounded_import_size(cls, value: int) -> int:
+        if not 1024 <= value <= 100 * 1024 * 1024:
+            raise ValueError("max_import_file_bytes must be between 1 KiB and 100 MiB")
+        return value
+
     @field_validator("password_min_length")
     @classmethod
     def _valid_password_length(cls, value: int) -> int:
@@ -310,6 +341,21 @@ class Settings(BaseSettings):
     @property
     def is_production(self) -> bool:
         return self.app_env.lower() in {"production", "prod"}
+
+    @property
+    def storage_root(self) -> Path:
+        """Absolute root for generated and uploaded files.
+
+        A relative `export_dir` would resolve against the process working
+        directory, so the same configuration would write exports into different
+        places depending on where the backend was started from — and a file
+        written by one process would be invisible to the next.
+        """
+        if self.export_dir.is_absolute():
+            return self.export_dir
+        here = Path(__file__).resolve()
+        backend_dir = here.parents[2]  # .../sparkxflow-nexus/backend
+        return backend_dir.parent / self.export_dir
 
     def validate_for_startup(self) -> list[str]:
         """Return configuration problems that must be fixed before serving traffic."""

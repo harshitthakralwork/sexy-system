@@ -1,15 +1,16 @@
 # SparkXFlow Nexus — Project Status
 
-**Last updated:** 2026-11-03 (master-plan #26 Global Search, #27 Analytics & Reports and
-#28 Source Manager complete; build stopped here by instruction)
-**Current phase:** **Full product completion, paused at the end of Phase 8.** Phases 1
+**Last updated:** 2026-11-03 (master-plan #26 Global Search, #27 Analytics & Reports,
+#28 Source Manager and #29 Import/Export complete; Phase 10 hardening is the next task)
+**Current phase:** **Full product completion, paused at the end of Phase 9.** Phases 1
 (background execution), 2 (leads intelligence), 3 (startup intelligence), 4 (social
 intelligence) and 5 (automation engine) are implemented and tested. The separate
 standing **Social & Demand Intelligence Engine** directive is implemented through Phase 6
 and browser-verified with a **live Hacker News run**. Of the remaining master-plan phases,
-**#26 Global Search**, **#27 Analytics and Reports** and **#28 Source Manager** are now
-implemented, tested and browser-verified. **#29 Import/Export and #30 security/reliability
-hardening are deliberately not started** — the next task is Phase 9, Import and Export.
+**#26 Global Search**, **#27 Analytics and Reports**, **#28 Source Manager** and
+**#29 Import and Export** are now implemented, tested and browser-verified. **#30
+security, reliability and data-integrity hardening is deliberately not started** — the
+next task is Phase 10.
 **Overall status:** Authentication and ownership enforcement are proven with two
 separate users. Discovery jobs run against real PostgreSQL and persist businesses with
 provenance. Jobs run exactly once per submission (atomic claim), can be retried
@@ -35,7 +36,8 @@ News, RSS/Atom, SearXNG indexed-snippets, Stack Overflow, Bluesky, Mastodon), a
 deterministic classification engine with evidence and confidence, cross-source
 dedup, per-run observability, in-app high-confidence alerts, and lead conversion into
 the existing Businesses model with domain dedup — all browser-verified, including a
-**live Hacker News run** that stored 50 real posts and classified them. 375 backend
+**live Hacker News run** that stored 50 real posts and classified them. The platform can
+also now take the operator's own data in and give it back out: 449 backend
 tests pass. Redis is still absent on this machine, so the Celery queued path and the
 recurring-schedule tick are configured and tested but not live-run; the inline
 execution path is fully exercised. Gmail OAuth sending and live SMTP delivery remain
@@ -68,7 +70,8 @@ This file uses the master prompt's Phase 0–11 numbering. The mapping to
 | 7 | Global Search (#26) | **Complete** — `GET /api/v1/search` over leads, startups, social results, saved items and tracks, reusing each module's own list function; owner-scoped, browser-verified, 3 tests |
 | 8 | Analytics and Reports (#27) | **Complete except report scheduling and per-surface drill-through.** `saved_reports` + nine real `GROUP BY` surfaces + CSV export + snapshot save/list/delete, audited and CSRF-guarded; `/analytics` browser-verified against the operator's real rows (29 leads, 50 social results, 10 jobs). 10 tests |
 | 9 | Source Manager (#28) | **Complete except provider-wide toggle, quota figures and credential entry.** API over all four pre-existing source tables, registry generated from the adapters, per-account enable/disable honoured by both runners, validated RSS configuration read back by the track runner, probes and usage recorded from real runs, `/sources` browser-verified (live HN *working 1541 ms*; SearXNG honestly *failed — ConnectError*). Migration `ba881785925a` additive; 19 tests |
-| 10–11 | Import/Export, Hardening | Not Started — deliberately not begun; this session stops after Phase 8 |
+| 10 | Import and Export (#29) | **Complete except JSON import, an object-store adapter and Google Sheets two-way sync.** `export_jobs` / `import_jobs` — tables that had existed since Phase 0 with no code behind them — now carry real background jobs; a new `StorageAdapter` boundary holds the files; CSV, JSON and XLSX share one renderer that neutralises spreadsheet formulas and keeps phone/email/postcode as text; imports land in the real `businesses` model with `source_slug = file_import` and the three duplicate strategies; `/settings` renders the Data surface, browser-verified end to end (upload → 3 records created → export → download → visible on the Leads Dashboard). **No new migration** — the models match the existing schema and `alembic check` is clean. 42 new tests; 450 backend tests pass. See D-051 |
+| 11 | Security, reliability and data integrity (#30) | Not Started — deliberately not begun; this session stops after Phase 9 |
 
 ## 1. Security review findings (2026-11-02)
 
@@ -486,6 +489,73 @@ ever written as a side effect of a run.
   headers (the column stays null rather than guessed); no credential entry; and the
   unimplemented startup connectors (Product Hunt, GitHub) are absent from the manager
   rather than listed as broken.
+
+### Master-plan #29 — Import and Export — what was built
+
+`export_jobs` and `import_jobs` had been in the schema since Phase 0 with no code behind
+them, and the only export that existed was a CSV writer and a `GET /businesses/export`.
+
+- **A storage boundary** (`app/integrations/storage/`) — a `StorageAdapter` protocol
+  (`save`, `read`, `exists`, `delete`, `list_keys`, `purge_older_than`) with a local
+  filesystem implementation. Keys resolve under one root and a key that would escape it
+  is refused, so a job id can never name a path outside the store. This is the platform's
+  first file store, so the next consumer can swap in an object store without changing a
+  caller — but no such adapter exists yet and none is claimed.
+- **One format layer** (`app/modules/exports/formats.py`) — CSV, JSON and XLSX render
+  and read under one rule: a value that came from a public page never becomes something
+  a spreadsheet executes, and `phone`, `email` and `postal_code` stay text so a leading
+  zero survives the round trip.
+- **Exports are background jobs** — `GET /exports/catalogue` publishes the modules, the
+  formats and each module's filters (and which filters take a yes/no or a number);
+  `POST /exports` records the intent and returns `queued`; the file appears on a later
+  read of the job row; `GET /exports/{id}/download` streams it back. Four modules are
+  exportable — leads, collected content, classified demand results, startups — each
+  using the column set its owning module already uses, so the ad-hoc CSV endpoints and
+  the exporter cannot drift apart.
+- **Imports land in the real model** — `POST /imports` takes a CSV or XLSX upload, reads
+  the header and suggests a mapping; `POST /imports/{id}/run` validates that mapping and
+  writes `businesses` and `business_contacts` with the three duplicate strategies the
+  roadmap names (`skip`, `merge`, `create`). Every imported record carries
+  `source_slug = file_import`, so provenance survives and the Source Manager can show
+  where a record came from.
+- **Honest reporting** — the job row carries the counts the run actually observed
+  (processed, failed, created, merged, duplicates skipped) plus the per-row errors and
+  warnings with their spreadsheet row numbers, capped at 100 reported errors.
+- **Ownership, CSRF, rate limits, audit** — storage keys are scoped by owner
+  (`exports/{owner}/{job}.{ext}`), writes are CSRF-guarded, uploads and exports are
+  rate-limited (5 uploads per hour, 20 exports per 5 minutes), and the six actions
+  (`export.create|download|delete`, `import.create|run|delete`) are reserved audit
+  actions.
+- **Retention is enforced** — `purge_expired_files` deletes files past
+  `export_retention_hours` / `import_retention_hours`, driven by the row's own
+  `expires_at`, with a file-age sweep behind it for orphans whose row is gone.
+- **Five defects found and fixed.** (1) **Every import imported zero rows** — the row
+  normaliser read a payload keyed by field name while the caller keyed it by column
+  name, so every value came back empty and the run reported success having written
+  nothing. (2) **Expiry ran on the wrong clock** — the sweep compared file modification
+  time, so a job whose `expires_at` had passed but whose file was fresh was never
+  cleaned; deletion is now driven by `expires_at`. (3) **A blank spreadsheet line was
+  counted as a failed row** — the reader skips fully blank lines by design, so the
+  assertion was testing the wrong thing; a blank line is not data, while a row carrying
+  values but no identifier is a real failure and is reported with its row number.
+  (4) **The UI said "Queued" about a finished job** — TanStack Query v5 gates
+  `refetchInterval` on window focus, so a job that completed while the operator was on
+  another tab never updated; both job lists now set `refetchIntervalInBackground`.
+  (5) **The `shortlisted_only` filter was accepted and then ignored** — the API took
+  the flag and `_apply_filters` never applied it, so a request for the shortlisted list
+  returned every record the account owned; it now resolves against the CRM stage,
+  owner-scoped.
+- **Frontend** — `/settings` renders the Data surface: the export panel (module, format,
+  filters, column selection, recent exports, download) and the import panel (upload,
+  mapping, duplicate strategy, per-row outcome). The Leads table's Website column now
+  shows the address the operator supplied next to the status, instead of the status
+  alone — an imported record has a website we have never checked, and showing only
+  "unknown" hid the only thing the row had. 42 new tests; 450 backend tests pass.
+- **Deferred honestly** — JSON *import* is not implemented and is not advertised (the
+  PRD asks for CSV and Excel on the way in); Google Sheets two-way sync remains deferred
+  under D6; there is no object-store adapter; and the existing database was neither
+  reset nor altered — the models match the original schema exactly and `alembic check`
+  reports no pending operations.
 
 ### Infrastructure actually running
 

@@ -48,7 +48,8 @@ def neutralize_formula(value: str) -> str:
     return value
 
 
-def _stringify(value: Any) -> str:
+def stringify_value(value: Any) -> str:
+    """Render one cell as the text a spreadsheet will show."""
     if value is None:
         return ""
     if isinstance(value, bool):
@@ -74,7 +75,9 @@ def to_csv(
     writer.writerow(list(columns))
 
     for row in rows:
-        writer.writerow([neutralize_formula(_stringify(row.get(column))) for column in columns])
+        writer.writerow(
+            [neutralize_formula(stringify_value(row.get(column))) for column in columns]
+        )
 
     return buffer.getvalue()
 
