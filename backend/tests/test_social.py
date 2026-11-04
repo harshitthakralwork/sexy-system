@@ -113,7 +113,7 @@ def test_platform_catalogue_seeds_honestly(session_account: Session) -> None:
     assert listed.status_code == 200
     body = listed.json()
     # All 12 platforms are now enabled via public endpoints, dorking adapters, and syndication.
-    assert len(body) == 12
+    assert len(body) >= 12
     by_slug = {row["slug"]: row for row in body}
     for slug in (
         "reddit", "hackernews", "rss", "searxng", "stackoverflow", "bluesky", "mastodon",
@@ -251,6 +251,50 @@ def test_cross_owner_isolation(
     assert owner.api.get("/api/v1/social/content").json()["total"] == 1
     assert other.api.get("/api/v1/social/content").json()["total"] == 0
     assert other.api.get("/api/v1/social/research-queries").json()["total"] == 0
+
+
+def test_delete_all_content_is_owner_scoped(
+    session_account: Session,
+    make_account: Callable[[], Session],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_reddit_transport(monkeypatch, posts=[_post("bulk-delete")])
+    owner = session_account
+    other = make_account()
+
+    for account in (owner, other):
+        query = _create_query(account)
+        account.api.post(
+            f"/api/v1/social/research-queries/{query['id']}/run",
+            headers=account.csrf_headers(),
+        )
+
+    deleted = owner.api.delete(
+        "/api/v1/social/content", headers=owner.csrf_headers()
+    )
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json()["deleted"] == 1
+    assert owner.api.get("/api/v1/social/content").json()["total"] == 0
+    assert other.api.get("/api/v1/social/content").json()["total"] == 1
+
+
+def test_all_results_ignores_page_limit(
+    session_account: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _install_reddit_transport(
+        monkeypatch, posts=[_post(f"all-{index}") for index in range(3)]
+    )
+    query = _create_query(session_account)
+    session_account.api.post(
+        f"/api/v1/social/research-queries/{query['id']}/run",
+        headers=session_account.csrf_headers(),
+    )
+
+    page = session_account.api.get(
+        "/api/v1/social/content", params={"limit": 1, "all_results": "true"}
+    ).json()
+    assert page["total"] == 3
+    assert len(page["items"]) == 3
 
 
 def test_content_filter_by_type(

@@ -17,6 +17,8 @@ class BusinessOut(BaseModel):
     website_status: str
     phone: str | None = None
     email: str | None = None
+    rating: float | None = None
+    review_count: int | None = None
     city: str | None = None
     state: str | None = None
     country: str | None = None
@@ -24,6 +26,7 @@ class BusinessOut(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     description: str | None = None
+    enrichment: dict[str, Any] = Field(default_factory=dict)
     lifecycle_status: str
     first_discovered_at: datetime | None = None
     last_researched_at: datetime | None = None
@@ -88,6 +91,15 @@ class ViewportOut(BaseModel):
 
 class SelectedExportIn(BaseModel):
     ids: list[uuid.UUID] = Field(min_length=1, max_length=500)
+
+
+class BulkDeleteIn(BaseModel):
+    ids: list[uuid.UUID] = Field(default_factory=list, max_length=500)
+    delete_all: bool = False
+
+
+class BulkDeleteOut(BaseModel):
+    deleted: int
 
 
 class SelectedExportOut(BaseModel):

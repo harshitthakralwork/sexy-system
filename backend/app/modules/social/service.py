@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
@@ -23,6 +23,7 @@ from app.modules.social.connectors import (
     FacebookAdapter,
     HackerNewsAdapter,
     InstagramAdapter,
+    JustdialAdapter,
     LinkedInAdapter,
     MastodonAdapter,
     RssAtomAdapter,
@@ -102,6 +103,7 @@ def _build_adapter(settings: Settings, adapter_key: str) -> SocialAdapter:
             settings.reddit_base_url,
             user_agent=settings.reddit_user_agent,
             timeout_seconds=settings.reddit_timeout_seconds,
+            searxng_base_url=settings.searxng_base_url,
         )
     if adapter_key == "hackernews":
         return HackerNewsAdapter(
@@ -175,6 +177,13 @@ def _build_adapter(settings: Settings, adapter_key: str) -> SocialAdapter:
             timeout_seconds=settings.searxng_timeout_seconds,
             results_per_page=settings.searxng_results_per_page,
         )
+    if adapter_key in ("justdial", "directory"):
+        return JustdialAdapter(
+            settings.searxng_base_url,
+            user_agent=settings.social_user_agent,
+            timeout_seconds=settings.searxng_timeout_seconds,
+            results_per_page=settings.searxng_results_per_page,
+        )
     raise SourceUnavailableError(adapter_key, "no adapter is registered for this platform")
 
 
@@ -229,7 +238,7 @@ async def list_research_queries(
     session: AsyncSession,
     *,
     owner_user_id: uuid.UUID,
-    limit: int,
+    limit: int | None,
     offset: int,
 ) -> tuple[list[SocialResearchQuery], int]:
     await ensure_platforms(session)
@@ -468,9 +477,10 @@ async def list_content(
     total = await session.scalar(
         select(func.count()).select_from(stmt.subquery())
     ) or 0
-    rows = await session.execute(
-        stmt.order_by(SocialContent.collected_at.desc()).limit(limit).offset(offset)
-    )
+    rows_stmt = stmt.order_by(SocialContent.collected_at.desc())
+    if limit is not None:
+        rows_stmt = rows_stmt.limit(limit).offset(offset)
+    rows = await session.execute(rows_stmt)
     return [
         (row[0], row[1], row[2], row[3])
         for row in rows.all()
@@ -604,3 +614,13 @@ async def delete_content(
     if content is None:
         raise NotFoundError("Content not found")
     await session.delete(content)
+
+
+async def delete_all_content(
+    session: AsyncSession, *, owner_user_id: uuid.UUID
+) -> int:
+    """Delete only the current owner's collected social content."""
+    result = await session.execute(
+        delete(SocialContent).where(SocialContent.owner_user_id == owner_user_id)
+    )
+    return int(result.rowcount or 0)

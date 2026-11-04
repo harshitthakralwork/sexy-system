@@ -1,10 +1,11 @@
 "use client";
 
-import { Bell, Search } from "lucide-react";
+import { Bell, Moon, Search, Sun } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
 import { useSession } from "@/components/providers/session-provider";
+import { useTheme } from "@/components/providers/theme-provider";
 import { useBackendStatus } from "@/hooks/use-backend-status";
 import { cn } from "@/lib/utils";
 
@@ -24,7 +25,7 @@ function StatusBadge() {
   return (
     <Link
       href="/sources"
-      className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium text-[var(--color-muted)] hover:border-white/20 transition-all sm:flex"
+      className="hidden items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)]/70 px-3 py-1.5 text-xs font-medium text-[var(--color-muted)] shadow-inner hover:border-[var(--color-border-highlight)] transition-all sm:flex"
       title="Infrastructure & Source Health"
     >
       <span
@@ -37,7 +38,7 @@ function StatusBadge() {
               : "bg-[#FF6666]"
         )}
       />
-      <span className="text-[11px] font-semibold tracking-wide text-white/90">
+      <span className="text-[11px] font-semibold tracking-wide text-[var(--color-foreground)]">
         {STATE_LABEL[status.state]}
       </span>
     </Link>
@@ -45,15 +46,16 @@ function StatusBadge() {
 }
 
 export function Header({ title, subtitle }: { title: string; subtitle?: string }) {
+  const { toggleTheme } = useTheme();
   function triggerSearch() {
     window.dispatchEvent(new CustomEvent("open-command-palette"));
   }
 
   return (
-    <header className="flex h-[76px] shrink-0 items-center justify-between gap-4 border-b border-[var(--color-border)] bg-[var(--color-sidebar)]/80 px-6 sm:px-8 backdrop-blur-xl">
+    <header className="mx-3 mt-3 flex h-[68px] shrink-0 items-center justify-between gap-4 rounded-[24px] border border-[var(--color-border)] bg-[var(--color-sidebar)] px-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_16px_38px_rgba(45,48,43,0.12)] backdrop-blur-2xl sm:px-6">
       {/* Page Title & Subtitle */}
       <div className="min-w-0">
-        <h1 className="truncate text-xl font-bold tracking-tight text-white sm:text-2xl font-sans">
+        <h1 className="truncate text-xl font-bold tracking-tight text-[var(--color-foreground)] sm:text-2xl font-sans">
           {title}
         </h1>
         {subtitle && (
@@ -71,20 +73,31 @@ export function Header({ title, subtitle }: { title: string; subtitle?: string }
         <button
           type="button"
           onClick={triggerSearch}
-          className="flex items-center gap-2.5 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-xs text-[var(--color-muted)] transition-all hover:border-white/20 hover:text-white"
+          className="flex items-center gap-2.5 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)]/70 px-3.5 py-1.5 text-xs text-[var(--color-muted)] shadow-inner transition-all hover:border-[var(--color-border-highlight)] hover:text-[var(--color-foreground)]"
           title="Search Anything (⌘K)"
         >
           <Search size={14} className="text-[var(--color-muted)]" aria-hidden />
           <span className="hidden sm:inline font-medium">Search...</span>
-          <kbd className="rounded bg-black/40 px-1.5 py-0.5 text-[10px] font-mono text-[var(--color-muted)]">
+          <kbd className="rounded bg-[var(--color-surface-elevated)] px-1.5 py-0.5 text-[10px] font-mono text-[var(--color-muted)]">
             ⌘K
           </kbd>
+        </button>
+
+        <button
+          type="button"
+          onClick={toggleTheme}
+          className="relative flex h-9 w-9 items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-surface)]/70 text-[var(--color-muted)] shadow-inner transition-colors hover:border-[var(--color-border-highlight)] hover:text-[var(--color-foreground)]"
+          title="Toggle color theme"
+          aria-label="Toggle color theme"
+        >
+          <Moon className="theme-icon-light" size={16} />
+          <Sun className="theme-icon-dark" size={16} />
         </button>
 
         {/* Notification Bell */}
         <Link
           href="/notifications"
-          className="relative flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-[var(--color-muted)] transition-colors hover:border-white/20 hover:text-white"
+          className="relative flex h-9 w-9 items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-surface)]/70 text-[var(--color-muted)] shadow-inner transition-colors hover:border-[var(--color-border-highlight)] hover:text-[var(--color-foreground)]"
           title="Notifications & Alerts"
         >
           <Bell size={16} />
@@ -117,7 +130,7 @@ function UserCapsule() {
     <div className="flex items-center gap-2">
       {/* Stylized Avatar Frame (Matching Image 2's gold/amber avatar ring) */}
       <div
-        className="relative flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-tr from-[#3A373E] to-[#252428] border-2 border-[#FF7849]/50 shadow-md font-bold text-xs text-white"
+        className="relative flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-tr from-[var(--color-primary)] to-[var(--color-secondary)] border-2 border-white/50 shadow-md font-bold text-xs text-white"
         title={user.email}
       >
         <span>{initials}</span>
@@ -134,7 +147,7 @@ function UserCapsule() {
             setBusy(false);
           }
         }}
-        className="hidden sm:inline-flex rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-[var(--color-muted)] hover:border-white/20 hover:text-white transition-all disabled:opacity-50"
+        className="hidden sm:inline-flex rounded-full border border-[var(--color-border)] bg-[var(--color-surface)]/70 px-3 py-1.5 text-xs font-semibold text-[var(--color-muted)] hover:border-[var(--color-border-highlight)] hover:text-[var(--color-foreground)] transition-all disabled:opacity-50"
       >
         {busy ? "..." : "Sign out"}
       </button>

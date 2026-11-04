@@ -765,9 +765,17 @@ class StackOverflowAdapter(_HttpConnector):
 
     async def search(self, config: dict[str, Any]) -> list[SocialResult]:
         await self.validate_config(config)
+        sort = str(config.get("sort", "creation")).lower()
+        # Older saved queries used Reddit's "new" value. Keep them runnable.
+        if sort == "new":
+            sort = "creation"
+        if sort not in {"activity", "votes", "creation", "relevance"}:
+            raise UnsupportedQueryError(
+                "Stack Overflow sort must be activity, votes, creation, or relevance"
+            )
         params = {
             "order": "desc",
-            "sort": config.get("sort", "new"),
+            "sort": sort,
             "q": str(config["q"]).strip(),
             "site": "stackoverflow",
             "pagesize": min(int(config.get("limit", 25)), 50),
@@ -1533,6 +1541,108 @@ class YouTubeAdapter(SearxngDorkingAdapter):
         return None
 
 
+
+
+class JustdialAdapter(SearxngDorkingAdapter):
+    """Justdial and Public Local Directory Adapter.
+
+    Discovers publicly indexed listings via site-targeted SearXNG metasearch dorking
+    (site:justdial.com) and extracts business details (name, address, phone, rating, website).
+    """
+
+    @property
+    def capabilities(self) -> AdapterCapabilities:
+        return AdapterCapabilities(
+            adapter_key="justdial",
+            name="Justdial & Public Directories",
+            slug="justdial",
+            category="social",
+            supported_query_types=("keyword", "business"),
+            supported_filters=("language", "time_range"),
+            available_fields=("name", "phone", "website", "address", "rating", "review_count"),
+            geographic_coverage="India & regional local business directories",
+            access_requirements=("Reachable SearXNG instance",),
+            rate_limit_notes="Governed by metasearch upstream engine limits",
+            terms_notes="Publicly indexed search intelligence.",
+            max_results_per_query=self._results_per_page,
+        )
+
+    async def validate_config(self, config: dict[str, Any]) -> None:
+        q = str(config.get("q", "") or config.get("primary", "")).strip()
+        if not q:
+            raise UnsupportedQueryError("Justdial query requires search keywords or a business target")
+        if len(q) > MAX_QUERY_LENGTH:
+            raise UnsupportedQueryError(f"Query is {len(q)} chars; limit is {MAX_QUERY_LENGTH}")
+
+    async def search(self, config: dict[str, Any]) -> list[SocialResult]:
+        await self.validate_config(config)
+        raw_q = str(config.get("q", "") or config.get("primary", "")).strip()
+        if "site:justdial.com" in raw_q:
+            dorked_query = raw_q
+        else:
+            dorked_query = f"site:justdial.com {raw_q}"
+
+        modified_config = {**config, "q": dorked_query}
+        results = await self._searxng.search(modified_config)
+        self.requests_made += self._searxng.requests_made
+
+        refined: list[SocialResult] = []
+        for r in results:
+            url = r.content_url or ""
+            biz_details: dict[str, Any] = {}
+            if url and "justdial.com" in url:
+                try:
+                    from app.modules.discovery.public_fetch import fetch_public_page
+                    fetch_res = await fetch_public_page(url)
+                    if fetch_res.status == "full_text" and fetch_res.body_text:
+                        import json
+                        import re
+                        json_ld_matches = re.findall(r"""<script[^>]*type=['"]application/ld\+json['"][^>]*>(.*?)</script>""",
+                            fetch_res.body_text,
+                            re.DOTALL | re.IGNORECASE,
+                        )
+                        for raw_ld in json_ld_matches:
+                            try:
+                                ld = json.loads(raw_ld.strip())
+                                if isinstance(ld, dict) and any(
+                                    t in str(ld.get("@type", ""))
+                                    for t in ("LocalBusiness", "Store", "Organization", "Restaurant")
+                                ):
+                                    biz_details["name"] = ld.get("name")
+                                    biz_details["phone"] = ld.get("telephone")
+                                    biz_details["website_url"] = ld.get("url")
+                                    if isinstance(ld.get("aggregateRating"), dict):
+                                        biz_details["rating"] = ld["aggregateRating"].get("ratingValue")
+                                        biz_details["review_count"] = ld["aggregateRating"].get("reviewCount")
+                                    if isinstance(ld.get("address"), dict):
+                                        addr = ld["address"]
+                                        biz_details["address"] = (
+                                            f"{addr.get('streetAddress', '')}, {addr.get('addressLocality', '')}, {addr.get('postalCode', '')}"
+                                        ).strip(" ,")
+                                    break
+                            except Exception:
+                                pass
+                except Exception:
+                    pass
+
+            refined.append(
+                SocialResult(
+                    external_id=r.external_id,
+                    content_url=url,
+                    content_type="directory_listing",
+                    content_text=r.content_text,
+                    published_at=r.published_at,
+                    engagement=r.engagement,
+                    author_display_name=biz_details.get("name") or r.author_display_name,
+                    raw_data={
+                        **r.raw_data,
+                        "platform": "justdial",
+                        "business_details": biz_details,
+                    },
+                )
+            )
+        return refined
+
 ADAPTER_REGISTRY: dict[str, str] = {
     "reddit": "RedditAdapter",
     "hackernews": "HackerNewsAdapter",
@@ -1546,4 +1656,5 @@ ADAPTER_REGISTRY: dict[str, str] = {
     "facebook": "FacebookAdapter",
     "x": "XSocialAdapter",
     "youtube": "YouTubeAdapter",
+    "justdial": "JustdialAdapter",
 }

@@ -10,7 +10,7 @@ from app.core.config import get_settings
 from app.core.database import AsyncSessionDep
 from app.modules.auth.dependencies import CurrentUser, require_csrf_for_state_changes
 from app.modules.exports.csv_export import to_csv
-from app.modules.social import service, tracks
+from app.modules.social import post_service, service, tracks
 from app.modules.social.models import SocialContent, SocialResearchQuery
 from app.modules.social.schemas import (
     ConvertResultOut,
@@ -18,7 +18,13 @@ from app.modules.social.schemas import (
     DiscoveryRunOut,
     IntelligenceListOut,
     IntelligenceResultOut,
+    LeadsDashboardOut,
     NotificationOut,
+    PostAnnotationIn,
+    PostAnnotationOut,
+    PostBulkActionIn,
+    PostListOut,
+    PostOut,
     SavedItemIn,
     SavedItemOut,
     SocialContentListOut,
@@ -163,6 +169,7 @@ async def list_content(
     content_type: str | None = Query(default=None, max_length=50),
     limit: int = Query(default=50, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
+    all_results: bool = Query(default=False),
 ) -> SocialContentListOut:
     rows, total = await service.list_content(
         session,
@@ -170,8 +177,8 @@ async def list_content(
         platform_slug=platform_slug,
         query=query,
         content_type=content_type,
-        limit=limit,
-        offset=offset,
+        limit=None if all_results else limit,
+        offset=0 if all_results else offset,
     )
     return SocialContentListOut(
         items=[
@@ -194,8 +201,8 @@ async def list_content(
             for content, slug, author_username, author_profile_url in rows
         ],
         total=total,
-        limit=limit,
-        offset=offset,
+        limit=total if all_results else limit,
+        offset=0 if all_results else offset,
     )
 
 
@@ -236,6 +243,24 @@ async def export_content(
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="sparkxflow-social.csv"'},
     )
+
+
+@router.delete("/content", response_model=dict, dependencies=[Csrf])
+async def delete_all_content(
+    request: Request,
+    session: AsyncSessionDep,
+    user: CurrentUser,
+) -> dict:
+    deleted = await service.delete_all_content(session, owner_user_id=user.id)
+    await record_audit(
+        session,
+        action="social.content_delete_all",
+        owner_user_id=user.id,
+        entity_type="social_content",
+        ip_address=client_ip(request),
+        metadata={"deleted": deleted},
+    )
+    return {"deleted": deleted, "message": "All collected content deleted"}
 
 
 @router.delete("/content/{content_id}", response_model=dict, dependencies=[Csrf])
@@ -634,3 +659,120 @@ async def list_saved(
 ) -> list[SavedItemOut]:
     rows, _ = await tracks.list_saved(session, user.id, limit=limit, offset=offset)
     return [SavedItemOut.model_validate(row) for row in rows]
+
+
+# --- Post & Lead Intelligence Endpoints ------------------------------------
+
+
+@router.get("/posts", response_model=PostListOut)
+async def list_posts(
+    session: AsyncSessionDep,
+    user: CurrentUser,
+    q: str | None = Query(default=None, max_length=200),
+    intent: str | None = Query(default=None, max_length=100),
+    retrieval_status: str | None = Query(default=None, max_length=50),
+    min_confidence: float | None = Query(default=None, ge=0.0, le=1.0),
+    lead_status: str | None = Query(default=None, max_length=50),
+    is_hot: bool | None = Query(default=None),
+    service_tag: str | None = Query(default=None, max_length=100),
+    discovery_run_id: uuid.UUID | None = Query(default=None),
+    platform: str | None = Query(default=None, max_length=50),
+    sort_by: str = Query(default="discovered_at", max_length=50),
+    sort_desc: bool = Query(default=True),
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+) -> PostListOut:
+    return await post_service.list_posts(
+        session,
+        user.id,
+        q=q,
+        intent=intent,
+        retrieval_status=retrieval_status,
+        min_confidence=min_confidence,
+        lead_status=lead_status,
+        is_hot=is_hot,
+        service_tag=service_tag,
+        discovery_run_id=discovery_run_id,
+        platform=platform,
+        sort=sort_by,
+        descending=sort_desc,
+        limit=limit,
+        offset=offset,
+    )
+
+
+@router.get("/posts/{post_id}", response_model=PostOut)
+async def get_post(
+    post_id: uuid.UUID,
+    session: AsyncSessionDep,
+    user: CurrentUser,
+) -> PostOut:
+    return await post_service.get_post(session, user.id, post_id)
+
+
+@router.patch("/posts/{post_id}/annotation", response_model=PostAnnotationOut, dependencies=[Csrf])
+async def update_post_annotation(
+    post_id: uuid.UUID,
+    payload: PostAnnotationIn,
+    session: AsyncSessionDep,
+    user: CurrentUser,
+    request: Request,
+) -> PostOut:
+    post = await post_service.update_post_annotation(session, user.id, post_id, payload)
+    await record_audit(
+        session,
+        action="social.post_annotated",
+        owner_user_id=user.id,
+        entity_type="social_content",
+        entity_id=post_id,
+        ip_address=client_ip(request),
+        metadata={"lead_status": payload.lead_status, "is_hot": payload.is_hot},
+    )
+    return post
+
+
+@router.post("/posts/{post_id}/retry-fetch", response_model=PostOut, dependencies=[Csrf])
+async def retry_post_fetch(
+    post_id: uuid.UUID,
+    session: AsyncSessionDep,
+    user: CurrentUser,
+    request: Request,
+) -> PostOut:
+    post = await post_service.retry_post_fetch(session, user.id, post_id)
+    await record_audit(
+        session,
+        action="social.post_retry_fetch",
+        owner_user_id=user.id,
+        entity_type="social_content",
+        entity_id=post_id,
+        ip_address=client_ip(request),
+    )
+    return post
+
+
+@router.post("/posts/bulk-action", response_model=dict, dependencies=[Csrf])
+async def bulk_post_action(
+    payload: PostBulkActionIn,
+    session: AsyncSessionDep,
+    user: CurrentUser,
+    request: Request,
+) -> dict:
+    result = await post_service.bulk_post_action(session, user.id, payload)
+    await record_audit(
+        session,
+        action="social.posts_bulk_action",
+        owner_user_id=user.id,
+        entity_type="social_content",
+        ip_address=client_ip(request),
+        metadata={"action": payload.action, "count": len(payload.post_ids)},
+    )
+    return result
+
+
+@router.get("/leads-dashboard", response_model=LeadsDashboardOut)
+async def get_leads_dashboard(
+    session: AsyncSessionDep,
+    user: CurrentUser,
+) -> LeadsDashboardOut:
+    return await post_service.get_leads_dashboard(session, user.id)
+

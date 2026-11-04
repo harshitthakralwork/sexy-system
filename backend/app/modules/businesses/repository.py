@@ -319,6 +319,32 @@ async def soft_delete(
     business.lifecycle_status = "deleted"
 
 
+async def soft_delete_many(
+    session: AsyncSession,
+    *,
+    owner_user_id: uuid.UUID,
+    business_ids: Sequence[uuid.UUID] | None = None,
+) -> int:
+    """Soft-delete selected rows, or every active row owned by the caller."""
+    statement = select(Business).where(
+        Business.owner_user_id == owner_user_id,
+        Business.deleted_at.is_(None),
+    )
+    if business_ids is not None:
+        statement = statement.where(Business.id.in_(list(business_ids)))
+    rows = list((await session.scalars(statement)).all())
+    if not rows:
+        return 0
+    from datetime import UTC, datetime
+
+    deleted_at = datetime.now(UTC)
+    for business in rows:
+        business.deleted_at = deleted_at
+        business.lifecycle_status = "deleted"
+    await session.flush()
+    return len(rows)
+
+
 async def list_notes(
     session: AsyncSession, owner_user_id: uuid.UUID, business_id: uuid.UUID
 ) -> list[BusinessNote]:
@@ -560,4 +586,5 @@ __all__ = [
     "list_businesses",
     "shortlist",
     "soft_delete",
+    "soft_delete_many",
 ]

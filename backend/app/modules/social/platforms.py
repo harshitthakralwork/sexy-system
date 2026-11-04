@@ -157,14 +157,14 @@ PLATFORM_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "adapter_key": "linkedin",
         "is_enabled": True,
         "capabilities": {
-            "access_method": "SearXNG metasearch dorking & Playwright stealth integration",
+            "access_method": "SearXNG metasearch site search",
             "searchable": ["keyword", "profile", "company"],
             "available_fields": ["title", "url", "snippet", "publishedDate"],
             "content_types": ["profile", "company", "post"],
         },
         "limitations": {
             "access": "Public profiles and company pages indexed via metasearch.",
-            "coverage": "Public web index snippets and stealth scraper extraction.",
+            "coverage": "Public web-index snippets only; this is not direct LinkedIn access.",
             "filters": "Keyword, headline, role, company, language.",
             "requires": "SearXNG metasearch instance.",
         },
@@ -175,14 +175,14 @@ PLATFORM_DEFINITIONS: tuple[dict[str, Any], ...] = (
         "adapter_key": "instagram",
         "is_enabled": True,
         "capabilities": {
-            "access_method": "SearXNG metasearch dorking & Playwright stealth integration",
+            "access_method": "SearXNG metasearch site search",
             "searchable": ["keyword", "hashtag", "handle"],
             "available_fields": ["title", "url", "snippet", "publishedDate"],
             "content_types": ["post"],
         },
         "limitations": {
             "access": "Public posts, captions, and creator profiles via metasearch.",
-            "coverage": "Public indexed web snippets and stealth extraction.",
+            "coverage": "Public web-index snippets only; this is not direct Instagram access.",
             "filters": "Keyword and hashtag search.",
             "requires": "SearXNG metasearch instance.",
         },
@@ -218,7 +218,8 @@ PLATFORM_DEFINITIONS: tuple[dict[str, Any], ...] = (
         },
         "limitations": {
             "access": "Public user timelines via syndication, oEmbed, and metasearch dorking.",
-            "coverage": "Real-time user timelines and indexed public tweets.",
+            "coverage": "Public syndication where available and web-index snippets; keyword "
+            "results are not guaranteed real-time.",
             "filters": "Keyword, username, and post URL.",
             "requires": "SearXNG metasearch instance.",
         },
@@ -238,6 +239,24 @@ PLATFORM_DEFINITIONS: tuple[dict[str, Any], ...] = (
             "access": "Public video metadata, channel RSS atom feeds, and oEmbed summaries.",
             "coverage": "Public videos and channel feeds without API key quotas.",
             "filters": "Keyword, channel ID, video URL.",
+            "requires": "SearXNG metasearch instance.",
+        },
+    },
+    {
+        "slug": "justdial",
+        "name": "Justdial & Directories",
+        "adapter_key": "justdial",
+        "is_enabled": True,
+        "capabilities": {
+            "access_method": "Public directory index & schema.org JSON-LD extraction",
+            "searchable": ["keyword", "business", "city"],
+            "available_fields": ["name", "phone", "website", "address", "rating", "review_count"],
+            "content_types": ["directory_listing"],
+        },
+        "limitations": {
+            "access": "Public directory listings discovered via SearXNG.",
+            "coverage": "Local service businesses and vendor directories.",
+            "filters": "Keyword, city, business type.",
             "requires": "SearXNG metasearch instance.",
         },
     },

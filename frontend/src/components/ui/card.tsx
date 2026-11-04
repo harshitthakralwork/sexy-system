@@ -6,7 +6,7 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
-        "rounded-[24px] border border-white/10 bg-[#2D2B30] p-5 shadow-sm transition-all hover:border-white/15",
+        "rounded-[26px] border border-[var(--color-border)] bg-[var(--color-card)] p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.38),0_18px_45px_rgba(45,48,43,0.12)] backdrop-blur-2xl transition-all hover:-translate-y-0.5 hover:border-[var(--color-border-highlight)]",
         className
       )}
       {...props}
@@ -19,7 +19,7 @@ export function CardTitle({ children }: { children: ReactNode }) {
 }
 
 export function CardValue({ children }: { children: ReactNode }) {
-  return <p className="mt-2 text-2xl font-bold tracking-tight text-white font-sans">{children}</p>;
+  return <p className="mt-2 text-2xl font-bold tracking-tight text-[var(--color-foreground)] font-sans">{children}</p>;
 }
 
 export function CardFootnote({ children }: { children: ReactNode }) {
@@ -36,8 +36,8 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center rounded-[28px] border border-dashed border-white/15 bg-white/[0.02] p-10 text-center">
-      <p className="text-sm font-semibold text-white">{title}</p>
+    <div className="flex flex-col items-center justify-center rounded-[28px] border border-dashed border-[var(--color-border-highlight)] bg-[var(--color-surface)]/45 p-10 text-center">
+      <p className="text-sm font-semibold text-[var(--color-foreground)]">{title}</p>
       <p className="mt-1.5 max-w-md text-xs text-[var(--color-muted)]">{description}</p>
       {action && <div className="mt-4">{action}</div>}
     </div>

@@ -16,7 +16,9 @@ class RegisterRequest(BaseModel):
 class LoginRequest(BaseModel):
     model_config = ConfigDict(str_strip_whitespace=True)
 
-    email: EmailStr = Field(max_length=320)
+    # Development may accept a local operator id which the router maps to an
+    # internal email. Registration still requires a real email-shaped value.
+    email: str = Field(min_length=1, max_length=320)
     password: str = Field(min_length=1, max_length=512)
 
 

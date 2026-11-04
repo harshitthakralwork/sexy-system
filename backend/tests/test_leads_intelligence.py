@@ -86,6 +86,25 @@ def test_default_catalog_is_seeded_with_rules(session_account: Session) -> None:
     }
 
 
+def test_bulk_delete_is_owner_scoped(
+    session_account: Session, make_account: Callable[[], Session]
+) -> None:
+    other = make_account()
+    own_id = _insert_business(session_account.user_id, name="Own bulk row")
+    other_id = _insert_business(other.user_id, name="Other bulk row")
+
+    response = session_account.api.post(
+        "/api/v1/businesses/bulk-delete",
+        json={"ids": [own_id, other_id], "delete_all": False},
+        headers=session_account.csrf_headers(),
+    )
+
+    assert response.status_code == 200, response.text
+    assert response.json()["deleted"] == 1
+    assert session_account.api.get("/api/v1/businesses").json()["total"] == 0
+    assert other.api.get("/api/v1/businesses").json()["total"] == 1
+
+
 def test_qualification_scores_the_observed_signals(session_account: Session) -> None:
     service_id = _default_service_id(session_account)
     business_id = _insert_business(

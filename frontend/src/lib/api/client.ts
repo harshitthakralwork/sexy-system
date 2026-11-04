@@ -11,7 +11,8 @@ export function getApiBase(): string {
 }
 
 export function getApiOrigin(): string {
-  return new URL(getApiBase()).origin;
+  const browserOrigin = typeof window !== "undefined" ? window.location.origin : "http://localhost:3000";
+  return new URL(getApiBase(), browserOrigin).origin;
 }
 
 const DEFAULT_TIMEOUT_MS = 8000;

@@ -233,16 +233,27 @@ def build_query(
                 classification="unsupported_query",
             )
         return {"feed_urls": list(feeds)}
-    if platform_slug in ("stackoverflow", "bluesky", "mastodon"):
+    if platform_slug in (
+        "stackoverflow",
+        "bluesky",
+        "mastodon",
+        "linkedin",
+        "instagram",
+        "facebook",
+        "x",
+        "youtube",
+    ):
         if not text:
             raise AdapterError(
                 f"{platform_slug} track needs a keyword", classification="unsupported_query"
             )
         cfg = {"q": text, "limit": limit}
         if platform_slug == "stackoverflow":
-            cfg["sort"] = track.source_config.get("sort", "new")
+            cfg["sort"] = track.source_config.get("sort", "creation")
             if track.source_config.get("tagged"):
                 cfg["tagged"] = track.source_config["tagged"]
+        elif platform_slug in ("linkedin", "instagram", "facebook", "x", "youtube"):
+            cfg["kind"] = "search"
         return cfg
     raise AdapterError(
         f"No query builder for platform '{platform_slug}'", classification="unsupported_query"

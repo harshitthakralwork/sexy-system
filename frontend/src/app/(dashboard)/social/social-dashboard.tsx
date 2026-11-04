@@ -16,7 +16,6 @@ import type {
   SocialRun,
 } from "@/lib/api/types";
 
-const PAGE_SIZE = 25;
 const VALID_SORTS = ["relevance", "hot", "new", "top", "comments"];
 
 /** Social Intelligence: platform catalogue, research queries and results. */
@@ -32,15 +31,15 @@ export function SocialDashboard() {
   const [typeFilter, setTypeFilter] = useState("");
   const [textQuery, setTextQuery] = useState("");
   const [appliedText, setAppliedText] = useState("");
-  const [offset, setOffset] = useState(0);
+  const [deletingAll, setDeletingAll] = useState(false);
 
   const contentParams = useMemo(() => {
-    const search = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
+    const search = new URLSearchParams({ all_results: "true" });
     if (platformFilter) search.set("platform_slug", platformFilter);
     if (typeFilter) search.set("content_type", typeFilter);
     if (appliedText) search.set("query", appliedText);
     return search.toString();
-  }, [platformFilter, typeFilter, appliedText, offset]);
+  }, [platformFilter, typeFilter, appliedText]);
 
   const platforms = useQuery({
     queryKey: ["social", "platforms"],
@@ -71,7 +70,23 @@ export function SocialDashboard() {
 
   function applyTextFilter() {
     setAppliedText(textQuery.trim());
-    setOffset(0);
+  }
+
+  async function deleteAllContent() {
+    if (!window.confirm(`Delete all ${totalContent} collected results? This cannot be undone.`)) {
+      return;
+    }
+    setDeletingAll(true);
+    setError(null);
+    try {
+      const result = await api.delete<{ deleted: number }>("/social/content", csrf);
+      setNotice(`${result.deleted} collected results deleted.`);
+      await invalidateContent();
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setDeletingAll(false);
+    }
   }
 
   if (!user) return null;
@@ -172,14 +187,25 @@ export function SocialDashboard() {
               <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--color-muted)]">
                 Collected content
               </h3>
-              <a
-                className="rounded-md border border-border px-2.5 py-1.5 text-xs text-[var(--color-muted)] hover:border-[var(--color-primary)]"
-                href={`${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1"}/social/content/export?platform_slug=${encodeURIComponent(
-                  platformFilter,
-                )}&content_type=${encodeURIComponent(typeFilter)}&query=${encodeURIComponent(appliedText)}`}
-              >
-                Export CSV
-              </a>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[var(--color-muted)]">{totalContent} results</span>
+                <a
+                  className="rounded-md border border-border px-2.5 py-1.5 text-xs text-[var(--color-muted)] hover:border-[var(--color-primary)]"
+                  href={`${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1"}/social/content/export?platform_slug=${encodeURIComponent(
+                    platformFilter,
+                  )}&content_type=${encodeURIComponent(typeFilter)}&query=${encodeURIComponent(appliedText)}`}
+                >
+                  Export CSV
+                </a>
+                <button
+                  className="rounded-md border border-[var(--color-error)] px-2.5 py-1.5 text-xs text-[var(--color-error)] disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={totalContent === 0 || deletingAll}
+                  onClick={deleteAllContent}
+                  type="button"
+                >
+                  {deletingAll ? "Deleting…" : "Delete all results"}
+                </button>
+              </div>
             </div>
 
             <div className="mt-2 flex flex-wrap items-end gap-3">
@@ -188,10 +214,7 @@ export function SocialDashboard() {
                 <select
                   className="mt-1 w-40 rounded-md border border-border bg-[var(--color-background)] px-2 py-1.5"
                   value={platformFilter}
-                  onChange={(event) => {
-                    setPlatformFilter(event.target.value);
-                    setOffset(0);
-                  }}
+                  onChange={(event) => setPlatformFilter(event.target.value)}
                 >
                   <option value="">any</option>
                   {(platforms.data ?? []).map((platform) => (
@@ -206,10 +229,7 @@ export function SocialDashboard() {
                 <select
                   className="mt-1 w-32 rounded-md border border-border bg-[var(--color-background)] px-2 py-1.5"
                   value={typeFilter}
-                  onChange={(event) => {
-                    setTypeFilter(event.target.value);
-                    setOffset(0);
-                  }}
+                  onChange={(event) => setTypeFilter(event.target.value)}
                 >
                   <option value="">any</option>
                   <option value="post">post</option>
@@ -279,32 +299,6 @@ export function SocialDashboard() {
               </div>
             )}
 
-            {totalContent > PAGE_SIZE && (
-              <div className="mt-3 flex items-center justify-between text-sm text-[var(--color-muted)]">
-                <span>
-                  Showing {totalContent === 0 ? 0 : offset + 1}–
-                  {Math.min(offset + PAGE_SIZE, totalContent)} of {totalContent}
-                </span>
-                <div className="flex gap-2">
-                  <button
-                    className={buttonClass(false)}
-                    disabled={offset === 0}
-                    onClick={() => setOffset((value) => Math.max(0, value - PAGE_SIZE))}
-                    type="button"
-                  >
-                    Previous
-                  </button>
-                  <button
-                    className={buttonClass(false)}
-                    disabled={offset + PAGE_SIZE >= totalContent}
-                    onClick={() => setOffset((value) => value + PAGE_SIZE)}
-                    type="button"
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            )}
           </Card>
         </div>
       </main>
@@ -316,18 +310,25 @@ function PlatformCard({ platform }: { platform: SocialPlatform }) {
   const firstLimitation = Object.values(platform.limitations).find(
     (value): value is string => typeof value === "string" && value.length > 0,
   );
+  const status = !platform.is_enabled
+    ? { label: "restricted", tone: "text-[var(--color-muted)]" }
+    : platform.health_status === "working"
+      ? { label: "working", tone: "text-[var(--color-success)]" }
+      : platform.health_status === "failed"
+        ? { label: "failing", tone: "text-[var(--color-error)]" }
+        : platform.health_status === "degraded"
+          ? { label: "degraded", tone: "text-[var(--color-warning)]" }
+          : { label: "not tested", tone: "text-[var(--color-muted)]" };
   return (
     <div className="rounded-md border border-border p-3">
       <div className="flex items-center justify-between">
         <span className="font-medium">{platform.name}</span>
-        <span
-          className={`text-xs ${platform.is_enabled ? "text-[var(--color-success)]" : "text-[var(--color-muted)]"}`}
-        >
-          {platform.is_enabled ? "available" : "restricted"}
-        </span>
+        <span className={`text-xs ${status.tone}`}>{status.label}</span>
       </div>
       <p className="mt-1 text-xs text-[var(--color-muted)]">
-        {firstLimitation ?? (platform.is_enabled ? "Permitted public access." : "No permitted access.")}
+        {platform.last_error ??
+          firstLimitation ??
+          (platform.is_enabled ? "Connector installed; run a query to test it." : "No permitted access.")}
       </p>
     </div>
   );

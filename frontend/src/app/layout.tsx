@@ -34,15 +34,18 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#252527",
+  themeColor: "#d8d2c8",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" data-theme="dark" suppressHydrationWarning>
-      <body className={`${sansFont.variable} ${monoFont.variable} font-sans bg-[var(--color-background)] text-[var(--color-foreground)] antialiased selection:bg-[#FF7849]/30 selection:text-white`}>
-        {/* Theme is applied by the provider on mount; the html attribute above is
-            the dark default so the first paint does not flash light. */}
+    <html lang="en" data-theme="light" suppressHydrationWarning>
+      <body
+        suppressHydrationWarning
+        className={`${sansFont.variable} ${monoFont.variable} font-sans bg-[var(--color-background)] text-[var(--color-foreground)] antialiased selection:bg-[#FF7849]/30 selection:text-white`}
+      >
+        {/* The light control-panel theme is the default; the provider restores
+            an explicit dark preference after mount. */}
         <ThemeProvider>
           <QueryProvider>
             <SessionProvider>{children}</SessionProvider>

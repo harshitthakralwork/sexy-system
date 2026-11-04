@@ -40,7 +40,7 @@ const primaryRailItems = [
 export function Sidebar() {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
 
   // Close drawer on escape key
   useEffect(() => {
@@ -60,13 +60,13 @@ export function Sidebar() {
       {/* Primary Vertical Rail (Inspired by Image 2) */}
       <aside
         className={cn(
-          "relative z-30 flex h-full flex-col border-r border-[var(--color-border)] bg-[var(--color-sidebar)] transition-all duration-300 select-none",
+          "relative z-30 flex h-full flex-col overflow-hidden rounded-[30px] border border-[var(--color-border)] bg-[var(--color-sidebar)] shadow-[inset_0_1px_0_rgba(255,255,255,0.42),0_24px_70px_rgba(45,48,43,0.16)] backdrop-blur-2xl transition-all duration-300 select-none",
           expanded ? "w-[260px]" : "w-[78px]"
         )}
         aria-label="Primary navigation rail"
       >
         {/* Brand Logo / Emblem */}
-        <div className="flex h-[76px] items-center justify-between px-4 border-b border-[var(--color-border)]">
+        <div className="flex h-[72px] items-center justify-between px-4 border-b border-[var(--color-border)]">
           <Link
             href="/dashboard"
             className="flex items-center gap-3 group mx-auto"
@@ -113,15 +113,15 @@ export function Sidebar() {
                     "flex items-center gap-3 rounded-2xl transition-all duration-200",
                     expanded ? "px-3.5 py-2.5 w-full" : "h-12 w-12 justify-center mx-auto",
                     active
-                      ? "bg-[#3A373E] text-white border border-white/15 shadow-md shadow-black/30"
-                      : "text-[var(--color-muted)] hover:bg-white/[0.06] hover:text-[var(--color-foreground)]"
+                      ? "bg-[var(--color-surface-elevated)] text-[var(--color-foreground)] border border-[var(--color-border-highlight)] shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_10px_24px_rgba(45,48,43,0.12)]"
+                      : "text-[var(--color-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-foreground)]"
                   )}
                 >
                   <Icon
                     size={20}
                     className={cn(
                       "shrink-0 transition-colors",
-                      active ? "text-[#FF7849]" : "text-[var(--color-muted)] group-hover:text-white"
+                      active ? "text-[var(--color-primary)]" : "text-[var(--color-muted)] group-hover:text-[var(--color-foreground)]"
                     )}
                     aria-hidden
                   />

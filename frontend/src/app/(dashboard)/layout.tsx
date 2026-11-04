@@ -54,9 +54,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[var(--color-background)]">
+    <div className="dashboard-shell flex h-screen overflow-hidden bg-transparent">
       <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col">{children}</div>
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[32px] border border-[var(--color-border)] bg-[var(--color-shell)] shadow-[0_24px_80px_rgba(31,34,31,0.18)] backdrop-blur-xl">{children}</div>
       <CommandPalette />
     </div>
   );

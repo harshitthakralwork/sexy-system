@@ -81,6 +81,7 @@ export const navigation: NavSection[] = [
     title: "Social & Demand Intelligence",
     items: [
       { label: "Intelligence Overview", href: "/intelligence", icon: LayoutDashboard, available: true },
+      { label: "Post Explorer", href: "/intelligence/posts", icon: Search, available: true },
       { label: "Demand Intelligence", href: "/intelligence/demand", icon: Target, available: true },
       { label: "Business Intelligence", href: "/intelligence/business", icon: Building2, available: true },
       { label: "Discovery Tracks", href: "/intelligence/tracks", icon: Radar, available: true },

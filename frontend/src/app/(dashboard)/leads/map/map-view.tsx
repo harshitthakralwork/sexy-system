@@ -1,588 +1,264 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Download, ExternalLink, Globe2, GlobeX, ListFilter, Sparkles, Trash2 } from "lucide-react";
 
 import { Header } from "@/components/layout/header";
-import { MapCanvas, type DrawMode } from "@/components/map/map-canvas";
-import { Card, CardTitle } from "@/components/ui/card";
-import { api } from "@/lib/api/client";
+import { Card, EmptyState } from "@/components/ui/card";
 import { useSession } from "@/components/providers/session-provider";
-import type {
-  AreaGeometry,
-  DiscoveryJob,
-  SearchArea,
-  TileBatch,
-  ViewportResponse,
-} from "@/lib/api/types";
+import { api, getApiBase } from "@/lib/api/client";
+import type { Business, BusinessList } from "@/lib/api/types";
 
-const RADIUS_OPTIONS = [0.5, 1, 2, 5, 10] as const;
-const POLL_MS = 2000;
+type WebsiteRank = "potential" | "without-first" | "has-first" | "name";
 
-/** Map Intelligence: draw an area, run a real discovery job over it, and read the
- *  results back as pins that belong to whoever is looking at them.
- *
- *  Nothing here is illustrative. Pins come from the viewport query, the tile grid
- *  comes from job batches, and every count on the progress strip is a count the
- *  backend observed. When a source did not answer, the strip says so.
- */
+function potentialClient(business: Business) {
+  let score = 0;
+  const reasons: string[] = [];
+  if (!business.website_url) { score += 35; reasons.push("No website found"); }
+  if (business.phone) { score += 20; reasons.push("Phone available"); }
+  if (business.email) { score += 10; reasons.push("Email available"); }
+  if (business.rating != null && business.rating >= 4) { score += 10; reasons.push(`${business.rating.toFixed(1)}★ rating`); }
+  if (business.review_count != null && business.review_count >= 10) {
+    score += business.review_count <= 500 ? 15 : 10;
+    reasons.push(`${business.review_count.toLocaleString()} reviews`);
+  }
+  if (business.address) { score += 10; reasons.push("Address available"); }
+  score = Math.min(score, 100);
+  return { score, label: score >= 70 ? "High" : score >= 45 ? "Medium" : "Low", reasons } as const;
+}
+
+/** Evidence-first local finder: absent contact/review values remain absent. */
 export function MapIntelligenceView() {
   const { csrf, user } = useSession();
   const queryClient = useQueryClient();
-
-  const [geometry, setGeometry] = useState<AreaGeometry | null>(null);
-  const [drawMode, setDrawMode] = useState<DrawMode>("none");
-  const [radiusKm, setRadiusKm] = useState<number>(2);
-  const [category, setCategory] = useState("amenity=hospital");
-  const [viewport, setViewport] = useState<[number, number, number, number] | null>(null);
-  const [filters, setFilters] = useState({ websiteStatus: "", hasPhone: "" });
-  const [selectedPinId, setSelectedPinId] = useState<string | null>(null);
-  const [checked, setChecked] = useState<Set<string>>(new Set());
-  const [jobId, setJobId] = useState<string | null>(null);
+  const [niche, setNiche] = useState("");
+  const [city, setCity] = useState("");
+  const [applied, setApplied] = useState({ niche: "", city: "" });
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  const [crawling, setCrawling] = useState(false);
+  const [websiteFilter, setWebsiteFilter] = useState<"all" | "has" | "without">("all");
+  const [websiteRank, setWebsiteRank] = useState<WebsiteRank>("potential");
+  const [potentialOnly, setPotentialOnly] = useState(false);
 
-  const onViewportChange = useCallback((bbox: [number, number, number, number]) => {
-    if (debounce.current) clearTimeout(debounce.current);
-    debounce.current = setTimeout(() => setViewport(bbox), 250);
-  }, []);
-  useEffect(
-    () => () => {
-      if (debounce.current) clearTimeout(debounce.current);
-    },
-    [],
-  );
-
-  const pins = useQuery({
-    queryKey: ["viewport", viewport, filters, category, jobId],
-    enabled: Boolean(viewport),
-    queryFn: () => {
-      if (!viewport) throw new Error("no viewport");
-      const params = new URLSearchParams({ bbox: viewport.join(",") });
-      // The query category is OSM syntax (amenity=hospital); what gets stored on a
-      // business is the value (hospital). Filtering on the query string would
-      // match nothing and read as an empty area.
-      const storedCategory = category.split("=").pop()?.trim();
-      if (storedCategory) params.set("category", storedCategory);
-      if (filters.websiteStatus) params.set("website_status", filters.websiteStatus);
-      if (filters.hasPhone) params.set("has_phone", filters.hasPhone);
-      return api.get<ViewportResponse>(`/businesses/viewport?${params.toString()}`);
-    },
+  const params = useMemo(() => {
+    const search = new URLSearchParams({ limit: "500", sort: "name", descending: "false" });
+    if (applied.niche) search.set("query", applied.niche);
+    if (applied.city) search.set("city", applied.city);
+    return search.toString();
+  }, [applied]);
+  const businesses = useQuery({
+    queryKey: ["local-business-finder", params],
+    queryFn: () => api.get<BusinessList>(`/businesses?${params}`),
+    enabled: Boolean(user),
   });
-
-  const job = useQuery({
-    queryKey: ["discovery-job", jobId],
-    enabled: Boolean(jobId),
-    queryFn: () => api.get<DiscoveryJob>(`/discovery/jobs/${jobId}`),
-    refetchInterval: (query) => {
-      const status = (query.state.data as DiscoveryJob | undefined)?.status;
-      return status === "running" || status === "queued" ? POLL_MS : false;
-    },
-  });
-
-  const batches = useQuery({
-    queryKey: ["discovery-job-batches", jobId],
-    enabled: Boolean(jobId),
-    queryFn: () => api.get<TileBatch[]>(`/discovery/jobs/${jobId}/batches`),
-    refetchInterval: job.data?.status === "running" ? POLL_MS : false,
-  });
-
-  const areas = useQuery({
-    queryKey: ["search-areas"],
-    queryFn: () => api.get<{ items: SearchArea[]; total: number }>("/discovery/areas"),
-  });
-
-  const totals = job.data?.report?.totals;
-  const sources = job.data?.report?.sources ?? [];
-
-  async function startDiscovery() {
-    setError(null);
-    setNotice(null);
-    if (!geometry) {
-      setError("Choose where to search first: pick a centre and radius, or draw an area.");
-      return;
-    }
-    if (!category.trim()) {
-      setError("A category is required, as an OSM tag such as amenity=hospital or shop=cafe.");
-      return;
-    }
-    try {
-      const created = await api.post<DiscoveryJob>(
-        "/discovery/jobs",
-        { category: category.trim(), geometry, sources: ["overpass"], max_results: 200 },
-        csrf,
-      );
-      setJobId(created.id);
-      setDrawMode("none");
-      await queryClient.invalidateQueries({ queryKey: ["viewport"] });
-    } catch (caught) {
-      setError(errorMessage(caught));
-    }
-  }
-
-  async function cancelJob() {
-    if (!jobId) return;
-    try {
-      await api.post<DiscoveryJob>(`/discovery/jobs/${jobId}/cancel`, undefined, csrf);
-      await job.refetch();
-    } catch (caught) {
-      setError(errorMessage(caught));
-    }
-  }
-
-  async function saveArea() {
-    if (!geometry) return;
-    const name = window.prompt("Name this area", "Hisar search area");
-    if (!name) return;
-    try {
-      await api.post<SearchArea>(
-        "/discovery/areas",
-        { name, geometry, categories: [category], module: "leads" },
-        csrf,
-      );
-      await areas.refetch();
-      setNotice(`Saved "${name}".`);
-    } catch (caught) {
-      setError(errorMessage(caught));
-    }
-  }
-
-  async function deleteArea(id: string) {
-    try {
-      await api.delete(`/discovery/areas/${id}`, csrf);
-      await areas.refetch();
-    } catch (caught) {
-      setError(errorMessage(caught));
-    }
-  }
-
-  async function shortlistSelected() {
-    const ids = [...checked];
-    if (ids.length === 0) return;
-    let done = 0;
-    for (const id of ids) {
-      try {
-        await api.post(`/businesses/${id}/shortlist`, undefined, csrf);
-        done += 1;
-      } catch {
-        // One refusal must not pretend the rest never happened; the count below
-        // is of records actually shortlisted.
-      }
-    }
-    setNotice(`Shortlisted ${done} of ${ids.length}.`);
-    await pins.refetch();
-  }
-
-  async function exportSelected() {
-    const ids = [...checked];
-    if (ids.length === 0) {
-      setError("Select at least one record to export.");
-      return;
-    }
-    try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1"}/businesses/export/selected`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json", "X-CSRF-Token": csrf ?? "" },
-          body: JSON.stringify({ ids }),
-        },
-      );
-      if (!response.ok) throw new Error(`Export failed (${response.status})`);
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "sparkxflow-selection.csv";
-      link.click();
-      URL.revokeObjectURL(url);
-      setNotice(
-        `Exported ${response.headers.get("X-Exported-Records") ?? ids.length} records` +
-          (Number(response.headers.get("X-Export-Skipped") ?? 0) > 0
-            ? `; ${response.headers.get("X-Export-Skipped")} were not yours to export.`
-            : "."),
-      );
-    } catch (caught) {
-      setError(errorMessage(caught));
-    }
-  }
-
-  const pinListData = pins.data?.items;
-  const pinList = useMemo(() => pinListData ?? [], [pinListData]);
-  const selected = useMemo(
-    () => pinList.find((pin) => pin.id === selectedPinId) ?? null,
-    [pinList, selectedPinId],
-  );
 
   if (!user) return null;
+  const allRows = businesses.data?.items ?? [];
+  const rows = [...allRows]
+    .filter((item) => {
+      if (websiteFilter === "has") return Boolean(item.website_url);
+      if (websiteFilter === "without") return !item.website_url;
+      return true;
+    })
+    .filter((item) => !potentialOnly || potentialClient(item).score >= 45)
+    .sort((left, right) => {
+      if (websiteRank === "potential") {
+        const scoreDifference = potentialClient(right).score - potentialClient(left).score;
+        if (scoreDifference !== 0) return scoreDifference;
+      }
+      const leftHasWebsite = left.website_url ? 1 : 0;
+      const rightHasWebsite = right.website_url ? 1 : 0;
+      if (websiteRank === "has-first" && leftHasWebsite !== rightHasWebsite) {
+        return rightHasWebsite - leftHasWebsite;
+      }
+      if (websiteRank === "without-first" && leftHasWebsite !== rightHasWebsite) {
+        return leftHasWebsite - rightHasWebsite;
+      }
+      return left.name.localeCompare(right.name);
+    });
+  const noWebsite = allRows.filter((item) => !item.website_url).length;
+  const percent = allRows.length ? Math.round((noWebsite / allRows.length) * 100) : 0;
+  const exportParams = new URLSearchParams();
+  if (applied.niche) exportParams.set("query", applied.niche);
+  if (applied.city) exportParams.set("city", applied.city);
+  async function search() {
+    const cleanNiche = niche.trim();
+    const cleanCity = city.trim();
+    if (cleanNiche.length < 2 || cleanCity.length < 2) {
+      setSearchError("Enter both a niche and a city (at least 2 characters each).");
+      return;
+    }
+    setCrawling(true);
+    setSearchError(null);
+    setNotice(null);
+    try {
+      const result = await api.post<{ total_found: number; stored_new: number }>(
+        "/discovery/local-search",
+        { niche: cleanNiche, city: cleanCity },
+        csrf,
+      );
+      setApplied({ niche: cleanNiche, city: cleanCity });
+      setNotice(`Crawler found ${result.total_found}; ${result.stored_new} new businesses stored.`);
+      await queryClient.invalidateQueries({ queryKey: ["local-business-finder"] });
+    } catch (caught) {
+      setSearchError(errorMessage(caught));
+    } finally {
+      setCrawling(false);
+    }
+  }
+
+  async function removeSelected() {
+    const ids = [...selected];
+    if (!ids.length || !window.confirm(`Delete ${ids.length} selected businesses?`)) return;
+    await remove({ ids, delete_all: false });
+  }
+
+  async function removeAll() {
+    if (!window.confirm(`Delete all ${businesses.data?.total ?? 0} business records?`)) return;
+    await remove({ ids: [], delete_all: true });
+  }
+
+  async function remove(payload: { ids: string[]; delete_all: boolean }) {
+    setDeleting(true);
+    setNotice(null);
+    try {
+      const result = await api.post<{ deleted: number }>("/businesses/bulk-delete", payload, csrf);
+      setSelected(new Set());
+      setNotice(`${result.deleted} businesses deleted.`);
+      await businesses.refetch();
+    } finally {
+      setDeleting(false);
+    }
+  }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <Header
-        title="Map Explorer"
-        subtitle={
-          pins.data
-            ? `${pins.data.total_in_viewport} records in view · ${pinList.length} drawn`
-            : "Draw an area and discover the businesses inside it"
-        }
-      />
-
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 lg:flex-row">
-        <aside className="flex w-full shrink-0 flex-col gap-4 lg:w-80">
+      <Header title="Local Business Finder" subtitle="Contacts, reviews and map locations from collected evidence" />
+      <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+        <div className="mx-auto max-w-[1500px] space-y-4">
           <Card>
-            <CardTitle>Where</CardTitle>
-            <div className="space-y-3 text-sm">
-              <div className="flex gap-2">
-                {(["none", "circle", "rectangle", "polygon"] as DrawMode[]).map((mode) => (
+            <h1 className="text-xl font-semibold">Find local businesses</h1>
+            <p className="mt-1 text-sm text-[var(--color-muted)]">
+              Search records collected from permitted public sources. Missing values are never guessed.
+            </p>
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
+              <SearchInput label="Niche" onChange={setNiche} onSearch={search} placeholder="plumbers, hospitals, web agencies…" value={niche} />
+              <SearchInput label="City" onChange={setCity} onSearch={search} placeholder="Hisar" value={city} />
+            </div>
+            <button className="mt-3 w-full rounded-md bg-[var(--color-primary)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60" disabled={crawling} onClick={search} type="button">
+              {crawling ? "Crawling public results…" : "Search"}
+            </button>
+            {searchError && <p className="mt-2 text-sm text-[var(--color-error)]">{searchError}</p>}
+            <p className="mt-2 text-xs text-[var(--color-muted)]">
+              No Google API key is used. Map links open a normal Google Maps browser search.
+            </p>
+          </Card>
+
+          <Card>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-semibold">{businesses.data?.total ?? 0} businesses found, {noWebsite} with no website ({percent}%)</h2>
+                <p className="text-xs text-[var(--color-muted)]">Showing up to 500 matches. Phone, email and reviews are source-reported only.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-error)]/50 px-3 py-2 text-sm text-[var(--color-error)] transition hover:bg-[var(--color-error)]/10 disabled:opacity-40" disabled={!selected.size || deleting} onClick={removeSelected} type="button"><Trash2 size={14} /> Delete selected ({selected.size})</button>
+                <button className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm text-[var(--color-muted)] transition hover:border-[var(--color-error)] hover:text-[var(--color-error)] disabled:opacity-40" disabled={!businesses.data?.total || deleting} onClick={removeAll} type="button"><Trash2 size={14} /> Delete all</button>
+                <a className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-white transition hover:opacity-90" href={`${getApiBase()}/businesses/export?${exportParams.toString()}`}><Download size={14} /> Download CSV</a>
+              </div>
+            </div>
+            {notice && <p className="mt-3 text-sm text-[var(--color-success)]">{notice}</p>}
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-[var(--color-background)] p-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="mr-1 inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-[var(--color-muted)]"><ListFilter size={14} /> Filter</span>
+                {([['all', 'All', null], ['has', 'Has website', Globe2], ['without', 'No website', GlobeX]] as const).map(([value, label, Icon]) => (
                   <button
-                    className={buttonClass(drawMode === mode)}
-                    key={mode}
-                    onClick={() => setDrawMode(mode)}
+                    className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition ${websiteFilter === value ? "border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]" : "border-border text-[var(--color-muted)] hover:border-[var(--color-primary)]/60"}`}
+                    key={value}
+                    onClick={() => { setWebsiteFilter(value); setSelected(new Set()); }}
                     type="button"
                   >
-                    {mode === "none" ? "Pan" : mode}
+                    {Icon ? <Icon size={14} /> : null}{label}
                   </button>
                 ))}
-              </div>
-
-              <label className="block">
-                <span className="text-[var(--color-muted)]">Radius (km)</span>
-                <div className="mt-1 flex flex-wrap gap-1">
-                  {RADIUS_OPTIONS.map((option) => (
-                    <button
-                      className={buttonClass(radiusKm === option)}
-                      key={option}
-                      onClick={() => {
-                        setRadiusKm(option);
-                        setDrawMode("circle");
-                      }}
-                      type="button"
-                    >
-                      {option}
-                    </button>
-                  ))}
-                </div>
-              </label>
-
-              <p className="text-xs text-[var(--color-muted)]">
-                {geometry
-                  ? describeGeometry(geometry)
-                  : "No area selected yet. Choose a radius, or draw a rectangle or polygon on the map."}
-              </p>
-
-              <div className="flex gap-2">
-                <button className={buttonClass(false)} onClick={saveArea} type="button">
-                  Save area
-                </button>
                 <button
-                  className={buttonClass(false)}
-                  onClick={() => {
-                    setGeometry(null);
-                    setDrawMode("none");
-                  }}
+                  aria-pressed={potentialOnly}
+                  className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm font-semibold transition ${potentialOnly ? "border-[var(--color-success)] bg-[var(--color-success)]/10 text-[var(--color-success)]" : "border-border text-[var(--color-muted)] hover:border-[var(--color-success)]/60"}`}
+                  onClick={() => { setPotentialOnly((current) => !current); setSelected(new Set()); }}
                   type="button"
                 >
-                  Clear
+                  <Sparkles size={14} /> Potential clients
                 </button>
               </div>
-            </div>
-          </Card>
-
-          <Card>
-            <CardTitle>What</CardTitle>
-            <div className="space-y-3 text-sm">
-              <label className="block">
-                <span className="text-[var(--color-muted)]">OSM category</span>
-                <input
-                  className="mt-1 w-full rounded-md border border-border bg-[var(--color-background)] px-2 py-1"
-                  onChange={(event) => setCategory(event.target.value)}
-                  value={category}
-                />
-              </label>
-              <p className="text-xs text-[var(--color-muted)]">
-                key=value as OpenStreetMap stores it. A bare key finds anything carrying that tag.
-              </p>
-
-              <div className="grid grid-cols-2 gap-2">
-                <label className="text-xs">
-                  <span className="text-[var(--color-muted)]">Website</span>
-                  <select
-                    className="mt-1 w-full rounded-md border border-border bg-[var(--color-background)] px-2 py-1"
-                    onChange={(event) =>
-                      setFilters((current) => ({ ...current, websiteStatus: event.target.value }))
-                    }
-                    value={filters.websiteStatus}
-                  >
-                    <option value="">any</option>
-                    <option value="available">has one</option>
-                    <option value="missing">known missing</option>
-                    <option value="unknown">not checked</option>
-                  </select>
-                </label>
-                <label className="text-xs">
-                  <span className="text-[var(--color-muted)]">Phone</span>
-                  <select
-                    className="mt-1 w-full rounded-md border border-border bg-[var(--color-background)] px-2 py-1"
-                    onChange={(event) =>
-                      setFilters((current) => ({ ...current, hasPhone: event.target.value }))
-                    }
-                    value={filters.hasPhone}
-                  >
-                    <option value="">any</option>
-                    <option value="true">has one</option>
-                    <option value="false">none reported</option>
-                  </select>
-                </label>
-              </div>
-
-              <button
-                className="w-full rounded-md bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-white disabled:opacity-60"
-                disabled={job.data?.status === "running" || !geometry}
-                onClick={startDiscovery}
-                type="button"
-              >
-                Start discovery
-              </button>
-            </div>
-          </Card>
-
-          <Card>
-            <CardTitle>Saved areas</CardTitle>
-            <div className="space-y-2 text-sm">
-              {(areas.data?.items ?? []).length === 0 && (
-                <p className="text-xs text-[var(--color-muted)]">Nothing saved yet.</p>
-              )}
-              {(areas.data?.items ?? []).map((area) => (
-                <div className="flex items-center justify-between gap-2" key={area.id}>
-                  <button
-                    className="truncate text-left text-sm underline-offset-2 hover:underline"
-                    onClick={() => {
-                      setGeometry(geometryFor(area));
-                      setDrawMode("none");
-                    }}
-                    type="button"
-                  >
-                    {area.name}
-                    <span className="block text-xs text-[var(--color-muted)]">
-                      {area.area_km2.toFixed(1)} km² ·{" "}
-                      {area.last_run_at ? "has been run" : "never run"}
-                    </span>
-                  </button>
-                  <button className="text-xs text-[var(--color-error)]" onClick={() => deleteArea(area.id)} type="button">
-                    delete
-                  </button>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </aside>
-
-        <section className="flex min-h-[420px] min-w-0 flex-1 flex-col gap-3">
-          <div className="min-h-0 flex-1">
-            <MapCanvas
-              busy={pins.isFetching}
-              drawMode={drawMode}
-              geometry={geometry}
-              onGeometryChange={(next) => {
-                setGeometry(next);
-                if (next?.shape_type === "circle") setRadiusKm(next.radius_km);
-              }}
-              onSelectPin={setSelectedPinId}
-              onViewportChange={onViewportChange}
-              pins={pinList}
-              selectedPinId={selectedPinId}
-              tiles={batches.data ?? []}
-            />
-          </div>
-
-          {(job.data || notice || error) && (
-            <div className="rounded-lg border border-border bg-[var(--color-surface)] p-3 text-sm">
-              {error && <p className="text-[var(--color-error)]">{error}</p>}
-              {notice && <p className="text-[var(--color-muted)]">{notice}</p>}
-              {job.data && (
-                <>
-                  <p>
-                    <strong>{job.data.status}</strong> · {totals?.units_done ?? 0}/
-                    {totals?.units_total ?? 0} units · {totals?.discovered ?? 0} records returned ·{" "}
-                    {totals?.stored_new ?? 0} new businesses · {totals?.rejected ?? 0} unusable ·{" "}
-                    {job.data.report?.known_records_reseen ?? 0} already known
-                  </p>
-                  {sources.map((source) => (
-                    <p className="mt-1 text-xs text-[var(--color-muted)]" key={source.slug}>
-                      {source.slug}: {source.items_returned} records across {source.units} unit(s)
-                      {source.failed
-                        ? ` — ${source.units_failed} failed (${source.last_classification}: ${source.last_reason})`
-                        : ""}
-                      {source.units_truncated > 0
-                        ? ` — ${source.units_truncated} capped by the provider`
-                        : ""}
-                    </p>
-                  ))}
-                  {job.data.error_details?.note ? (
-                    <p className="mt-1 text-xs text-[var(--color-warning)]">
-                      {String(job.data.error_details.note)}
-                    </p>
-                  ) : null}
-                  {job.data.status === "running" && (
-                    <button className={buttonClass(false)} onClick={cancelJob} type="button">
-                      Cancel
-                    </button>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-
-          {selected && (
-            <div className="rounded-lg border border-border bg-[var(--color-surface)] p-3 text-sm">
-              <p className="font-medium">{selected.name}</p>
-              <p className="text-xs text-[var(--color-muted)]">
-                {selected.primary_category ?? "no category"} · website {selected.website_status} ·{" "}
-                {selected.has_phone ? "phone reported" : "no phone reported"} ·{" "}
-                {selected.rating != null
-                  ? `${selected.rating}★ (${selected.review_count ?? 0} reviews)`
-                  : "no rating reported"}
-              </p>
-            </div>
-          )}
-        </section>
-
-        <aside className="flex w-full shrink-0 flex-col gap-3 lg:w-96">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-[var(--color-muted)]">
-              Results
-            </h2>
-            <span className="text-xs text-[var(--color-muted)]">{checked.size} selected</span>
-          </div>
-
-          {pins.isError && (
-            <p className="text-sm text-[var(--color-error)]">
-              Results could not be loaded: {errorMessage(pins.error)}
-            </p>
-          )}
-          {!pins.isFetching && pinList.length === 0 && !pins.isError && (
-            <p className="text-sm text-[var(--color-muted)]">
-              No stored records in this view. That means the sources you ran found nothing here —
-              not that the area has no businesses.
-            </p>
-          )}
-          {pins.data?.truncated && (
-            <p className="text-xs text-[var(--color-warning)]">
-              Showing {pins.data.returned} of {pins.data.total_in_viewport} matching records in this
-              viewport. Zoom in to see the rest.
-            </p>
-          )}
-
-          <ul className="max-h-[60vh] space-y-1 overflow-y-auto">
-            {pinList.map((pin) => (
-              <li key={pin.id}>
-                <div
-                  className={`flex items-start gap-2 rounded-md border p-2 text-sm ${
-                    pin.id === selectedPinId ? "border-[var(--color-primary)]" : "border-border"
-                  }`}
+              <label className="text-sm">
+                <span className="mr-2 text-xs font-medium uppercase tracking-wide text-[var(--color-muted)]">Rank by</span>
+                <select
+                  className="rounded-lg border border-border bg-[var(--color-surface)] px-3 py-1.5"
+                  onChange={(event) => setWebsiteRank(event.target.value as WebsiteRank)}
+                  value={websiteRank}
                 >
-                  <input
-                    aria-label={`Select ${pin.name}`}
-                    checked={checked.has(pin.id)}
-                    onChange={(event) => {
-                      setChecked((current) => {
-                        const next = new Set(current);
-                        if (event.target.checked) next.add(pin.id);
-                        else next.delete(pin.id);
-                        return next;
-                      });
-                    }}
-                    type="checkbox"
-                  />
-                  <button
-                    className="min-w-0 flex-1 text-left"
-                    onClick={() => setSelectedPinId(pin.id)}
-                    type="button"
-                  >
-                    <span className="block truncate">{pin.name}</span>
-                    <span className="block text-xs text-[var(--color-muted)]">
-                      {pin.latitude.toFixed(5)}, {pin.longitude.toFixed(5)} · website{" "}
-                      {pin.website_status}
-                    </span>
-                  </button>
-                </div>
-              </li>
-            ))}
-          </ul>
-
-          <div className="flex gap-2">
-            <button
-              className={buttonClass(false)}
-              disabled={checked.size === 0}
-              onClick={shortlistSelected}
-              type="button"
-            >
-              Shortlist selected
-            </button>
-            <button
-              className={buttonClass(false)}
-              disabled={checked.size === 0}
-              onClick={exportSelected}
-              type="button"
-            >
-              Export selected
-            </button>
-          </div>
-        </aside>
-      </div>
+                  <option value="potential">Potential score</option>
+                  <option value="without-first">No website first</option>
+                  <option value="has-first">Has website first</option>
+                  <option value="name">Name A–Z</option>
+                </select>
+              </label>
+              <span className="rounded-full bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-muted)]">
+                Showing {rows.length} of {allRows.length} loaded businesses
+              </span>
+            </div>
+            {businesses.isError && <p className="mt-4 text-sm text-[var(--color-error)]">Results could not be loaded: {errorMessage(businesses.error)}</p>}
+            {!businesses.isPending && rows.length === 0 && !businesses.isError && <EmptyState title="No matching businesses" description="Run discovery first, or change the niche and city filters." />}
+            {rows.length > 0 && (
+              <div className="mt-4 overflow-x-auto rounded-xl border border-border">
+                <table className="w-full min-w-[1240px] text-sm">
+                  <thead className="sticky top-0 z-10 bg-[var(--color-surface)]"><tr className="border-b border-border text-left text-xs uppercase tracking-wide text-[var(--color-muted)]">
+                    <th className="px-3 py-3"><input className="h-4 w-4 accent-[var(--color-primary)]" aria-label="Select all visible businesses" checked={rows.length > 0 && rows.every((row) => selected.has(row.id))} onChange={(event) => setSelected(event.target.checked ? new Set(rows.map((row) => row.id)) : new Set())} type="checkbox" /></th>
+                    {['Name','Potential','Phone','Email','Rating','Reviews','Address','Website','Maps'].map((label) => <th className="px-3 py-3" key={label}>{label}</th>)}
+                  </tr></thead>
+                  <tbody>{rows.map((business) => <BusinessRow business={business} checked={selected.has(business.id)} key={business.id} onChecked={(checked) => setSelected((current) => { const next = new Set(current); if (checked) next.add(business.id); else next.delete(business.id); return next; })} />)}</tbody>
+                </table>
+              </div>
+            )}
+          </Card>
+        </div>
+      </main>
     </div>
   );
 }
 
-function buttonClass(active: boolean): string {
-  return [
-    "rounded-md border px-2 py-1 text-xs capitalize transition-colors",
-    active
-      ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white"
-      : "border-border text-[var(--color-muted)] hover:border-[var(--color-primary)]",
-  ].join(" ");
+function SearchInput({ label, onChange, onSearch, placeholder, value }: { label: string; onChange: (value: string) => void; onSearch: () => void; placeholder: string; value: string }) {
+  return <label className="text-sm"><span className="font-medium">{label}</span><input className="mt-1 w-full rounded-md border border-border bg-[var(--color-background)] px-3 py-2" onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => event.key === "Enter" && onSearch()} placeholder={placeholder} value={value} /></label>;
 }
 
-function describeGeometry(geometry: AreaGeometry): string {
-  if (geometry.shape_type === "circle") {
-    return `Circle: ${geometry.radius_km} km around ${geometry.latitude.toFixed(4)}, ${geometry.longitude.toFixed(4)}.`;
-  }
-  if (geometry.shape_type === "rectangle") {
-    const [west, south, east, north] = geometry.rectangle;
-    return `Rectangle: ${((east - west) * 111).toFixed(1)} × ${((north - south) * 111).toFixed(1)} km.`;
-  }
-  if (geometry.shape_type === "polygon") {
-    return `Polygon with ${geometry.polygon.length} vertices (needs at least 3 to run).`;
-  }
-  return "Administrative area bounding box.";
+function BusinessRow({ business, checked, onChecked }: { business: Business; checked: boolean; onChecked: (checked: boolean) => void }) {
+  const address = business.address ?? ([business.city, business.state, business.country].filter(Boolean).join(", ") || "—");
+  const potential = potentialClient(business);
+  const highlight = potential.label === "High" ? "border-l-2 border-l-[var(--color-success)] bg-[var(--color-success)]/[0.055]" : potential.label === "Medium" ? "border-l-2 border-l-[var(--color-warning)] bg-[var(--color-warning)]/[0.035]" : "";
+  return <tr className={`border-b border-border/60 align-top hover:bg-[var(--color-surface)] ${highlight}`}>
+    <td className="px-3 py-3"><input className="h-4 w-4 accent-[var(--color-primary)]" aria-label={`Select ${business.name}`} checked={checked} onChange={(event) => onChecked(event.target.checked)} type="checkbox" /></td>
+    <td className="px-3 py-3 font-medium">{business.name}</td>
+    <td className="max-w-[240px] px-3 py-3">
+      <div className="flex items-center gap-2"><span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${potential.label === "High" ? "bg-[var(--color-success)]/15 text-[var(--color-success)]" : potential.label === "Medium" ? "bg-[var(--color-warning)]/15 text-[var(--color-warning)]" : "bg-[var(--color-surface)] text-[var(--color-muted)]"}`}>{potential.label}</span><span className="font-mono text-xs font-semibold">{potential.score}/100</span></div>
+      <div className="mt-1 text-xs leading-5 text-[var(--color-muted)]">{potential.reasons.length ? potential.reasons.slice(0, 3).join(" · ") : "Not enough signals"}</div>
+    </td>
+    <td className="px-3 py-3">{business.phone ?? "—"}</td><td className="px-3 py-3">{business.email ?? "—"}</td>
+    <td className="px-3 py-3">{business.rating != null ? `${business.rating.toFixed(1)} ★` : "—"}</td><td className="px-3 py-3">{business.review_count ?? "—"}</td><td className="max-w-xs px-3 py-3 text-[var(--color-muted)]">{address}</td>
+    <td className="px-3 py-3">{business.website_url ? <a className="text-[var(--color-info)] hover:underline" href={business.website_url} rel="noreferrer" target="_blank">Website</a> : <span className="text-[var(--color-muted)]">No website</span>}</td>
+    <td className="px-3 py-3"><a className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-xs text-[var(--color-info)] transition hover:border-[var(--color-info)]" href={mapsUrl(business)} rel="noreferrer" target="_blank">Open profile <ExternalLink size={12} /></a></td>
+  </tr>;
 }
 
-function geometryFor(area: SearchArea): AreaGeometry {
-  if (
-    area.shape_type === "circle" &&
-    area.center_latitude != null &&
-    area.center_longitude != null &&
-    area.radius_m
-  ) {
-    return {
-      shape_type: "circle",
-      latitude: area.center_latitude,
-      longitude: area.center_longitude,
-      radius_km: area.radius_m / 1000,
-    };
+function mapsUrl(business: Business): string {
+  const storedUrl = business.enrichment.google_maps_url;
+  if (typeof storedUrl === "string" && storedUrl.startsWith("https://www.google.com/maps")) {
+    return storedUrl;
   }
-  if (area.shape_type === "polygon" && area.polygon) {
-    return { shape_type: "polygon", polygon: area.polygon };
-  }
-  return {
-    shape_type: "administrative",
-    bbox: [area.bbox_west, area.bbox_south, area.bbox_east, area.bbox_north],
-  };
+  const query = [business.name, business.address, business.city, business.state, business.country].filter(Boolean).join(" ");
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
 }
 
-function errorMessage(caught: unknown): string {
-  if (caught instanceof Error) return caught.message;
-  return "Something went wrong.";
-}
+function errorMessage(value: unknown): string { return value instanceof Error ? value.message : "Something went wrong."; }

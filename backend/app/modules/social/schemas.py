@@ -358,3 +358,91 @@ class ConvertResultOut(BaseModel):
     content_id: uuid.UUID
     business_id: uuid.UUID
     message: str
+
+
+# --- Lead & Post Intelligence Models ---
+
+class PostAnnotationIn(BaseModel):
+    lead_status: str | None = None
+    is_hot: bool | None = None
+    follow_up_date: datetime | None = None
+    user_note: str | None = None
+    quoted_customer_need: str | None = None
+    services_to_sell: list[str] | None = None
+    is_saved: bool | None = None
+
+
+class PostAnnotationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    lead_status: str = "new"
+    is_hot: bool = False
+    follow_up_date: datetime | None = None
+    user_note: str | None = None
+    quoted_customer_need: str | None = None
+    services_to_sell: list[str] = Field(default_factory=list)
+    is_saved: bool = False
+
+
+class PostOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    platform: str
+    original_url: str | None = None
+    canonical_url: str | None = None
+    external_id: str
+    page_title: str | None = None
+    search_snippet: str | None = None
+    extracted_full_text: str | None = None
+    author_name: str | None = None
+    author_username: str | None = None
+    author_profile_url: str | None = None
+    published_at: datetime | None = None
+    published_at_source: str | None = None
+    first_discovered_at: datetime
+    last_seen_at: datetime | None = None
+    retrieval_status: str = "snippet_only"
+    retrieval_error: str | None = None
+    extraction_method: str | None = None
+    matched_query: str | None = None
+    discovery_run_id: uuid.UUID | None = None
+    duplicate_of_id: uuid.UUID | None = None
+    classification_category: str | None = None
+    classification_confidence: float | None = None
+    classification_score: int | None = None
+    matched_phrases: list[str] = Field(default_factory=list)
+    negative_phrases: list[str] = Field(default_factory=list)
+    service_tags: list[str] = Field(default_factory=list)
+    reactions_count: int | None = None
+    comments_count: int | None = None
+    reposts_count: int | None = None
+    evidence: list[dict] = Field(default_factory=list)
+    raw_metadata: dict = Field(default_factory=dict)
+    user_annotation: PostAnnotationOut = Field(default_factory=PostAnnotationOut)
+
+
+class PostListOut(BaseModel):
+    items: list[PostOut]
+    total: int
+    limit: int
+    offset: int
+    summary: dict = Field(default_factory=dict)
+
+
+class PostBulkActionIn(BaseModel):
+    post_ids: list[uuid.UUID]
+    action: str
+    value: str | None = None
+
+
+class LeadsDashboardOut(BaseModel):
+    demand_posts_found: int
+    high_confidence_leads: int
+    posts_discovered: int
+    duplicates_removed: int
+    scheduled_runs: int
+    latest_demand_posts: list[PostOut]
+    classification_distribution: dict[str, int]
+    recent_runs: list[dict]
+    posts_per_day: list[dict]

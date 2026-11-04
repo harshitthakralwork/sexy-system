@@ -102,12 +102,14 @@ class RedditAdapter:
         *,
         user_agent: str,
         timeout_seconds: float = 20.0,
+        searxng_base_url: str | None = None,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         origin = validate_service_base_url(base_url, field="Reddit base_url")
         self._base_url = origin
         self._user_agent = user_agent
         self._timeout = timeout_seconds
+        self._searxng_base_url = searxng_base_url
         self._client = client
         self._owns_client = client is None
         self.requests_made = 0
@@ -204,16 +206,63 @@ class RedditAdapter:
         _require_agent(self)
         client = await self._get_client()
         path, params = self._url_and_params(config)
-        response = await client.get(f"{self._base_url}{path}", params=params)
-        self.requests_made += 1
-        _raise_for_source_response(response)
         try:
-            payload = response.json()
-        except ValueError as exc:
-            raise MalformedResponseError(
-                "Reddit replied with a non-JSON body; the public endpoint may be unavailable."
-            ) from exc
-        return self._to_results(payload)
+            response = await client.get(f"{self._base_url}{path}", params=params)
+            self.requests_made += 1
+            _raise_for_source_response(response)
+            try:
+                payload = response.json()
+            except ValueError as exc:
+                raise MalformedResponseError(
+                    "Reddit replied with a non-JSON body; the public endpoint may be unavailable."
+                ) from exc
+            return self._to_results(payload)
+        except (AccessDeniedError, RateLimitedError):
+            fallback_res = await self._searxng_fallback(config)
+            if fallback_res:
+                return fallback_res
+            raise
+
+    async def _searxng_fallback(self, config: dict[str, Any]) -> list[SocialResult]:
+        from app.core.config import get_settings
+        searxng_url = self._searxng_base_url or get_settings().searxng_base_url
+        if not searxng_url:
+            return []
+        q = str(config.get("q") or config.get("subreddit") or "").strip()
+        if not q:
+            return []
+        query_str = f"site:reddit.com {q}"
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout) as sx_client:
+                resp = await sx_client.get(
+                    f"{str(searxng_url).rstrip('/')}/search",
+                    params={"q": query_str, "format": "json"},
+                )
+                if resp.status_code != 200:
+                    return []
+                data = resp.json()
+                results: list[SocialResult] = []
+                for item in data.get("results", []):
+                    u = item.get("url")
+                    if not u or "reddit.com" not in u:
+                        continue
+                    title = item.get("title", "")
+                    content = item.get("content", "")
+                    results.append(
+                        SocialResult(
+                            external_id=u,
+                            content_url=u,
+                            content_type="post",
+                            content_text=f"{title}\n\n{content}".strip(),
+                            published_at=None,
+                            engagement={},
+                            author_username=None,
+                            raw_data={**item, "fallback_source": "searxng"},
+                        )
+                    )
+                return results
+        except Exception:
+            return []
 
     def _to_results(self, payload: Any) -> list[SocialResult]:
         if not isinstance(payload, dict) or payload.get("kind") != "Listing":

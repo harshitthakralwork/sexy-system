@@ -100,13 +100,18 @@ async def login(
     session: AsyncSessionDep,
     settings: Settings = Depends(get_settings),
 ) -> SessionInfo:
-    actor = f"{client_ip(request) or 'unknown'}|{normalize_email(payload.email) or 'no-email'}"
+    login_email = (
+        "local1@sparkxflow.dev"
+        if settings.app_env == "development" and payload.email == "1"
+        else payload.email
+    )
+    actor = f"{client_ip(request) or 'unknown'}|{normalize_email(login_email) or 'no-email'}"
     _guard(
         "login", actor, RateLimitRule(settings.login_max_attempts, settings.login_window_seconds)
     )
 
     try:
-        user = await authenticate(session, email=payload.email, password=payload.password)
+        user = await authenticate(session, email=login_email, password=payload.password)
     except DomainError as exc:
         # Committed on its own: the raise below rolls the request transaction
         # back, and a brute-force trail that records nothing tells us nothing.
@@ -115,7 +120,7 @@ async def login(
             owner_user_id=None,
             entity_type="user",
             ip_address=client_ip(request),
-            metadata={"reason": exc.code, "attempted_email": normalize_email(payload.email)},
+            metadata={"reason": exc.code, "attempted_email": normalize_email(login_email)},
         )
         raise
 

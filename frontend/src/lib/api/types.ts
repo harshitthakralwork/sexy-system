@@ -173,6 +173,8 @@ export interface Business {
   website_status: string;
   phone: string | null;
   email: string | null;
+  rating: number | null;
+  review_count: number | null;
   city: string | null;
   state: string | null;
   country: string | null;
@@ -180,6 +182,7 @@ export interface Business {
   latitude: number | null;
   longitude: number | null;
   description: string | null;
+  enrichment: Record<string, unknown>;
   lifecycle_status: string;
   first_discovered_at: string | null;
   last_researched_at: string | null;
@@ -1057,4 +1060,83 @@ export interface NotificationItem {
 export interface NotificationList {
   items: NotificationItem[];
   total: number;
+}
+
+
+export interface PostAnnotation {
+  lead_status: string;
+  is_hot: boolean;
+  follow_up_date: string | null;
+  user_note: string | null;
+  quoted_customer_need: string | null;
+  services_to_sell: string[];
+  is_saved: boolean;
+}
+
+export interface PostItem {
+  id: string;
+  platform: string;
+  original_url: string | null;
+  canonical_url: string | null;
+  external_id: string;
+  page_title: string | null;
+  search_snippet: string | null;
+  extracted_full_text: string | null;
+  author_name: string | null;
+  author_username: string | null;
+  author_profile_url: string | null;
+  published_at: string | null;
+  published_at_source: string | null;
+  first_discovered_at: string;
+  last_seen_at: string | null;
+  retrieval_status: string;
+  retrieval_error: string | null;
+  extraction_method: string | null;
+  matched_query: string | null;
+  discovery_run_id: string | null;
+  duplicate_of_id: string | null;
+  classification_category: string | null;
+  classification_confidence: number | null;
+  classification_score: number | null;
+  matched_phrases: string[];
+  negative_phrases: string[];
+  service_tags: string[];
+  reactions_count: number | null;
+  comments_count: number | null;
+  reposts_count: number | null;
+  evidence: Array<{ term?: string; context?: string; confidence?: number; phrase?: string }>;
+  raw_metadata: Record<string, unknown>;
+  user_annotation: PostAnnotation;
+}
+
+export interface PostListResponse {
+  items: PostItem[];
+  total: number;
+  limit: number;
+  offset: number;
+  summary: Record<string, unknown>;
+}
+
+export interface LeadsDashboardResponse {
+  demand_posts_found: number;
+  high_confidence_leads: number;
+  posts_discovered: number;
+  duplicates_removed: number;
+  scheduled_runs: number;
+  latest_demand_posts: PostItem[];
+  classification_distribution: Record<string, number>;
+  recent_runs: Array<{
+    id: string;
+    status: string;
+    trigger_type: string;
+    started_at: string | null;
+    results_returned: number;
+    stored_new: number;
+    duplicates: number;
+    duration_ms: number;
+  }>;
+  posts_per_day: Array<{
+    date: string;
+    count: number;
+  }>;
 }

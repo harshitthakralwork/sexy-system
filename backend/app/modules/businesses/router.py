@@ -11,6 +11,8 @@ from app.modules.auth.dependencies import CurrentUser, require_csrf_for_state_ch
 from app.modules.businesses import repository
 from app.modules.businesses.schemas import (
     ActionOut,
+    BulkDeleteIn,
+    BulkDeleteOut,
     BusinessDetail,
     BusinessListOut,
     BusinessOut,
@@ -282,6 +284,29 @@ async def archive(business_id: uuid.UUID, session: AsyncSessionDep, user: Curren
         entity_id=business_id,
     )
     return ActionOut(id=business_id, message="Archived", crm_stage="Archived")
+
+
+@router.post("/bulk-delete", response_model=BulkDeleteOut, dependencies=[Csrf])
+async def bulk_delete_businesses(
+    payload: BulkDeleteIn,
+    session: AsyncSessionDep,
+    user: CurrentUser,
+) -> BulkDeleteOut:
+    if payload.delete_all == bool(payload.ids):
+        raise ValidationFailedError("Choose either selected business ids or delete_all")
+    deleted = await repository.soft_delete_many(
+        session,
+        owner_user_id=user.id,
+        business_ids=None if payload.delete_all else payload.ids,
+    )
+    await record_audit(
+        session,
+        action="business.bulk_update",
+        owner_user_id=user.id,
+        entity_type="business",
+        metadata={"operation": "soft_delete", "deleted": deleted},
+    )
+    return BulkDeleteOut(deleted=deleted)
 
 
 @router.delete(

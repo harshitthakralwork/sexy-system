@@ -281,6 +281,32 @@ def test_stackoverflow_maps_questions() -> None:
     assert "<p>" not in (results[0].content_text or "")
 
 
+def test_stackoverflow_uses_a_supported_default_sort() -> None:
+    seen: list[httpx.Request] = []
+    adapter = StackOverflowAdapter(
+        "https://api.stackexchange.com",
+        user_agent="test-agent",
+        client=_client(lambda r: httpx.Response(200, json={"items": []}), seen),
+    )
+
+    asyncio.run(adapter.search({"q": "python"}))
+
+    assert seen[0].url.params["sort"] == "creation"
+
+
+def test_stackoverflow_translates_legacy_new_sort() -> None:
+    seen: list[httpx.Request] = []
+    adapter = StackOverflowAdapter(
+        "https://api.stackexchange.com",
+        user_agent="test-agent",
+        client=_client(lambda r: httpx.Response(200, json={"items": []}), seen),
+    )
+
+    asyncio.run(adapter.search({"q": "python", "sort": "new"}))
+
+    assert seen[0].url.params["sort"] == "creation"
+
+
 def test_stackoverflow_requires_query() -> None:
     adapter = StackOverflowAdapter(
         "https://api.stackexchange.com",

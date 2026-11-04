@@ -2,18 +2,30 @@ from __future__ import annotations
 
 import uuid
 
+import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, status
 from sqlalchemy import select
 
 from app.core.audit import client_ip, record_audit
 from app.core.config import get_settings
 from app.core.database import AsyncSession, AsyncSessionDep
-from app.core.exceptions import TooManyRequestsError, ValidationFailedError
+from app.core.exceptions import SourceUnavailableError, TooManyRequestsError, ValidationFailedError
 from app.core.ratelimit import RateLimitRule, get_rate_limiter
 from app.modules.auth.dependencies import CurrentUser, require_csrf_for_state_changes
 from app.modules.discovery import areas as area_service
 from app.modules.discovery import job_service, runner
+from app.modules.discovery.local_scraper import (
+    LocalScrapeRequest,
+    LocalScrapeResponse,
+    scrape_google_local,
+)
 from app.modules.discovery.models import DiscoveryJob, JobLog, Search
+from app.modules.discovery.public_fetch import (
+    PublicPageFetchRequest,
+    PublicPageFetchResult,
+    UnsafeUrlError,
+    fetch_public_page,
+)
 from app.modules.discovery.schemas import (
     DiscoveryJobIn,
     JobListOut,
@@ -35,6 +47,85 @@ Csrf = Depends(require_csrf_for_state_changes())
 # runaway script cannot queue hundreds of concurrent crawls.
 JOB_RULE = RateLimitRule(max_attempts=10, window_seconds=300)
 AREA_RULE = RateLimitRule(max_attempts=60, window_seconds=300)
+PUBLIC_FETCH_RULE = RateLimitRule(max_attempts=30, window_seconds=300)
+
+
+@router.get("/public-page-fetch/health")
+async def public_page_fetch_health(_user: CurrentUser) -> dict[str, object]:
+    return {
+        "status": "ok",
+        "method": "unauthenticated HTTP GET; schema.org JSON-LD first",
+        "limits": {"max_response_bytes": 1_500_000, "max_redirects": 4},
+        "access": "public HTML only; no login, cookie, CAPTCHA or access-control bypass",
+    }
+
+
+@router.post(
+    "/public-page-fetch",
+    response_model=PublicPageFetchResult,
+    dependencies=[Csrf],
+)
+async def public_page_fetch(
+    request: Request,
+    payload: PublicPageFetchRequest,
+    session: AsyncSessionDep,
+    user: CurrentUser,
+) -> PublicPageFetchResult:
+    allowed, retry_after = get_rate_limiter().check(
+        "public_page_fetch", str(user.id), PUBLIC_FETCH_RULE
+    )
+    if not allowed:
+        raise TooManyRequestsError(
+            "Too many public-page fetches. Try again later.",
+            headers={"Retry-After": str(int(retry_after))},
+        )
+    try:
+        result = await fetch_public_page(payload.url)
+    except UnsafeUrlError as exc:
+        raise ValidationFailedError(
+            "Public-page URL was refused", details={"reason": str(exc)}
+        ) from exc
+    except (httpx.HTTPError, ValueError) as exc:
+        raise SourceUnavailableError("public_page_fetch", type(exc).__name__) from exc
+    await record_audit(
+        session,
+        action="discovery.public_page_fetch",
+        owner_user_id=user.id,
+        entity_type="public_page",
+        ip_address=client_ip(request),
+        metadata={"host": payload.url.split("/", 3)[2], "status": result.status},
+    )
+    return result
+
+
+@router.post("/local-search", response_model=LocalScrapeResponse, dependencies=[Csrf])
+async def local_search(
+    request: Request,
+    payload: LocalScrapeRequest,
+    session: AsyncSessionDep,
+    user: CurrentUser,
+) -> LocalScrapeResponse:
+    allowed, retry_after = get_rate_limiter().check("local_search", str(user.id), JOB_RULE)
+    if not allowed:
+        raise TooManyRequestsError(
+            "Too many local searches. Try again later.",
+            headers={"Retry-After": str(int(retry_after))},
+        )
+    result = await scrape_google_local(session, user.id, payload.niche, payload.city)
+    await record_audit(
+        session,
+        action="discovery.local_search",
+        owner_user_id=user.id,
+        entity_type="search",
+        ip_address=client_ip(request),
+        metadata={
+            "niche": payload.niche,
+            "city": payload.city,
+            "found": result.total_found,
+            "stored_new": result.stored_new,
+        },
+    )
+    return result
 
 
 def _job_out(job: DiscoveryJob, area_id: uuid.UUID | None = None) -> JobOut:
@@ -280,9 +371,7 @@ async def list_areas(
     offset: int = Query(default=0, ge=0),
 ) -> SearchAreaListOut:
     rows, total = await area_service.list_areas(session, user.id, limit=limit, offset=offset)
-    return SearchAreaListOut(
-        items=[SearchAreaOut.model_validate(row) for row in rows], total=total
-    )
+    return SearchAreaListOut(items=[SearchAreaOut.model_validate(row) for row in rows], total=total)
 
 
 @router.get("/areas/{area_id}", response_model=SearchAreaOut)

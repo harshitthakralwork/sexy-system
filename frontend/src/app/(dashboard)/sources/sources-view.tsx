@@ -71,6 +71,7 @@ export function SourcesView() {
           Social &rsaquo; Sources with their actual access terms. They appear here only once a
           compliant connector exists, so a card never implies an ability the provider withholds.
         </p>
+        <PublicPageFetchCard />
         {sources.isPending && !sources.isError && (
           <EmptyState title="Reading the registry…" description="" />
         )}
@@ -96,6 +97,43 @@ export function SourcesView() {
         </div>
       </main>
     </div>
+  );
+}
+
+function PublicPageFetchCard() {
+  const health = useQuery({
+    queryKey: ["public-page-fetch", "health"],
+    queryFn: () =>
+      api.get<{
+        status: string;
+        method: string;
+        access: string;
+        limits: { max_response_bytes: number; max_redirects: number };
+      }>("/discovery/public-page-fetch/health"),
+  });
+
+  return (
+    <Card className="mb-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-semibold">Public Page Fetch</h2>
+          <p className="mt-1 text-xs text-[var(--color-muted)]">
+            Enriches SearXNG URLs and public directory pages with structured evidence.
+          </p>
+        </div>
+        <span className={health.data?.status === "ok" ? "text-xs font-semibold text-[var(--color-success)]" : "text-xs font-semibold text-[var(--color-muted)]"}>
+          {health.isPending ? "Checking…" : health.data?.status === "ok" ? "Ready" : "Unavailable"}
+        </span>
+      </div>
+      {health.data && (
+        <dl className="mt-4 grid gap-2 text-xs sm:grid-cols-[160px_1fr]">
+          <dt className="text-[var(--color-muted)]">Method</dt><dd>{health.data.method}</dd>
+          <dt className="text-[var(--color-muted)]">Access policy</dt><dd>{health.data.access}</dd>
+          <dt className="text-[var(--color-muted)]">Safety limits</dt><dd>{Math.round(health.data.limits.max_response_bytes / 1_000_000 * 10) / 10} MB · {health.data.limits.max_redirects} redirects</dd>
+        </dl>
+      )}
+      {health.isError && <p className="mt-3 text-xs text-[var(--color-error)]">Public fetch health could not be read.</p>}
+    </Card>
   );
 }
 

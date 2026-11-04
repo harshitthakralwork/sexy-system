@@ -38,13 +38,17 @@ TRACK_TYPES = ("demand", "business")
 # It is not interchangeable with classification: a snippet can be classified
 # without its full content ever having been retrieved.
 RETRIEVAL_STATUSES = (
-    "retrieved",
+    "pending",
+    "full_text",
     "snippet_only",
+    "blocked",
+    "failed",
+    "unsupported",
+    "retrieved",
     "indexed_snippet",
     "public_page_retrieved",
     "user_provided_url",
     "inaccessible",
-    "unsupported",
 )
 CLASSIFICATION_METHODS = ("rule", "ai", "manual")
 RUN_STATUSES = ("pending", "running", "completed", "completed_with_warnings", "failed", "cancelled")
@@ -140,8 +144,8 @@ class SocialContent(Base, UUIDPrimaryKeyMixin):
             name="ck_social_content_track_type",
         ),
         CheckConstraint(
-            "retrieval_status IN ('retrieved','snippet_only','indexed_snippet',"
-            "'public_page_retrieved','user_provided_url','inaccessible','unsupported')",
+            "retrieval_status IN ('pending','full_text','snippet_only','blocked','failed','unsupported',"
+            "'retrieved','indexed_snippet','public_page_retrieved','user_provided_url','inaccessible')",
             name="ck_social_content_retrieval_status",
         ),
         CheckConstraint(
@@ -241,6 +245,31 @@ class SocialContent(Base, UUIDPrimaryKeyMixin):
     )
     discovered_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    # Extended lead & post intelligence fields
+    author_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    author_username: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    author_profile_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    published_at_source: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    retrieval_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    extraction_method: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    matched_query: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    discovery_run_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUIDType, ForeignKey("social_discovery_runs.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    duplicate_of_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUIDType, ForeignKey("social_content.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    classification_score: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    service_tags: Mapped[list] = mapped_column(
+        JSONType, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
+    reactions_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    comments_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    reposts_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    raw_metadata: Mapped[dict] = mapped_column(
+        JSONType, nullable=False, default=dict, server_default=text("'{}'::jsonb")
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -442,3 +471,36 @@ class SocialResearchQuery(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_run_status: Mapped[str | None] = mapped_column(String(30), nullable=True)
     last_run_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class SocialContentUserAnnotation(Base, OwnedMixin, UUIDPrimaryKeyMixin, TimestampMixin):
+    """Isolated user-owned annotations and CRM lead tracking for discovered content.
+
+    Automated re-enrichment runs NEVER overwrite this table.
+    """
+
+    __tablename__ = "social_content_user_annotations"
+    __table_args__ = (
+        Index("ix_social_annotation_owner_content", "owner_user_id", "content_id", unique=True),
+        Index("ix_social_annotation_owner_hot", "owner_user_id", "is_hot"),
+        Index("ix_social_annotation_owner_status", "owner_user_id", "lead_status"),
+    )
+
+    content_id: Mapped[uuid.UUID] = mapped_column(
+        UUIDType, ForeignKey("social_content.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    lead_status: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="new", server_default=text("'new'")
+    )
+    is_hot: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )
+    follow_up_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    user_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    quoted_customer_need: Mapped[str | None] = mapped_column(Text, nullable=True)
+    services_to_sell: Mapped[list] = mapped_column(
+        JSONType, nullable=False, default=list, server_default=text("'[]'::jsonb")
+    )
+    is_saved: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default=text("false")
+    )

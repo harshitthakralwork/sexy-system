@@ -37,14 +37,14 @@
 
 :root,
 [data-theme="dark"] {
-  --color-background: #222124;
-  --color-sidebar: #19191B;
-  --color-surface: #2E2C31;
-  --color-surface-elevated: #3A373E;
-  --color-card: #2D2B30;
-  --color-card-elevated: #39363D;
-  --color-primary: #FF7849;
-  --color-primary-hover: #F26735;
+  --color-background: #171a1d;
+  --color-sidebar: rgba(36, 38, 41, 0.82);
+  --color-surface: rgba(53, 55, 58, 0.76);
+  --color-surface-elevated: rgba(70, 72, 75, 0.82);
+  --color-card: rgba(52, 54, 57, 0.72);
+  --color-card-elevated: rgba(68, 70, 73, 0.78);
+  --color-primary: #f38b67;
+  --color-primary-hover: #ff9a76;
   --color-secondary: #B7A1DF;
   --color-accent-orange: #FF7849;
   --color-accent-lime: #D4EF8A;
@@ -53,40 +53,50 @@
   --color-foreground: #F8F5F4;
   --color-muted: #AAA5AD;
   --color-muted-dim: #79747E;
-  --color-border: rgba(255, 255, 255, 0.07);
+  --color-border: rgba(255, 255, 255, 0.11);
   --color-border-subtle: rgba(255, 255, 255, 0.04);
   --color-border-highlight: rgba(255, 255, 255, 0.14);
   --color-success: #D4EF8A;
   --color-warning: #FFB020;
   --color-error: #FF6666;
   --color-info: #70C4EF;
+  --color-shell: rgba(20, 22, 25, 0.54);
+  --app-background:
+    radial-gradient(circle at 14% 8%, rgba(183, 161, 223, 0.16), transparent 28rem),
+    radial-gradient(circle at 88% 92%, rgba(112, 196, 239, 0.11), transparent 34rem),
+    linear-gradient(145deg, #202326 0%, #151719 58%, #202125 100%);
   color-scheme: dark;
 }
 
 [data-theme="light"] {
-  --color-background: #F3F1EF;
-  --color-sidebar: #FFFFFF;
-  --color-surface: #FFFFFF;
-  --color-surface-elevated: #F8F6F4;
-  --color-card: #FFFFFF;
-  --color-card-elevated: #F9F7F5;
-  --color-primary: #E65A28;
-  --color-primary-hover: #D14B1C;
-  --color-secondary: #7F65B8;
-  --color-accent-orange: #E65A28;
-  --color-accent-lime: #5E8C10;
-  --color-accent-lavender: #7F65B8;
-  --color-accent-sky: #1980B5;
-  --color-foreground: #222022;
-  --color-muted: #6C6870;
-  --color-muted-dim: #928D98;
-  --color-border: rgba(0, 0, 0, 0.08);
+  --color-background: #ddd8cf;
+  --color-sidebar: rgba(244, 241, 235, 0.78);
+  --color-surface: rgba(248, 246, 242, 0.82);
+  --color-surface-elevated: rgba(255, 255, 255, 0.9);
+  --color-card: rgba(246, 243, 238, 0.78);
+  --color-card-elevated: rgba(255, 255, 255, 0.88);
+  --color-primary: #216b62;
+  --color-primary-hover: #18544d;
+  --color-secondary: #735a9d;
+  --color-accent-orange: #c76d42;
+  --color-accent-lime: #557b42;
+  --color-accent-lavender: #735a9d;
+  --color-accent-sky: #36758e;
+  --color-foreground: #252724;
+  --color-muted: #656861;
+  --color-muted-dim: #898b84;
+  --color-border: rgba(51, 54, 49, 0.13);
   --color-border-subtle: rgba(0, 0, 0, 0.04);
-  --color-border-highlight: rgba(0, 0, 0, 0.15);
-  --color-success: #2E7D32;
-  --color-warning: #B45309;
-  --color-error: #C62828;
-  --color-info: #0277BD;
+  --color-border-highlight: rgba(51, 54, 49, 0.24);
+  --color-success: #3e7445;
+  --color-warning: #9a6419;
+  --color-error: #b34343;
+  --color-info: #256c89;
+  --color-shell: rgba(246, 243, 237, 0.52);
+  --app-background:
+    radial-gradient(circle at 16% 8%, rgba(121, 153, 137, 0.34), transparent 28rem),
+    radial-gradient(circle at 86% 84%, rgba(120, 98, 151, 0.22), transparent 32rem),
+    linear-gradient(145deg, #d9d4cb 0%, #ebe7e0 48%, #cbc8c1 100%);
   color-scheme: light;
 }
 
@@ -117,10 +127,61 @@ body {
 
 body {
   margin: 0;
-  background: var(--color-background);
+  background: var(--app-background);
+  background-attachment: fixed;
   color: var(--color-foreground);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a,
+select,
+input[type="checkbox"],
+input[type="radio"] {
+  cursor: pointer;
+}
+
+input,
+select,
+textarea {
+  color: var(--color-foreground);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-muted-dim);
+}
+
+[data-theme="light"] .theme-icon-dark,
+[data-theme="dark"] .theme-icon-light {
+  display: none;
+}
+
+.dashboard-shell {
+  position: relative;
+  isolation: isolate;
+  gap: 0.75rem;
+  padding: 0.75rem;
+}
+
+.dashboard-shell::before {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  content: "";
+  pointer-events: none;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.055) 0.7px, transparent 0.7px);
+  background-size: 18px 18px;
+  mask-image: linear-gradient(to bottom, black, transparent 78%);
 }
 
 /* Visible focus is required by DESIGN.md section 17 — never remove it. */

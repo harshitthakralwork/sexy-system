@@ -24,7 +24,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.social.adapters import SocialResult
 from app.modules.social.classification import classify
-from app.modules.social.models import SocialContent, SocialPlatform, SocialProfile
+from app.modules.social.models import SocialContent, SocialContentUserAnnotation, SocialPlatform, SocialProfile
 from app.shared.normalization import MAX_URL_LENGTH, canonical_hash, sanitize_text
 
 
@@ -174,6 +174,12 @@ async def ingest_results(
             cache=profiles,
             now=now,
         )
+        # Extract nullable engagement without inventing fake 0s
+        eng = result.engagement if isinstance(result.engagement, dict) else {}
+        reactions = eng.get("reactions") if "reactions" in eng else eng.get("score") if "score" in eng else None
+        comments = eng.get("comments") if "comments" in eng else eng.get("num_comments") if "num_comments" in eng else None
+        reposts = eng.get("reposts") if "reposts" in eng else eng.get("shares") if "shares" in eng else None
+
         row = SocialContent(
             platform_id=platform.id,
             owner_user_id=owner_user_id,
@@ -185,11 +191,25 @@ async def ingest_results(
             content_url=_clip_url(result.content_url),
             canonical_url=_clip_url(result.content_url),
             content_type=result.content_type,
-            content_text=sanitize_text(result.content_text, max_length=4000),
+            content_text=sanitize_text(result.content_text, max_length=8000),
             title=sanitize_text(result.raw_data.get("title"), max_length=255),
-            snippet=sanitize_text(result.content_text, max_length=600),
+            snippet=sanitize_text(result.raw_data.get("snippet") or result.content_text, max_length=1000),
             retrieval_status=_retrieval_status(platform, result),
             published_at=result.published_at,
+            published_at_source=result.published_at.isoformat() if result.published_at else None,
+            first_discovered_at=now,
+            last_seen_at=now,
+            author_name=result.author_display_name or result.author_username or result.raw_data.get("author"),
+            author_username=result.author_username,
+            author_profile_url=result.author_profile_url,
+            extraction_method=result.raw_data.get("extraction_method") or "searxng_public",
+            matched_query=result.raw_data.get("matched_query"),
+            classification_score=outcome.score,
+            service_tags=list(outcome.service_mapping),
+            reactions_count=reactions,
+            comments_count=comments,
+            reposts_count=reposts,
+            raw_metadata={k: v for k, v in result.raw_data.items() if len(str(v)) < 10000} if isinstance(result.raw_data, dict) else {},
             discovered_at=now,
             engagement_data=result.engagement,
             source_id=source_id,
@@ -206,6 +226,18 @@ async def ingest_results(
             source_attribution=[attribution],
         )
         session.add(row)
+        await session.flush()
+
+        # Seed isolated user annotation so re-enrichment never overwrites CRM state
+        annotation = SocialContentUserAnnotation(
+            content_id=row.id,
+            owner_user_id=owner_user_id,
+            lead_status="new",
+            is_hot=outcome.score >= 70,
+            is_saved=False,
+            services_to_sell=list(outcome.service_mapping),
+        )
+        session.add(annotation)
         batch_map[result.external_id] = row
         batch_map[fingerprint] = row
         stored_new += 1

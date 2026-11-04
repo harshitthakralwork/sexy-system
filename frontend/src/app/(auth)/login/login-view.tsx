@@ -89,9 +89,9 @@ export function LoginView() {
 
         <form className="mt-5 space-y-3" onSubmit={submit}>
           <label className="block text-sm">
-            <span className="text-[var(--color-muted)]">Email</span>
+            <span className="text-[var(--color-muted)]">Email or local ID</span>
             <input
-              type="email"
+              type="text"
               required
               autoComplete="username"
               value={email}
