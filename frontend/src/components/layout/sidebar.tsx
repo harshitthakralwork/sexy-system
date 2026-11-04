@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -71,27 +72,16 @@ export function Sidebar() {
             className="flex items-center gap-3 group mx-auto"
             title="SparkXFlow Nexus — Mission Control"
           >
-            {/* Custom Luxury Emblem matching Image 2 */}
-            <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#3A373E] to-[#252428] border border-white/10 shadow-lg shadow-black/40 transition-transform group-hover:scale-105">
-              <svg
-                width="22"
-                height="22"
-                viewBox="0 0 24 24"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                className="text-white"
-              >
-                <circle cx="12" cy="5" r="3" fill="#FF7849" />
-                <circle cx="19" cy="12" r="3" fill="#D4EF8A" />
-                <circle cx="12" cy="19" r="3" fill="#B7A1DF" />
-                <circle cx="5" cy="12" r="3" fill="#70C4EF" />
-                <path
-                  d="M12 8V16M8 12H16"
-                  stroke="white"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                />
-              </svg>
+            {/* Brand Logo with User Emblem */}
+            <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl overflow-hidden border border-white/10 shadow-lg shadow-black/40 transition-transform group-hover:scale-105">
+              <Image
+                src="/logo.png"
+                alt="SparkXFlow Nexus"
+                width={44}
+                height={44}
+                className="h-full w-full object-cover"
+                priority
+              />
             </div>
 
             {expanded && (

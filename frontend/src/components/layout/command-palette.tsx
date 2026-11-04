@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -488,7 +489,10 @@ export function CommandPalette() {
               <kbd className="rounded bg-[var(--color-surface)] px-1.5 py-0.5 font-mono">↵</kbd> to select
             </span>
           </div>
-          <span>SparkXFlow Nexus Command</span>
+          <div className="flex items-center gap-1.5 font-semibold text-white">
+            <Image src="/logo.png" alt="SparkXFlow" width={14} height={14} className="rounded-sm" />
+            <span>SparkXFlow Nexus</span>
+          </div>
         </div>
       </div>
     </div>

@@ -22,6 +22,15 @@ const monoFont = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "SparkXFlow Nexus",
   description: "Business and market intelligence platform",
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon.png", type: "image/png" },
+    ],
+    apple: [
+      { url: "/apple-icon.png", type: "image/png" },
+    ],
+  },
 };
 
 export const viewport: Viewport = {

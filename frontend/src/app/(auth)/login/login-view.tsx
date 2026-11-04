@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
@@ -66,11 +67,25 @@ export function LoginView() {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[var(--color-background)] p-6">
-      <div className="w-full max-w-sm rounded-lg border border-border bg-[var(--color-surface)] p-6">
-        <h1 className="text-xl font-semibold">SparkXFlow Nexus</h1>
-        <p className="mt-1 text-sm text-[var(--color-muted)]">
-          {mode === "login" ? "Sign in to your workspace" : "Create the first account"}
-        </p>
+      <div className="w-full max-w-sm rounded-3xl border border-white/10 bg-[#2D2A2E] p-8 shadow-2xl">
+        <div className="flex items-center gap-3.5 mb-6">
+          <div className="relative h-12 w-12 shrink-0 rounded-2xl overflow-hidden border border-white/10 shadow-md">
+            <Image
+              src="/logo.png"
+              alt="SparkXFlow Nexus"
+              width={48}
+              height={48}
+              className="h-full w-full object-cover"
+              priority
+            />
+          </div>
+          <div>
+            <h1 className="text-xl font-extrabold text-white tracking-tight">SparkXFlow Nexus</h1>
+            <p className="text-xs text-[var(--color-muted)] font-medium">
+              {mode === "login" ? "Sign in to Mission Control" : "Create the first account"}
+            </p>
+          </div>
+        </div>
 
         <form className="mt-5 space-y-3" onSubmit={submit}>
           <label className="block text-sm">

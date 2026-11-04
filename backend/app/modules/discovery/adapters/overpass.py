@@ -211,7 +211,8 @@ class OverpassAdapter:
         client = await self._get_client()
         query_text = self.build_query(query)
 
-        if self._client is not None:
+        # In test mode with an injected client, honor test client expectations
+        if not self._owns_client:
             response = await client.post(
                 self._endpoint,
                 data={"data": query_text},
@@ -235,7 +236,7 @@ class OverpassAdapter:
         endpoints = [
             self._endpoint,
             "https://overpass.kumi.systems/api/interpreter",
-            "https://maps.mail.ru/osm/tools/overpass/api/interpreter",
+            "https://lz4.overpass-api.de/api/interpreter",
         ]
 
         last_exc: Exception | None = None
@@ -245,7 +246,7 @@ class OverpassAdapter:
                     endpoint,
                     data={"data": query_text},
                     headers={"User-Agent": self._user_agent},
-                    timeout=min(self._timeout, 15.0),
+                    timeout=min(self._timeout, 20.0),
                 )
                 self.requests_made += 1
                 if response.status_code in (200, 204):
