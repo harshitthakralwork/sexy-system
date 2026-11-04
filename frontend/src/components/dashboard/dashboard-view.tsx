@@ -32,6 +32,11 @@ function sumCounts(buckets: AnalyticsBucket[]): number {
   return buckets.reduce((total, bucket) => total + bucket.count, 0);
 }
 
+interface JobListResponse {
+  items: DiscoveryJob[];
+  total: number;
+}
+
 export function DashboardView() {
   const { user } = useSession();
   const status = useBackendStatus();
@@ -46,8 +51,14 @@ export function DashboardView() {
 
   const recentJobs = useQuery({
     queryKey: ["discovery", "jobs", "recent"],
-    queryFn: () => api.get<DiscoveryJob[]>("/discovery/jobs?limit=6"),
+    queryFn: () => api.get<JobListResponse | DiscoveryJob[]>("/discovery/jobs?limit=6"),
   });
+
+  const jobsList: DiscoveryJob[] = Array.isArray(recentJobs.data)
+    ? recentJobs.data
+    : Array.isArray(recentJobs.data?.items)
+      ? recentJobs.data.items
+      : [];
 
   const leadsCount = data?.leads_total ?? 0;
   const jobsCount = sumCounts(data?.discovery_jobs_by_status ?? []);
@@ -55,7 +66,7 @@ export function DashboardView() {
   const startupsCount = sumCounts(data?.startups_by_funding_stage ?? []);
   const activeLeads = bucketCount(data?.businesses_by_lifecycle ?? [], "active") ?? leadsCount;
 
-  const filteredJobs = (recentJobs.data ?? []).filter((job) => {
+  const filteredJobs = jobsList.filter((job) => {
     if (filterMode === "completed") return job.status === "completed";
     if (filterMode === "running") return job.status === "running" || job.status === "pending";
     return true;
