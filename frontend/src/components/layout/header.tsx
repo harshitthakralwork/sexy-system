@@ -1,130 +1,104 @@
 "use client";
 
-import { Bell, Moon, Search, Sun } from "lucide-react";
+import { Bell, Search } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
 import { useSession } from "@/components/providers/session-provider";
-import { useTheme } from "@/components/providers/theme-provider";
 import { useBackendStatus } from "@/hooks/use-backend-status";
 import { cn } from "@/lib/utils";
 
 const STATE_LABEL: Record<string, string> = {
-  online: "All Systems Healthy",
-  degraded: "API up, dependency down",
-  offline: "API unreachable",
-  checking: "Checking health",
+  online: "Engine Active",
+  degraded: "Degraded Mode",
+  offline: "API Offline",
+  checking: "Connecting…",
 };
 
-function StatusPill() {
+function StatusBadge() {
   const status = useBackendStatus();
 
-  const tone =
-    status.state === "online"
-      ? "text-[var(--color-success)] bg-[var(--color-success)]/10 border-[var(--color-success)]/30"
-      : status.state === "degraded"
-        ? "text-[var(--color-warning)] bg-[var(--color-warning)]/10 border-[var(--color-warning)]/30"
-        : status.state === "offline"
-          ? "text-[var(--color-error)] bg-[var(--color-error)]/10 border-[var(--color-error)]/30"
-          : "text-[var(--color-muted)] bg-[var(--color-muted)]/10 border-[var(--color-border)]";
-
-  const failed = (status.ready?.components ?? []).filter((c) => !c.ok).map((c) => c.name);
+  const isOnline = status.state === "online";
+  const isDegraded = status.state === "degraded";
 
   return (
     <Link
       href="/sources"
-      className={cn(
-        "hidden items-center gap-2 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors hover:opacity-90 sm:flex",
-        tone
-      )}
-      title={
-        status.state === "offline"
-          ? (status.error ?? "Start the backend with ./scripts/dev-backend.ps1")
-          : failed.length
-            ? `Unavailable: ${failed.join(", ")}`
-            : "PostgreSQL, Celery/Worker, and Redis are verified."
-      }
+      className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-medium text-[var(--color-muted)] hover:border-white/20 transition-all sm:flex"
+      title="Infrastructure & Source Health"
     >
       <span
         className={cn(
           "h-2 w-2 rounded-full",
-          status.state === "online"
-            ? "animate-pulse bg-[var(--color-success)]"
-            : status.state === "degraded"
-              ? "bg-[var(--color-warning)]"
-              : status.state === "offline"
-                ? "bg-[var(--color-error)]"
-                : "bg-[var(--color-muted)]"
+          isOnline
+            ? "bg-[#D4EF8A] shadow-[0_0_8px_rgba(212,239,138,0.6)]"
+            : isDegraded
+              ? "bg-[#FFB020]"
+              : "bg-[#FF6666]"
         )}
       />
-      <span>{STATE_LABEL[status.state]}</span>
+      <span className="text-[11px] font-semibold tracking-wide text-white/90">
+        {STATE_LABEL[status.state]}
+      </span>
     </Link>
   );
 }
 
 export function Header({ title, subtitle }: { title: string; subtitle?: string }) {
-  const { theme, toggleTheme } = useTheme();
-
   function triggerSearch() {
     window.dispatchEvent(new CustomEvent("open-command-palette"));
   }
 
   return (
-    <header className="flex items-center justify-between gap-4 border-b border-border bg-[var(--color-surface)]/90 px-6 py-3 backdrop-blur-md">
+    <header className="flex h-[76px] shrink-0 items-center justify-between gap-4 border-b border-[var(--color-border)] bg-[var(--color-sidebar)]/80 px-6 sm:px-8 backdrop-blur-xl">
+      {/* Page Title & Subtitle */}
       <div className="min-w-0">
-        <h1 className="truncate text-base font-semibold leading-tight tracking-tight sm:text-lg">
+        <h1 className="truncate text-xl font-bold tracking-tight text-white sm:text-2xl font-sans">
           {title}
         </h1>
-        {subtitle && <p className="truncate text-xs text-[var(--color-muted)]">{subtitle}</p>}
+        {subtitle && (
+          <p className="truncate text-xs font-medium text-[var(--color-muted)] mt-0.5">
+            {subtitle}
+          </p>
+        )}
       </div>
 
+      {/* Top Right Actions (Matching Image 2) */}
       <div className="flex shrink-0 items-center gap-3">
-        <StatusPill />
+        <StatusBadge />
 
         {/* Global Search / Command Bar Trigger */}
         <button
           type="button"
           onClick={triggerSearch}
-          className="flex items-center gap-2 rounded-lg border border-border bg-[var(--color-background)] px-3 py-1.5 text-xs text-[var(--color-muted)] transition-all hover:border-[var(--color-primary)] hover:text-[var(--color-foreground)]"
-          title="Open Quick Search & Command Palette (Ctrl+K / ⌘K)"
+          className="flex items-center gap-2.5 rounded-full border border-white/10 bg-white/[0.04] px-3.5 py-1.5 text-xs text-[var(--color-muted)] transition-all hover:border-white/20 hover:text-white"
+          title="Search Anything (⌘K)"
         >
           <Search size={14} className="text-[var(--color-muted)]" aria-hidden />
-          <span className="hidden sm:inline">Quick Jump...</span>
-          <kbd className="rounded bg-[var(--color-surface-elevated)] px-1.5 py-0.5 text-[10px] font-mono text-[var(--color-muted)]">
+          <span className="hidden sm:inline font-medium">Search...</span>
+          <kbd className="rounded bg-black/40 px-1.5 py-0.5 text-[10px] font-mono text-[var(--color-muted)]">
             ⌘K
           </kbd>
         </button>
 
-        {/* Notifications Shortcut */}
+        {/* Notification Bell */}
         <Link
           href="/notifications"
-          className="relative rounded-lg p-2 text-[var(--color-muted)] transition-colors hover:bg-[var(--color-surface-elevated)] hover:text-[var(--color-foreground)]"
-          title="Notification Center"
-          aria-label="Notification Center"
+          className="relative flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-[var(--color-muted)] transition-colors hover:border-white/20 hover:text-white"
+          title="Notifications & Alerts"
         >
           <Bell size={16} />
+          <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-[#FF7849]" />
         </Link>
 
-        {/* Theme Toggle */}
-        <button
-          type="button"
-          onClick={toggleTheme}
-          className="rounded-lg p-2 text-[var(--color-muted)] transition-colors hover:bg-[var(--color-surface-elevated)] hover:text-[var(--color-foreground)]"
-          aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-          title={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-        >
-          {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
-        </button>
-
-        <div className="h-4 w-px bg-border" />
-
-        <UserMenu />
+        {/* User Avatar Capsule */}
+        <UserCapsule />
       </div>
     </header>
   );
 }
 
-function UserMenu() {
+function UserCapsule() {
   const { user, logout } = useSession();
   const [busy, setBusy] = useState(false);
 
@@ -137,19 +111,18 @@ function UserMenu() {
         .slice(0, 2)
         .join("")
         .toUpperCase()
-    : "U";
+    : "H";
 
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="flex items-center gap-2">
+      {/* Stylized Avatar Frame (Matching Image 2's gold/amber avatar ring) */}
       <div
-        className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--color-primary)]/20 font-semibold text-[11px] text-[var(--color-secondary)] ring-1 ring-[var(--color-primary)]/40"
+        className="relative flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-tr from-[#3A373E] to-[#252428] border-2 border-[#FF7849]/50 shadow-md font-bold text-xs text-white"
         title={user.email}
       >
-        {initials}
+        <span>{initials}</span>
       </div>
-      <span className="hidden max-w-[120px] truncate text-xs font-medium sm:inline" title={user.email}>
-        {user.display_name}
-      </span>
+
       <button
         type="button"
         disabled={busy}
@@ -161,7 +134,7 @@ function UserMenu() {
             setBusy(false);
           }
         }}
-        className="rounded-lg border border-border px-2.5 py-1 text-xs font-medium text-[var(--color-muted)] transition-colors hover:bg-[var(--color-surface-elevated)] hover:text-[var(--color-foreground)] disabled:opacity-60"
+        className="hidden sm:inline-flex rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs font-semibold text-[var(--color-muted)] hover:border-white/20 hover:text-white transition-all disabled:opacity-50"
       >
         {busy ? "..." : "Sign out"}
       </button>
