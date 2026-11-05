@@ -1,5 +1,4 @@
 @import "tailwindcss";
-@import "leaflet/dist/leaflet.css";
 
 /* ---------------------------------------------------------------------------
    Design tokens — UI/UX Pro Max + DESIGN.md
@@ -526,53 +525,6 @@ a[class*="bg-[var(--color-primary)]"] {
   border-radius: 9999px;
   background: rgba(255, 255, 255, 0.08);
   overflow: hidden;
-}
-
-/* ─────────────────────────────────────────────────────────────────────────────
-   MAP INTELLIGENCE & LEAFLET GLASS STYLING
-───────────────────────────────────────────────────────────────────────────── */
-
-.leaflet-container {
-  font-family: var(--font-sans) !important;
-  background-color: #0b0f19 !important;
-  border-radius: 20px;
-}
-
-.leaflet-popup-content-wrapper {
-  background: rgba(14, 18, 30, 0.92) !important;
-  backdrop-filter: blur(20px) !important;
-  -webkit-backdrop-filter: blur(20px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
-  border-radius: 16px !important;
-  color: #ffffff !important;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6) !important;
-  padding: 4px !important;
-}
-
-[data-theme="light"] .leaflet-popup-content-wrapper {
-  background: rgba(255, 255, 255, 0.95) !important;
-  border: 1px solid rgba(148, 163, 184, 0.3) !important;
-  color: #0f172a !important;
-  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.15) !important;
-}
-
-.leaflet-popup-tip {
-  background: rgba(14, 18, 30, 0.92) !important;
-}
-
-[data-theme="light"] .leaflet-popup-tip {
-  background: rgba(255, 255, 255, 0.95) !important;
-}
-
-.map-radar-pulse {
-  animation: map-ping 2.5s cubic-bezier(0, 0, 0.2, 1) infinite;
-}
-
-@keyframes map-ping {
-  75%, 100% {
-    transform: scale(1.6);
-    opacity: 0;
-  }
 }
 
 .job-progress-fill {
