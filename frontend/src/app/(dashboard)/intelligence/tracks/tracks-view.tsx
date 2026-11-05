@@ -101,9 +101,7 @@ function CreateTrackForm({
   const [name, setName] = useState("");
   const [trackType, setTrackType] = useState("demand");
   const [keywords, setKeywords] = useState("");
-  const [selected, setSelected] = useState<string[]>(["hackernews"]);
-  const [subreddit, setSubreddit] = useState("");
-  const [feeds, setFeeds] = useState("");
+  const [selected, setSelected] = useState<string[]>(["facebook"]);
   const [schedule, setSchedule] = useState<"none" | "interval" | "cron">("none");
   const [intervalSeconds, setIntervalSeconds] = useState(3600);
   const [cron, setCron] = useState("0 9 * * *");
@@ -119,8 +117,6 @@ function CreateTrackForm({
       return;
     }
     const sourceConfig: Record<string, unknown> = {};
-    if (subreddit.trim()) sourceConfig.subreddit = subreddit.trim();
-    if (feeds.trim()) sourceConfig.feed_urls = csv(feeds);
     let frequencyConfig: Record<string, unknown> | null = null;
     if (schedule === "interval") frequencyConfig = { interval_seconds: intervalSeconds };
     else if (schedule === "cron") frequencyConfig = { cron: cron.trim() };
@@ -141,8 +137,6 @@ function CreateTrackForm({
       );
       setName("");
       setKeywords("");
-      setSubreddit("");
-      setFeeds("");
       await onCreated("Track created.");
     } catch (caught) {
       onError(caught instanceof Error ? caught.message : "Create failed");
@@ -183,19 +177,6 @@ function CreateTrackForm({
           ))}
         </div>
       </div>
-
-      {selected.includes("reddit") && (
-        <label className="mt-2 block text-sm">
-          <span className="text-[var(--color-muted)]">Subreddit (optional)</span>
-          <input className="mt-1 w-56 rounded-md border border-border bg-[var(--color-background)] px-2 py-1.5" value={subreddit} onChange={(e) => setSubreddit(e.target.value)} placeholder="IndiaBusiness" />
-        </label>
-      )}
-      {selected.includes("rss") && (
-        <label className="mt-2 block text-sm">
-          <span className="text-[var(--color-muted)]">Feed URLs (comma-separated)</span>
-          <input className="mt-1 w-full rounded-md border border-border bg-[var(--color-background)] px-2 py-1.5" value={feeds} onChange={(e) => setFeeds(e.target.value)} placeholder="https://example.com/feed.xml" />
-        </label>
-      )}
 
       <div className="mt-3 flex flex-wrap items-end gap-3">
         <label className="text-sm">

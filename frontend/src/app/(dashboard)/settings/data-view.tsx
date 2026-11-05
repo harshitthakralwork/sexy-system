@@ -86,8 +86,8 @@ export function DataView() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <Header
-        title="Data"
-        subtitle="Bring your own leads in, and take your own data out"
+        title="Workspace settings"
+        subtitle="Export, import, and control the data in this workspace"
       />
       <main className="flex-1 space-y-6 overflow-y-auto p-4">
         <ExportPanel />

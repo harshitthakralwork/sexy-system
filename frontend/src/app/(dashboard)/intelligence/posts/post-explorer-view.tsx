@@ -38,10 +38,6 @@ const CATEGORIES = [
 
 const PLATFORMS = [
   { id: "all",        label: "All Platforms" },
-  { id: "reddit",     label: "Reddit"        },
-  { id: "linkedin",   label: "LinkedIn"      },
-  { id: "justdial",   label: "Justdial"      },
-  { id: "hackernews", label: "Hacker News"   },
   { id: "x",          label: "X (Twitter)"   },
   { id: "facebook",   label: "Facebook"      },
   { id: "instagram",  label: "Instagram"     },

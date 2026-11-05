@@ -45,6 +45,7 @@ from app.modules.social.models import (
 from app.modules.social.platforms import (
     ENABLED_ADAPTER_KEYS,
     PLATFORM_DEFINITIONS,
+    SOCIAL_MVP_PLATFORM_SLUGS,
 )
 from app.modules.sources.registry import ensure_source
 from app.shared.normalization import MAX_URL_LENGTH, sanitize_text
@@ -71,7 +72,7 @@ async def ensure_platforms(session: AsyncSession) -> list[SocialPlatform]:
                 adapter_key=definition["adapter_key"],
                 capabilities=definition["capabilities"],
                 limitations=definition["limitations"],
-                is_enabled=definition["is_enabled"],
+                is_enabled=definition["slug"] in SOCIAL_MVP_PLATFORM_SLUGS,
             )
             session.add(row)
             created.append(row)
@@ -80,7 +81,7 @@ async def ensure_platforms(session: AsyncSession) -> list[SocialPlatform]:
             row.adapter_key = definition["adapter_key"]
             row.capabilities = definition["capabilities"]
             row.limitations = definition["limitations"]
-            row.is_enabled = definition["is_enabled"]
+            row.is_enabled = definition["slug"] in SOCIAL_MVP_PLATFORM_SLUGS
     await session.flush()
     return list(existing.values()) + created
 

@@ -107,7 +107,7 @@ export function SocialDashboard() {
             Search public posts, developer communities, and indexed pages from the sources below.
           </p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {(platforms.data ?? []).map((platform) => (
+            {enabledPlatforms.map((platform) => (
               <PlatformCard key={platform.slug} platform={platform} />
             ))}
           </div>
@@ -225,7 +225,7 @@ export function SocialDashboard() {
                   onChange={(event) => setPlatformFilter(event.target.value)}
                 >
                   <option value="">any</option>
-                  {(platforms.data ?? []).map((platform) => (
+                  {enabledPlatforms.map((platform) => (
                     <option key={platform.slug} value={platform.slug}>
                       {platform.name}
                     </option>
@@ -353,27 +353,15 @@ function CreateQueryForm({
   onCreated: (message: string) => Promise<void>;
   onError: (message: string) => void;
 }) {
-  const [platformSlug, setPlatformSlug] = useState("reddit");
-  const [kind, setKind] = useState("search");
+  const [platformSlug, setPlatformSlug] = useState("facebook");
   const [primary, setPrimary] = useState("");
-  const [terms, setTerms] = useState("");
   const [sort, setSort] = useState("relevance");
   const [limit, setLimit] = useState(25);
   const [busy, setBusy] = useState(false);
 
-  const primaryLabel =
-    kind === "search" ? "Search terms" : kind === "subreddit" ? "Subreddit" : "Username";
-  const primaryPlaceholder =
-    kind === "search" ? "fintech india" : kind === "subreddit" ? "IndiaBusiness" : "someuser";
-
   async function submit() {
     if (!primary.trim()) return;
-    const queryConfig: Record<string, unknown> = { kind, sort, limit };
-    if (kind === "search") queryConfig.q = primary.trim();
-    else if (kind === "subreddit") {
-      queryConfig.subreddit = primary.trim();
-      if (terms.trim()) queryConfig.q = terms.trim();
-    } else queryConfig.username = primary.trim();
+    const queryConfig: Record<string, unknown> = { kind: "keyword", q: primary.trim(), sort, limit };
 
     setBusy(true);
     try {
@@ -383,7 +371,6 @@ function CreateQueryForm({
         csrf,
       );
       setPrimary("");
-      setTerms("");
       await onCreated(`Created research query on ${created.platform_slug}.`);
     } catch (caught) {
       onError(errorMessage(caught));
@@ -412,37 +399,15 @@ function CreateQueryForm({
             ))}
           </select>
         </label>
-        <label className="text-sm">
-          <span className="text-[var(--color-muted)]">Kind</span>
-          <select
-            className="mt-1 w-32 rounded-md border border-border bg-[var(--color-background)] px-2 py-1.5"
-            value={kind}
-            onChange={(event) => setKind(event.target.value)}
-          >
-            <option value="search">keyword</option>
-            <option value="subreddit">subreddit</option>
-            <option value="user">username</option>
-          </select>
-        </label>
         <label className="min-w-44 flex-1 text-sm">
-          <span className="text-[var(--color-muted)]">{primaryLabel}</span>
+          <span className="text-[var(--color-muted)]">Search terms</span>
           <input
             className="mt-1 w-full rounded-md border border-border bg-[var(--color-background)] px-2 py-1.5"
             value={primary}
             onChange={(event) => setPrimary(event.target.value)}
-            placeholder={primaryPlaceholder}
+            placeholder="web design agency india"
           />
         </label>
-        {kind === "subreddit" && (
-          <label className="min-w-40 flex-1 text-sm">
-            <span className="text-[var(--color-muted)]">Search terms (optional)</span>
-            <input
-              className="mt-1 w-full rounded-md border border-border bg-[var(--color-background)] px-2 py-1.5"
-              value={terms}
-              onChange={(event) => setTerms(event.target.value)}
-            />
-          </label>
-        )}
         <label className="text-sm">
           <span className="text-[var(--color-muted)]">Sort</span>
           <select

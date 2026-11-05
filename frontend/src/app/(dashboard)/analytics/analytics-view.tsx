@@ -12,13 +12,10 @@ import type { AnalyticsBucket, AnalyticsOut, SavedReport, SavedReportList } from
 const BUCKET_KEYS = [
   "businesses_by_website_status",
   "businesses_by_lifecycle",
-  "crm_by_stage",
-  "opportunities_by_status",
   "discovery_jobs_by_status",
   "social_by_classification",
   "social_by_platform",
   "social_by_track_type",
-  "startups_by_funding_stage",
 ] as const;
 
 type BucketKey = (typeof BUCKET_KEYS)[number];
@@ -39,13 +36,6 @@ const SECTIONS: Section[] = [
     linkLabel: "Leads",
   },
   { key: "businesses_by_lifecycle", label: "Leads by lifecycle", href: "/leads", linkLabel: "Leads" },
-  { key: "crm_by_stage", label: "CRM by stage", href: "/leads/crm", linkLabel: "CRM pipeline" },
-  {
-    key: "opportunities_by_status",
-    label: "Opportunities by status",
-    href: "/leads/services",
-    linkLabel: "Service catalog",
-  },
   {
     key: "discovery_jobs_by_status",
     label: "Discovery jobs by status",
@@ -55,8 +45,8 @@ const SECTIONS: Section[] = [
   {
     key: "social_by_classification",
     label: "Social results by classification",
-    href: "/intelligence",
-    linkLabel: "Intelligence",
+    href: "/intelligence/demand",
+    linkLabel: "Demand signals",
   },
   { key: "social_by_platform", label: "Social results by source", href: "/social/sources", linkLabel: "Sources" },
   {
@@ -65,15 +55,9 @@ const SECTIONS: Section[] = [
     href: "/intelligence/tracks",
     linkLabel: "Tracks",
   },
-  {
-    key: "startups_by_funding_stage",
-    label: "Startups by funding stage",
-    href: "/startups",
-    linkLabel: "Startups",
-  },
 ];
 
-const REPORT_TYPES = ["analytics", "leads", "social", "startups"];
+const REPORT_TYPES = ["analytics", "leads", "social"];
 
 function apiBase(): string {
   return process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";

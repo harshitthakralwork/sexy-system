@@ -262,6 +262,14 @@ PLATFORM_DEFINITIONS: tuple[dict[str, Any], ...] = (
     },
 )
 
+# The social product is deliberately small.  SearXNG and Justdial remain
+# infrastructure for local-business discovery, but only these three networks
+# are selectable for social research.  Keeping every experimental connector
+# enabled made the catalogue noisy and produced more failures than usable work.
+SOCIAL_MVP_PLATFORM_SLUGS = frozenset({"facebook", "instagram", "x"})
+
 ENABLED_ADAPTER_KEYS = frozenset(
-    entry["adapter_key"] for entry in PLATFORM_DEFINITIONS if entry["is_enabled"]
+    entry["adapter_key"]
+    for entry in PLATFORM_DEFINITIONS
+    if entry["slug"] in SOCIAL_MVP_PLATFORM_SLUGS
 )

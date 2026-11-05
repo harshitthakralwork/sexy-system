@@ -1,29 +1,4 @@
-import {
-  BarChart3,
-  Bookmark,
-  Briefcase,
-  Building2,
-  CalendarClock,
-  CheckSquare,
-  Compass,
-  FileText,
-  FolderKanban,
-  Globe,
-  LayoutDashboard,
-  ListChecks,
-  MapPinned,
-  Mail,
-  Bell,
-  Radar,
-  Search,
-  Settings,
-  Shield,
-  Sparkles,
-  Target,
-  Users,
-  Workflow,
-  type LucideIcon,
-} from "lucide-react";
+import { BarChart3, Bell, Compass, Globe, LayoutDashboard, ListChecks, MapPinned, Radar, Search, Settings, Shield, Target, type LucideIcon } from "lucide-react";
 
 export interface NavItem {
   label: string;
@@ -47,63 +22,31 @@ export const navigation: NavSection[] = [
     items: [
       { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, available: true },
       { label: "Analytics", href: "/analytics", icon: BarChart3, available: true },
-      { label: "Reports", href: "/analytics#saved-reports", icon: FileText, available: true },
-      { label: "Global Search", href: "/search", icon: Search, available: true },
     ],
   },
   {
-    title: "Leads Intelligence",
+    title: "Find prospects",
     items: [
-      { label: "Leads Dashboard", href: "/leads", icon: Radar, available: true },
-      { label: "Discover Businesses", href: "/leads/discover", icon: Compass, available: true },
-      { label: "Map Explorer", href: "/leads/map", icon: MapPinned, available: true },
-      { label: "Raw Results", href: "/leads/raw", icon: ListChecks, available: true },
-      { label: "Qualified Leads", href: "/leads/qualified", icon: CheckSquare, available: true },
-      { label: "CRM Pipeline", href: "/leads/crm", icon: FolderKanban, available: true },
-      { label: "Service Catalog", href: "/leads/services", icon: Briefcase, available: true },
+      { label: "Local business finder", href: "/leads/map", icon: MapPinned, available: true },
+      { label: "Lead results", href: "/leads/raw", icon: ListChecks, available: true },
+      { label: "Business discovery", href: "/leads/discover", icon: Compass, available: true },
     ],
   },
   {
-    title: "Startup Intelligence",
+    title: "Demand research",
     items: [
-      { label: "Startup Dashboard", href: "/startups", icon: Sparkles, available: true },
-      { label: "Discover Startups", href: "/startups/discover", icon: Compass, available: true },
-      { label: "Watchlists", href: "/startups/watchlists", icon: Users, available: true },
+      { label: "Social research", href: "/social", icon: Globe, available: true },
+      { label: "Demand signals", href: "/intelligence/demand", icon: Target, available: true },
+      { label: "Discovery tracks", href: "/intelligence/tracks", icon: Radar, available: true },
+      { label: "Post explorer", href: "/intelligence/posts", icon: Search, available: true },
     ],
   },
   {
-    title: "Social Intelligence",
+    title: "Workspace",
     items: [
-      { label: "Social Research", href: "/social", icon: Globe, available: true },
-    ],
-  },
-  {
-    title: "Social & Demand Intelligence",
-    items: [
-      { label: "Intelligence Overview", href: "/intelligence", icon: LayoutDashboard, available: true },
-      { label: "Post Explorer", href: "/intelligence/posts", icon: Search, available: true },
-      { label: "Demand Intelligence", href: "/intelligence/demand", icon: Target, available: true },
-      { label: "Business Intelligence", href: "/intelligence/business", icon: Building2, available: true },
-      { label: "Discovery Tracks", href: "/intelligence/tracks", icon: Radar, available: true },
-      { label: "Saved Items", href: "/intelligence/saved", icon: Bookmark, available: true },
-      { label: "Sources", href: "/social/sources", icon: Globe, available: true },
-    ],
-  },
-  {
-    title: "Automation",
-    items: [
-      { label: "Workflow Builder", href: "/automation/workflows", icon: Workflow, available: true },
-      { label: "Scheduler", href: "/automation/scheduler", icon: CalendarClock, available: true },
-      { label: "Approval Queue", href: "/automation/approvals", icon: CheckSquare, available: true },
-      { label: "Email Outreach", href: "/email", icon: Mail, available: true },
-    ],
-  },
-  {
-    title: "Infrastructure",
-    items: [
-      { label: "Source Manager", href: "/sources", icon: Shield, available: true },
-      { label: "Settings", href: "/settings", icon: Settings, available: true },
-      { label: "Notifications", href: "/notifications", icon: Bell, available: true },
+      { label: "Source health", href: "/sources", icon: Shield, available: true },
+      { label: "Alerts", href: "/notifications", icon: Bell, available: true },
+      { label: "Workspace settings", href: "/settings", icon: Settings, available: true },
     ],
   },
 ];

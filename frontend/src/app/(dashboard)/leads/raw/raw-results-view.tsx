@@ -51,15 +51,14 @@ export function RawResultsView() {
     setOffset(0);
   }
 
-  async function shortlist(id: string, name: string) {
+  async function saveProspect(id: string, name: string) {
     try {
       setError(null);
       await api.post(`/businesses/${id}/shortlist`, undefined, csrf);
-      setNotice(`"${name}" shortlisted into Qualified Leads.`);
+      setNotice(`"${name}" saved as a prospect.`);
       await queryClient.invalidateQueries({ queryKey: ["raw-businesses"] });
-      await queryClient.invalidateQueries({ queryKey: ["qualified-businesses"] });
     } catch (caught) {
-      setError(isApiError(caught) ? caught.message : "Failed to shortlist lead");
+      setError(isApiError(caught) ? caught.message : "Failed to save prospect");
     }
   }
 
@@ -75,11 +74,11 @@ export function RawResultsView() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <Header
-        title="Raw Results"
+        title="Lead results"
         subtitle={
           listing.data
-            ? `${total.toLocaleString()} raw business sightings ingested across all active scrapers`
-            : "Loading raw crawler results…"
+            ? `${total.toLocaleString()} collected businesses with public-source evidence`
+            : "Loading collected prospects…"
         }
       />
 
@@ -267,11 +266,11 @@ export function RawResultsView() {
                         <td className="py-2.5 px-3 text-right">
                           <button
                             type="button"
-                            onClick={() => shortlist(b.id, b.name)}
+                            onClick={() => saveProspect(b.id, b.name)}
                             className="refraction-glass-btn inline-flex items-center gap-1 rounded-full border border-cyan-400/40 bg-cyan-500/15 px-3 py-1 text-[11px] font-semibold text-cyan-200 shadow-[0_0_10px_rgba(0,212,255,0.15)] hover:bg-cyan-500/25 hover:text-white transition-all"
                           >
                             <Star size={11} />
-                            <span>Qualify</span>
+                            <span>Save prospect</span>
                           </button>
                         </td>
                       </tr>
