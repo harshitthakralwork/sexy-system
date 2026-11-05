@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Header } from "@/components/layout/header";
 import { Card, EmptyState } from "@/components/ui/card";
 import { useSession } from "@/components/providers/session-provider";
-import { api } from "@/lib/api/client";
+import { api, getApiBase } from "@/lib/api/client";
 import type { IntelligenceList, IntelligenceResult } from "@/lib/api/types";
 
 const PAGE_SIZE = 25;
@@ -309,7 +309,7 @@ function ResultCard({
 }
 
 function apiBase(): string {
-  return process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
+  return getApiBase();
 }
 
 function buttonClass(active: boolean): string {

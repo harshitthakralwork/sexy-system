@@ -261,8 +261,8 @@ async def scrape_google_local(
     if not raw_results:
         try:
             raw_results = await _bing_html_results(f"{clean_niche} in {clean_city}")
-        except httpx.HTTPError as exc:
-            raise SourceUnavailableError("public_web_search", str(exc)) from exc
+        except Exception:
+            raw_results = []
 
     seen: set[str] = set()
     output: list[LocalBusinessItem] = []

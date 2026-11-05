@@ -7,11 +7,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Header } from "@/components/layout/header";
 import { Card, EmptyState } from "@/components/ui/card";
 import { useSession } from "@/components/providers/session-provider";
-import { api } from "@/lib/api/client";
+import { api, getApiBase } from "@/lib/api/client";
 import type { ActionOut, Business, BusinessList } from "@/lib/api/types";
 
 const PAGE_SIZE = 25;
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
 
 /** The standalone results table: real rows, real filters, real pagination. */
 export function LeadsList() {
@@ -68,7 +67,7 @@ export function LeadsList() {
     if (websiteStatus) search.set("website_status", websiteStatus);
     // A download from the API origin, not a Next.js route navigation.
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-    window.location.href = `${API_BASE}/businesses/export?${search.toString()}`;
+    window.location.href = `${getApiBase()}/businesses/export?${search.toString()}`;
   }
 
   async function invalidate() {

@@ -197,7 +197,6 @@ async def ingest_results(
             retrieval_status=_retrieval_status(platform, result),
             published_at=result.published_at,
             published_at_source=result.published_at.isoformat() if result.published_at else None,
-            first_discovered_at=now,
             last_seen_at=now,
             author_name=result.author_display_name or result.author_username or result.raw_data.get("author"),
             author_username=result.author_username,

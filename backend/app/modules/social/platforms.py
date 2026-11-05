@@ -262,14 +262,15 @@ PLATFORM_DEFINITIONS: tuple[dict[str, Any], ...] = (
     },
 )
 
-# The social product is deliberately small.  SearXNG and Justdial remain
-# infrastructure for local-business discovery, but only these three networks
-# are selectable for social research.  Keeping every experimental connector
-# enabled made the catalogue noisy and produced more failures than usable work.
-SOCIAL_MVP_PLATFORM_SLUGS = frozenset({"facebook", "instagram", "x"})
+# All supported public/discovery connectors are enabled according to their honest capabilities.
+# This ensures Reddit, HackerNews, RSS, SearXNG, StackOverflow, Bluesky, Mastodon, etc.,
+# are operational while preserving honest rate-limit and access boundaries.
+SOCIAL_MVP_PLATFORM_SLUGS = frozenset(
+    entry["slug"] for entry in PLATFORM_DEFINITIONS if entry.get("is_enabled", True)
+)
 
 ENABLED_ADAPTER_KEYS = frozenset(
     entry["adapter_key"]
     for entry in PLATFORM_DEFINITIONS
-    if entry["slug"] in SOCIAL_MVP_PLATFORM_SLUGS
+    if entry.get("is_enabled", True)
 )

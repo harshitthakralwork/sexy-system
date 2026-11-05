@@ -6,7 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Header } from "@/components/layout/header";
 import { Card, EmptyState } from "@/components/ui/card";
 import { useSession } from "@/components/providers/session-provider";
-import { api } from "@/lib/api/client";
+import { api, getApiBase } from "@/lib/api/client";
 import type {
   SocialContent,
   SocialContentList,
@@ -199,7 +199,7 @@ export function SocialDashboard() {
                 <span className="text-xs text-[var(--color-muted)]">{totalContent} results</span>
                 <a
                   className="rounded-md border border-border px-2.5 py-1.5 text-xs text-[var(--color-muted)] hover:border-[var(--color-primary)]"
-                  href={`${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1"}/social/content/export?platform_slug=${encodeURIComponent(
+                  href={`${getApiBase()}/social/content/export?platform_slug=${encodeURIComponent(
                     platformFilter,
                   )}&content_type=${encodeURIComponent(typeFilter)}&query=${encodeURIComponent(appliedText)}`}
                 >

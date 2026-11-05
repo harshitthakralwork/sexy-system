@@ -74,6 +74,10 @@ def _install_reddit_transport(
         )
         # aclose() must close the injected client so tests never leak it.
         adapter._owns_client = True
+        if status != 200:
+            async def _no_fallback(_config):
+                return []
+            adapter._searxng_fallback = _no_fallback
         return adapter
 
     monkeypatch.setattr(service, "_build_adapter", build)

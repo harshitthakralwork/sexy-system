@@ -7,11 +7,10 @@ import { CheckSquare, Search, Download, ExternalLink, Mail, FolderKanban, Phone,
 
 import { Header } from "@/components/layout/header";
 import { Card, EmptyState } from "@/components/ui/card";
-import { api } from "@/lib/api/client";
+import { api, getApiBase } from "@/lib/api/client";
 import type { Business, BusinessList } from "@/lib/api/types";
 
 const PAGE_SIZE = 25;
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
 
 export function QualifiedLeadsView() {
   const [query, setQuery] = useState("");
@@ -50,7 +49,7 @@ export function QualifiedLeadsView() {
     if (appliedQuery) search.set("query", appliedQuery);
     if (city) search.set("city", city);
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-    window.location.href = `${API_BASE}/businesses/export?${search.toString()}`;
+    window.location.href = `${getApiBase()}/businesses/export?${search.toString()}`;
   }
 
   // Count leads with phone

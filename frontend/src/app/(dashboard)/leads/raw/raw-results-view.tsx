@@ -8,11 +8,10 @@ import { Search, Download, Star, ExternalLink, MapPin, CheckCircle, Trash2 } fro
 import { Header } from "@/components/layout/header";
 import { Card, EmptyState } from "@/components/ui/card";
 import { useSession } from "@/components/providers/session-provider";
-import { api, isApiError } from "@/lib/api/client";
+import { api, getApiBase, isApiError } from "@/lib/api/client";
 import type { Business, BusinessList } from "@/lib/api/types";
 
 const PAGE_SIZE = 25;
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
 
 export function RawResultsView() {
   const { csrf } = useSession();
@@ -91,13 +90,30 @@ export function RawResultsView() {
     }
   }
 
+  async function deleteSingle(id: string, name: string) {
+    if (!window.confirm(`Delete "${name}"?`)) return;
+    try {
+      setError(null);
+      await api.delete(`/businesses/${id}`, csrf);
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      setNotice(`"${name}" deleted.`);
+      await queryClient.invalidateQueries({ queryKey: ["raw-businesses"] });
+    } catch (caught) {
+      setError(isApiError(caught) ? caught.message : "Failed to delete business");
+    }
+  }
+
   function exportCsv() {
     const search = new URLSearchParams();
     if (appliedQuery) search.set("query", appliedQuery);
     if (city) search.set("city", city);
     if (websiteStatus) search.set("website_status", websiteStatus);
     // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-    window.location.href = `${API_BASE}/businesses/export?${search.toString()}`;
+    window.location.href = `${getApiBase()}/businesses/export?${search.toString()}`;
   }
 
   return (
@@ -345,14 +361,25 @@ export function RawResultsView() {
                         </td>
 
                         <td className="py-2.5 px-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => saveProspect(b.id, b.name)}
-                            className="refraction-glass-btn inline-flex items-center gap-1 rounded-full border border-cyan-400/40 bg-cyan-500/15 px-3 py-1 text-[11px] font-semibold text-cyan-200 shadow-[0_0_10px_rgba(0,212,255,0.15)] hover:bg-cyan-500/25 hover:text-white transition-all"
-                          >
-                            <Star size={11} />
-                            <span>Save prospect</span>
-                          </button>
+                          <div className="inline-flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => saveProspect(b.id, b.name)}
+                              className="refraction-glass-btn inline-flex items-center gap-1 rounded-full border border-cyan-400/40 bg-cyan-500/15 px-3 py-1 text-[11px] font-semibold text-cyan-200 shadow-[0_0_10px_rgba(0,212,255,0.15)] hover:bg-cyan-500/25 hover:text-white transition-all cursor-pointer"
+                            >
+                              <Star size={11} />
+                              <span>Save prospect</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => deleteSingle(b.id, b.name)}
+                              className="inline-flex items-center justify-center h-6 w-6 rounded-md text-[var(--color-muted)] hover:text-[var(--color-error)] hover:bg-[var(--color-error)]/10 transition cursor-pointer"
+                              title="Delete business"
+                              aria-label={`Delete ${b.name}`}
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );

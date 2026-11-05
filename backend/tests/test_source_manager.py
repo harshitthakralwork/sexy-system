@@ -665,11 +665,12 @@ def test_track_uses_feeds_configured_in_the_source_manager(
         json={"feed_urls": ["https://example.com/demand.xml"]},
         headers=session_account.csrf_headers(),
     )
+    initial_accepted = _find_source(session_account, "rss")["records_accepted"]
     # The track itself names no feeds; the account's setting supplies them.
     record = _run_track(uuid.UUID(session_account.user_id), ["rss"])
 
     assert record["status"] == "completed", record
     assert captured == [{"feed_urls": ["https://example.com/demand.xml"]}]
     row = _find_source(session_account, "rss")
-    assert row["records_accepted"] == record["stored_new"]
+    assert row["records_accepted"] - initial_accepted == record["stored_new"]
     assert row["health_status"] == "working"

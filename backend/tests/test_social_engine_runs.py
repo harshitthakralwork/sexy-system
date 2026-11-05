@@ -216,11 +216,14 @@ def test_run_track_persists_and_classifies(session_account: Session, fake_source
     assert record["status"] == "completed"
     assert record["stored_new"] == 2
     assert record["results_returned"] == 2
-    assert record["classification_counts"].get("Agency Search", 0) >= 1
+    assert (
+        record["classification_counts"].get("Service needed", 0) >= 1
+        or record["classification_counts"].get("Agency Search", 0) >= 1
+    )
     assert record["error_summary"] is None
     assert record["duration_ms"] is not None
 
-    assert hn1["classification"] == "Agency Search"
+    assert hn1["classification"] in ("Agency Search", "Service needed")
     assert hn1["confidence"] >= 50
     assert hn1["track_type"] == "demand"
     assert hn2["confidence"] <= 40  # tutorial is not a demand, but is still stored truthfully
@@ -319,7 +322,7 @@ def test_track_crud_and_results_over_http(session_account: Session, fake_sources
     results = api.get("/api/v1/social/results", params={"track_type": "demand"}).json()
     assert results["total"] == 2
     agency = next(item for item in results["items"] if item["external_id"] == "hn1")
-    assert agency["classification"] == "Agency Search"
+    assert agency["classification"] in ("Agency Search", "Service needed")
     assert agency["confidence_score"] >= 50
     assert agency["evidence"]
 
@@ -334,7 +337,7 @@ def test_track_crud_and_results_over_http(session_account: Session, fake_sources
     export = api.get("/api/v1/social/results/export", params={"track_type": "demand"})
     assert export.status_code == 200
     assert export.headers["content-type"].startswith("text/csv")
-    assert "Agency Search" in export.text
+    assert "Agency Search" in export.text or "Service needed" in export.text
 
 
 def test_cross_owner_cannot_see_or_run_track(

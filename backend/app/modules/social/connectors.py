@@ -444,7 +444,7 @@ class RssAtomAdapter:
         # A feed's health is checked during the configured run. Do not present a
         # usable, enabled adapter as broken merely because it has no global URL.
         return HealthResult(
-            status=HEALTH_WORKING, detail="Public feeds are checked when a configured run executes."
+            status=HEALTH_UNKNOWN, detail="Public feeds are checked when a configured run executes."
         )
 
 
