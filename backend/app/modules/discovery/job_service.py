@@ -4,7 +4,7 @@ import uuid
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import JobStateError, NotFoundError
@@ -313,3 +313,30 @@ async def list_batches(
         )
     ).all()
     return list(rows)
+
+
+async def delete_job(
+    session: AsyncSession, job_id: uuid.UUID, owner_user_id: uuid.UUID
+) -> bool:
+    """Delete a single job owned by the user. Child batches and logs cascade."""
+    job = await get_job(session, job_id, owner_user_id)
+    await session.delete(job)
+    await session.flush()
+    return True
+
+
+async def bulk_delete_jobs(
+    session: AsyncSession,
+    owner_user_id: uuid.UUID,
+    job_ids: list[uuid.UUID] | None = None,
+) -> int:
+    """Delete all or selected jobs owned by the user."""
+    query = delete(DiscoveryJob).where(DiscoveryJob.owner_user_id == owner_user_id)
+    if job_ids is not None:
+        if not job_ids:
+            return 0
+        query = query.where(DiscoveryJob.id.in_(job_ids))
+    result = await session.execute(query)
+    await session.flush()
+    return int(result.rowcount)
+

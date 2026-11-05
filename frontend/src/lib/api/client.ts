@@ -5,9 +5,9 @@ export function getApiBase(): string {
     return process.env.NEXT_PUBLIC_API_BASE_URL;
   }
   if (typeof window !== "undefined") {
-    return `${window.location.protocol}//${window.location.hostname}:8000/api/v1`;
+    return "/api/v1";
   }
-  return "http://localhost:8000/api/v1";
+  return process.env.API_BACKEND_BASE_URL ?? "http://127.0.0.1:8002/api/v1";
 }
 
 export function getApiOrigin(): string {

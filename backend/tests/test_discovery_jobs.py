@@ -328,3 +328,53 @@ def test_logs_record_what_the_job_saw(
 
     assert "Started: 1 unit(s) across 1 source(s)" in messages
     assert any(entry["metadata"].get("classification") == "access_denied" for entry in logs)
+
+
+def test_delete_single_discovery_job(
+    session_account: Session, stub_adapters: Callable[[list[StubAdapter]], None]
+) -> None:
+    stub_adapters([StubAdapter(items=[])])
+    created = create_job(session_account, {"keywords": ["dentist"], "sources": ["overpass"]})
+    job_id = created["id"]
+
+    # Verify exists
+    assert session_account.api.get(f"/api/v1/discovery/jobs/{job_id}").status_code == 200
+
+    # Delete
+    del_res = session_account.api.delete(
+        f"/api/v1/discovery/jobs/{job_id}", headers=session_account.csrf_headers()
+    )
+    assert del_res.status_code == 204
+
+    # Verify deleted
+    assert session_account.api.get(f"/api/v1/discovery/jobs/{job_id}").status_code == 404
+
+
+def test_bulk_delete_discovery_jobs(
+    session_account: Session, stub_adapters: Callable[[list[StubAdapter]], None]
+) -> None:
+    stub_adapters([StubAdapter(items=[])])
+    j1 = create_job(session_account, {"keywords": ["bakery"], "sources": ["overpass"]})
+    j2 = create_job(session_account, {"keywords": ["pharmacy"], "sources": ["overpass"]})
+
+    # Bulk delete selected
+    bulk_res = session_account.api.post(
+        "/api/v1/discovery/jobs/bulk-delete",
+        json={"ids": [j1["id"]], "delete_all": False},
+        headers=session_account.csrf_headers(),
+    )
+    assert bulk_res.status_code == 200
+    assert bulk_res.json()["deleted"] == 1
+    assert session_account.api.get(f"/api/v1/discovery/jobs/{j1['id']}").status_code == 404
+    assert session_account.api.get(f"/api/v1/discovery/jobs/{j2['id']}").status_code == 200
+
+    # Bulk delete all
+    bulk_all = session_account.api.post(
+        "/api/v1/discovery/jobs/bulk-delete",
+        json={"ids": [], "delete_all": True},
+        headers=session_account.csrf_headers(),
+    )
+    assert bulk_all.status_code == 200
+    assert bulk_all.json()["deleted"] >= 1
+    assert session_account.api.get(f"/api/v1/discovery/jobs/{j2['id']}").status_code == 404
+

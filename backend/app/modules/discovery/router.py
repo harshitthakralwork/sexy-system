@@ -19,6 +19,7 @@ from app.modules.discovery.local_scraper import (
     LocalScrapeResponse,
     scrape_google_local,
 )
+from app.modules.businesses.schemas import BulkDeleteIn, BulkDeleteOut
 from app.modules.discovery.models import DiscoveryJob, JobLog, Search
 from app.modules.discovery.public_fetch import (
     PublicPageFetchRequest,
@@ -333,6 +334,52 @@ async def retry_job(
         metadata={"dispatch": dispatch_mode, "retry_count": job.retry_count},
     )
     return _job_out(job)
+
+
+@router.delete("/jobs/{job_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Csrf])
+async def delete_job(
+    request: Request,
+    job_id: uuid.UUID,
+    session: AsyncSessionDep,
+    user: CurrentUser,
+) -> None:
+    """Delete a discovery job and cascade its batches and logs."""
+    await job_service.delete_job(session, job_id, user.id)
+    await record_audit(
+        session,
+        action="discovery.job_deleted",
+        owner_user_id=user.id,
+        entity_type="discovery_job",
+        entity_id=job_id,
+        ip_address=client_ip(request),
+    )
+
+
+@router.post("/jobs/bulk-delete", response_model=BulkDeleteOut, dependencies=[Csrf])
+async def bulk_delete_jobs(
+    request: Request,
+    payload: BulkDeleteIn,
+    session: AsyncSessionDep,
+    user: CurrentUser,
+) -> BulkDeleteOut:
+    """Delete selected or all discovery jobs for this user."""
+    if payload.delete_all == bool(payload.ids):
+        raise ValidationFailedError("Choose either selected job ids or delete_all")
+    deleted = await job_service.bulk_delete_jobs(
+        session,
+        owner_user_id=user.id,
+        job_ids=None if payload.delete_all else payload.ids,
+    )
+    await record_audit(
+        session,
+        action="discovery.jobs_bulk_deleted",
+        owner_user_id=user.id,
+        entity_type="discovery_job",
+        ip_address=client_ip(request),
+        metadata={"deleted": deleted, "delete_all": payload.delete_all},
+    )
+    return BulkDeleteOut(deleted=deleted)
+
 
 
 @router.post("/areas", response_model=SearchAreaOut, status_code=status.HTTP_201_CREATED)

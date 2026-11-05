@@ -35,6 +35,8 @@ SENSITIVE_ACTIONS = frozenset(
         "discovery.job_created",
         "discovery.job_cancelled",
         "discovery.job_retried",
+        "discovery.job_deleted",
+        "discovery.jobs_bulk_deleted",
         "discovery.local_search",
         "social.research_run",
         "social.content_delete_all",

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Compass, Play, MapPin, RefreshCw, CheckCircle2, AlertCircle, ArrowRight, Layers } from "lucide-react";
+import { Compass, Play, MapPin, RefreshCw, CheckCircle2, AlertCircle, ArrowRight, Layers, Trash2 } from "lucide-react";
 
 import { Header } from "@/components/layout/header";
 import { Card, CardTitle, EmptyState } from "@/components/ui/card";
@@ -99,6 +99,76 @@ export function DiscoverBusinessesView() {
 
   const jobs = jobsQuery.data?.items ?? [];
   const areas = areasQuery.data?.items ?? [];
+
+  const [selectedJobIds, setSelectedJobIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
+
+  const allSelected = jobs.length > 0 && jobs.every((job) => selectedJobIds.has(job.id));
+
+  const toggleSelectAll = () => {
+    if (allSelected) {
+      setSelectedJobIds(new Set());
+    } else {
+      setSelectedJobIds(new Set(jobs.map((job) => job.id)));
+    }
+  };
+
+  const toggleSelectJob = (id: string) => {
+    setSelectedJobIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const deleteSingleJob = async (id: string) => {
+    if (!window.confirm("Delete this discovery run?")) return;
+    setDeleting(true);
+    setNotice(null);
+    setError(null);
+    try {
+      await api.delete(`/discovery/jobs/${id}`, csrf);
+      setSelectedJobIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      setNotice("Discovery job deleted.");
+      await queryClient.invalidateQueries({ queryKey: ["discovery-jobs"] });
+    } catch (caught) {
+      setError(isApiError(caught) ? caught.message : "Failed to delete discovery job");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const removeSelectedJobs = async () => {
+    const ids = Array.from(selectedJobIds);
+    if (!ids.length || !window.confirm(`Delete ${ids.length} selected discovery runs?`)) return;
+    await removeJobs({ ids, delete_all: false });
+  };
+
+  const removeAllJobs = async () => {
+    if (!window.confirm(`Delete all ${jobs.length} discovery runs?`)) return;
+    await removeJobs({ ids: [], delete_all: true });
+  };
+
+  const removeJobs = async (payload: { ids: string[]; delete_all: boolean }) => {
+    setDeleting(true);
+    setNotice(null);
+    setError(null);
+    try {
+      const result = await api.post<{ deleted: number }>("/discovery/jobs/bulk-delete", payload, csrf);
+      setSelectedJobIds(new Set());
+      setNotice(`${result.deleted} discovery jobs deleted.`);
+      await queryClient.invalidateQueries({ queryKey: ["discovery-jobs"] });
+    } catch (caught) {
+      setError(isApiError(caught) ? caught.message : "Failed to delete discovery jobs");
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -255,19 +325,43 @@ export function DiscoverBusinessesView() {
 
         {/* Discovery Runs Table */}
         <Card>
-          <div className="flex items-center justify-between pb-3 border-b border-border">
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-border">
             <div className="flex items-center gap-2">
               <Layers className="text-[var(--color-primary)]" size={18} />
               <CardTitle>Discovery Jobs &amp; Ingestion Runs</CardTitle>
             </div>
-            <button
-              type="button"
-              onClick={() => jobsQuery.refetch()}
-              className="flex items-center gap-1 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
-            >
-              <RefreshCw size={12} className={jobsQuery.isFetching ? "animate-spin" : ""} />
-              <span>Refresh</span>
-            </button>
+            <div className="flex items-center gap-2">
+              {selectedJobIds.size > 0 && (
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={removeSelectedJobs}
+                  className="refraction-glass-btn flex items-center gap-1.5 rounded-lg border-rose-500/40 bg-rose-500/15 px-3 py-1 text-xs font-semibold text-rose-300 transition-all hover:bg-rose-500/25 disabled:opacity-40 cursor-pointer"
+                >
+                  <Trash2 size={12} />
+                  <span>{deleting ? "Deleting…" : `Delete selected (${selectedJobIds.size})`}</span>
+                </button>
+              )}
+              {jobs.length > 0 && (
+                <button
+                  type="button"
+                  disabled={deleting}
+                  onClick={removeAllJobs}
+                  className="refraction-glass-btn flex items-center gap-1.5 rounded-lg border-rose-500/30 bg-rose-500/10 px-3 py-1 text-xs font-semibold text-rose-300 transition-all hover:bg-rose-500/20 disabled:opacity-40 cursor-pointer"
+                >
+                  <Trash2 size={12} />
+                  <span>Delete all</span>
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => jobsQuery.refetch()}
+                className="flex items-center gap-1 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] ml-1"
+              >
+                <RefreshCw size={12} className={jobsQuery.isFetching ? "animate-spin" : ""} />
+                <span>Refresh</span>
+              </button>
+            </div>
           </div>
 
           {jobsQuery.isLoading ? (
@@ -284,6 +378,15 @@ export function DiscoverBusinessesView() {
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-border text-[var(--color-muted)]">
+                    <th className="py-2 px-3 w-8">
+                      <input
+                        type="checkbox"
+                        checked={allSelected}
+                        onChange={toggleSelectAll}
+                        aria-label="Select all discovery runs"
+                        className="rounded border-border accent-cyan-500 cursor-pointer"
+                      />
+                    </th>
                     <th className="py-2 px-3 font-medium">Job ID</th>
                     <th className="py-2 px-3 font-medium">Status</th>
                     <th className="py-2 px-3 font-medium">Progress</th>
@@ -297,9 +400,24 @@ export function DiscoverBusinessesView() {
                     const isDone = job.status === "completed" || job.status === "finished";
                     const isRunning = job.status === "running" || job.status === "processing";
                     const isFailed = job.status === "failed";
+                    const isSelected = selectedJobIds.has(job.id);
 
                     return (
-                      <tr key={job.id} className="hover:bg-[var(--color-surface)]/50">
+                      <tr
+                        key={job.id}
+                        className={`transition-colors hover:bg-[var(--color-surface)]/50 ${
+                          isSelected ? "bg-cyan-500/[0.07]" : ""
+                        }`}
+                      >
+                        <td className="py-2.5 px-3">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelectJob(job.id)}
+                            aria-label={`Select job ${job.id}`}
+                            className="rounded border-border accent-cyan-500 cursor-pointer"
+                          />
+                        </td>
                         <td className="py-2.5 px-3 font-mono text-[11px] text-[var(--color-muted)]">
                           {job.id.slice(0, 8)}…
                         </td>
@@ -340,14 +458,26 @@ export function DiscoverBusinessesView() {
                             minute: "2-digit",
                           })}
                         </td>
-                        <td className="py-2.5 px-3 text-right space-x-2">
-                          <Link
-                            href={`/leads?job_id=${job.id}`}
-                            className="inline-flex items-center gap-1 text-[var(--color-primary)] hover:underline"
-                          >
-                            <span>View Leads</span>
-                            <ArrowRight size={12} />
-                          </Link>
+                        <td className="py-2.5 px-3 text-right">
+                          <div className="inline-flex items-center justify-end gap-2">
+                            <Link
+                              href={`/leads?job_id=${job.id}`}
+                              className="inline-flex items-center gap-1 text-[var(--color-primary)] hover:underline"
+                            >
+                              <span>View Leads</span>
+                              <ArrowRight size={12} />
+                            </Link>
+                            <button
+                              type="button"
+                              disabled={deleting}
+                              onClick={() => deleteSingleJob(job.id)}
+                              title="Delete job run"
+                              className="refraction-glass-btn inline-flex items-center gap-1 rounded border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-[11px] font-medium text-rose-300 transition-colors hover:bg-rose-500/20 hover:text-rose-200 disabled:opacity-40 cursor-pointer"
+                            >
+                              <Trash2 size={11} />
+                              <span>Delete</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
