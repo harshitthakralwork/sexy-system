@@ -17,16 +17,29 @@ import { useState, useEffect } from "react";
 
 import { navigation } from "./navigation";
 import { cn } from "@/lib/utils";
+import { useTaskActivity } from "@/components/providers/task-activity-provider";
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { getTaskForHref, isTaskRunning } = useTaskActivity();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [expanded, setExpanded] = useState(true);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     Overview: true,
-    "Leads Intelligence": true,
-    "Social Intelligence": true,
+    "Find prospects": true,
+    "Demand research": true,
+    Workspace: true,
   });
+
+  // Automatically keep a section open if an active task is running inside it
+  useEffect(() => {
+    navigation.forEach((section) => {
+      const hasActive = section.items.some((item) => isTaskRunning(item.href));
+      if (hasActive) {
+        setOpenSections((prev) => ({ ...prev, [section.title]: true }));
+      }
+    });
+  }, [isTaskRunning]);
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -98,7 +111,75 @@ export function Sidebar() {
                 {(sectionOpen || !expanded) && <div className="space-y-0.5">{section.items.map((item) => {
                   const Icon = item.icon;
                   const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
-                  return <Link key={`${section.title}-${item.href}`} href={item.href} className={cn("group relative flex items-center gap-3 rounded-[12px] text-xs font-medium transition-all", expanded ? "px-3 py-2" : "mx-auto h-10 w-10 justify-center", active ? "border border-white/[0.16] bg-white/[0.1] text-white" : "text-white/50 hover:bg-white/[0.055] hover:text-white")} title={item.label}><Icon size={16} className={active ? "text-cyan-300" : "text-white/40 group-hover:text-white"} />{expanded && <span className="truncate">{item.label}</span>}{!expanded && <span className="pointer-events-none absolute left-[calc(100%+10px)] z-50 hidden whitespace-nowrap rounded-lg border border-white/10 bg-[#171923]/95 px-2.5 py-1.5 text-xs text-white shadow-xl group-hover:block">{item.label}</span>}</Link>;
+                  const task = getTaskForHref(item.href);
+
+                  return (
+                    <Link
+                      key={`${section.title}-${item.href}`}
+                      href={item.href}
+                      className={cn(
+                        "group relative flex items-center gap-3 rounded-[12px] text-xs font-medium transition-all",
+                        expanded ? "px-3 py-2" : "mx-auto h-10 w-10 justify-center",
+                        active
+                          ? "border border-white/[0.16] bg-white/[0.1] text-white shadow-[0_0_15px_rgba(0,212,255,0.08)]"
+                          : "text-white/50 hover:bg-white/[0.055] hover:text-white"
+                      )}
+                      title={item.label}
+                    >
+                      <div className="relative shrink-0 flex items-center justify-center">
+                        <Icon
+                          size={16}
+                          className={active ? "text-cyan-300" : "text-white/40 group-hover:text-white"}
+                        />
+                        {!expanded && task && (
+                          <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
+                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-400 shadow-[0_0_8px_rgba(0,212,255,0.9)]" />
+                          </span>
+                        )}
+                      </div>
+
+                      {expanded && <span className="truncate flex-1">{item.label}</span>}
+
+                      {/* AI LLM-style pulsating spinner indicator when background task is running */}
+                      {expanded && task && (
+                        <div
+                          className="ml-auto flex items-center shrink-0 pl-1.5"
+                          title={`${task.label || "Task running"} in background…`}
+                        >
+                          <span className="relative flex h-3.5 w-3.5 items-center justify-center">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400/40" />
+                            <svg
+                              className="animate-spin h-3.5 w-3.5 text-cyan-400 drop-shadow-[0_0_8px_rgba(0,212,255,0.85)]"
+                              xmlns="http://www.w3.org/2000/svg"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                            >
+                              <circle
+                                className="opacity-25"
+                                cx="12"
+                                cy="12"
+                                r="10"
+                                stroke="currentColor"
+                                strokeWidth="3"
+                              />
+                              <path
+                                className="opacity-95"
+                                fill="currentColor"
+                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                              />
+                            </svg>
+                          </span>
+                        </div>
+                      )}
+
+                      {!expanded && (
+                        <span className="pointer-events-none absolute left-[calc(100%+10px)] z-50 hidden whitespace-nowrap rounded-lg border border-white/10 bg-[#171923]/95 px-2.5 py-1.5 text-xs text-white shadow-xl group-hover:block">
+                          {item.label} {task ? " (Running…)" : ""}
+                        </span>
+                      )}
+                    </Link>
+                  );
                 })}</div>}
               </div>;
             })}

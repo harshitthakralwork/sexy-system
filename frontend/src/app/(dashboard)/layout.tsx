@@ -7,6 +7,7 @@ import { useEffect, type ReactNode } from "react";
 import { CommandPalette } from "@/components/layout/command-palette";
 import { Sidebar } from "@/components/layout/sidebar";
 import { useSession } from "@/components/providers/session-provider";
+import { TaskActivityProvider } from "@/components/providers/task-activity-provider";
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const router = useRouter();
@@ -52,31 +53,33 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div className="dashboard-shell relative isolate flex h-screen overflow-hidden bg-[#06070a] text-white">
-      {/* 1. Animated Chromatic Liquid Background Layer */}
-      <div className="absolute inset-0 -z-30 overflow-hidden pointer-events-none">
-        <Image
-          src="/chromatic-refraction-bg.jpg"
-          alt="Chromatic Liquid Background"
-          fill
-          priority
-          sizes="100vw"
-          className="object-cover object-center animate-liquid-float scale-110 opacity-55"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-[#06070a]/50 via-[#06070a]/30 to-[#06070a]/70" />
-      </div>
+    <TaskActivityProvider>
+      <div className="dashboard-shell relative isolate flex h-screen overflow-hidden bg-[#06070a] text-white">
+        {/* 1. Animated Chromatic Liquid Background Layer */}
+        <div className="absolute inset-0 -z-30 overflow-hidden pointer-events-none">
+          <Image
+            src="/chromatic-refraction-bg.jpg"
+            alt="Chromatic Liquid Background"
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover object-center animate-liquid-float scale-110 opacity-55"
+          />
+          <div className="absolute inset-0 bg-gradient-to-b from-[#06070a]/50 via-[#06070a]/30 to-[#06070a]/70" />
+        </div>
 
-      {/* 2. Floating Chromatic Caustic Light Flares behind Dashboard */}
-      <div className="pointer-events-none absolute -left-32 -top-32 h-[42rem] w-[42rem] rounded-full bg-cyan-500/25 blur-[140px] -z-10 animate-caustic-1" />
-      <div className="pointer-events-none absolute -right-32 -bottom-32 h-[44rem] w-[44rem] rounded-full bg-purple-500/25 blur-[150px] -z-10 animate-caustic-2" />
-      <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[48rem] w-[48rem] rounded-full bg-amber-500/15 blur-[160px] -z-10" />
+        {/* 2. Floating Chromatic Caustic Light Flares behind Dashboard */}
+        <div className="pointer-events-none absolute -left-32 -top-32 h-[42rem] w-[42rem] rounded-full bg-cyan-500/25 blur-[140px] -z-10 animate-caustic-1" />
+        <div className="pointer-events-none absolute -right-32 -bottom-32 h-[44rem] w-[44rem] rounded-full bg-purple-500/25 blur-[150px] -z-10 animate-caustic-2" />
+        <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[48rem] w-[48rem] rounded-full bg-amber-500/15 blur-[160px] -z-10" />
 
-      {/* 3. Translucent Blur Glass Shell */}
-      <Sidebar />
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[32px] border border-white/15 bg-black/25 shadow-[0_24px_80px_rgba(0,0,0,0.6)] backdrop-blur-3xl m-2 sm:m-3">
-        {children}
+        {/* 3. Translucent Blur Glass Shell */}
+        <Sidebar />
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[32px] border border-white/15 bg-black/25 shadow-[0_24px_80px_rgba(0,0,0,0.6)] backdrop-blur-3xl m-2 sm:m-3">
+          {children}
+        </div>
+        <CommandPalette />
       </div>
-      <CommandPalette />
-    </div>
+    </TaskActivityProvider>
   );
 }

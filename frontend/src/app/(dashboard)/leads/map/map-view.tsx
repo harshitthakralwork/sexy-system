@@ -7,6 +7,7 @@ import { BriefcaseBusiness, Download, ExternalLink, Globe2, GlobeX, ListFilter, 
 import { Header } from "@/components/layout/header";
 import { Card, EmptyState } from "@/components/ui/card";
 import { useSession } from "@/components/providers/session-provider";
+import { useTaskActivity } from "@/components/providers/task-activity-provider";
 import { api, getApiBase } from "@/lib/api/client";
 import type { Business, BusinessList } from "@/lib/api/types";
 
@@ -54,6 +55,8 @@ function potentialClient(business: Business) {
 export function MapIntelligenceView() {
   const { csrf, user } = useSession();
   const queryClient = useQueryClient();
+  const { localSearch } = useTaskActivity();
+
   const [niche, setNiche] = useState("");
   const [city, setCity] = useState("");
   const [applied, setApplied] = useState({ niche: "", city: "" });
@@ -61,10 +64,19 @@ export function MapIntelligenceView() {
   const [deleting, setDeleting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
-  const [crawling, setCrawling] = useState(false);
-  const [crawlProgress, setCrawlProgress] = useState(0);
-  const [crawlStage, setCrawlStage] = useState("Preparing public searches…");
-  const crawlController = useRef<AbortController | null>(null);
+
+  const crawling = localSearch.isRunning;
+  const crawlProgress = localSearch.progress;
+  const crawlStage = localSearch.stage;
+
+  // Restore fields from active background search if present
+  useEffect(() => {
+    if (localSearch.isRunning) {
+      if (localSearch.niche && !niche) setNiche(localSearch.niche);
+      if (localSearch.city && !city) setCity(localSearch.city);
+    }
+  }, [localSearch.isRunning, localSearch.niche, localSearch.city, niche, city]);
+
   const [websiteFilter, setWebsiteFilter] = useState<"all" | "has" | "without">("all");
   const [websiteRank, setWebsiteRank] = useState<WebsiteRank>("potential");
   const [potentialOnly, setPotentialOnly] = useState(false);
@@ -109,6 +121,7 @@ export function MapIntelligenceView() {
   const exportParams = new URLSearchParams();
   if (applied.niche) exportParams.set("query", applied.niche);
   if (applied.city) exportParams.set("city", applied.city);
+
   async function search() {
     const cleanNiche = niche.trim();
     const cleanCity = city.trim();
@@ -116,51 +129,19 @@ export function MapIntelligenceView() {
       setSearchError("Enter both a niche and a city (at least 2 characters each).");
       return;
     }
-    setCrawling(true);
-    setCrawlProgress(5);
-    setCrawlStage("Preparing public searches…");
-    const controller = new AbortController();
-    crawlController.current = controller;
     setSearchError(null);
     setNotice(null);
-    try {
-      const result = await api.post<{ total_found: number; stored_new: number }>(
-        "/discovery/local-search",
-        { niche: cleanNiche, city: cleanCity },
-        csrf,
-        120_000,
-        controller.signal,
-      );
-      setCrawlProgress(100);
-      setCrawlStage("Search complete");
+    const ok = await localSearch.start(cleanNiche, cleanCity);
+    if (ok) {
       setApplied({ niche: cleanNiche, city: cleanCity });
-      setNotice(`Crawler found ${result.total_found}; ${result.stored_new} new businesses stored.`);
       await queryClient.invalidateQueries({ queryKey: ["local-business-finder"] });
-    } catch (caught) {
-      if (controller.signal.aborted) setSearchError("Search cancelled.");
-      else setSearchError(errorMessage(caught));
-    } finally {
-      setCrawling(false);
-      crawlController.current = null;
     }
   }
 
   function cancelSearch() {
-    crawlController.current?.abort();
+    localSearch.cancel();
   }
 
-  useEffect(() => {
-    if (!crawling) return;
-    const timer = window.setInterval(() => {
-      setCrawlProgress((current) => Math.min(92, current + 3));
-      setCrawlStage((current) => {
-        if (current.includes("Preparing")) return "Searching public indexes…";
-        if (current.includes("indexes")) return "Checking public business pages…";
-        return "Normalising listings and saving results…";
-      });
-    }, 1800);
-    return () => window.clearInterval(timer);
-  }, [crawling]);
 
   if (!user) return null;
 
@@ -214,7 +195,8 @@ export function MapIntelligenceView() {
                 <div className="h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-cyan-400 transition-all duration-500" style={{ width: `${crawlProgress}%` }} /></div>
               </div>
             )}
-            {searchError && <p className="mt-2 text-sm text-[var(--color-error)]">{searchError}</p>}
+            {(searchError || localSearch.error) && <p className="mt-2 text-sm text-[var(--color-error)]">{searchError || localSearch.error}</p>}
+            {(notice || localSearch.notice) && <p className="mt-2 text-sm text-cyan-300">{notice || localSearch.notice}</p>}
             <p className="mt-2 text-xs text-[var(--color-muted)]">
               No Google API key is used. Map links open a normal Google Maps browser search.
             </p>
