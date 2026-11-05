@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 import urllib.parse
@@ -61,6 +62,20 @@ class LocalScrapeResponse(BaseModel):
 def _clean_name(raw: str) -> str:
     value = re.sub(r"\s*[-|:]\s*(Yelp|Yellow Pages|Facebook|Instagram).*$", "", raw, flags=re.I)
     return re.sub(r"^\d+[.)]\s*", "", value).strip(" \t\r\n\"'")[:255]
+
+
+def _normalize_rating(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        val = float(value)
+        if val > 10.0:
+            val = (val / 100.0) * 5.0
+        elif val > 5.0:
+            val = (val / 10.0) * 5.0
+        return max(0.0, min(5.0, round(val, 2)))
+    except (ValueError, TypeError):
+        return None
 
 
 def _domain(url: str) -> str:
@@ -221,20 +236,27 @@ async def scrape_google_local(
         )
     except (httpx.HTTPError, ValueError, json.JSONDecodeError):
         raw_results = []
-    async with httpx.AsyncClient(timeout=settings.searxng_timeout_seconds) as client:
-        for query in queries:
-            try:
-                response = await client.get(
-                    f"{settings.searxng_base_url.rstrip('/')}/search",
-                    params={"q": query, "format": "json"},
-                )
-                response.raise_for_status()
-                payload = response.json()
-                raw_results.extend(payload.get("results", []))
-            except (httpx.HTTPError, ValueError) as exc:
-                if not raw_results:
-                    raise SourceUnavailableError("searxng", type(exc).__name__) from exc
-                break
+
+    async def _fetch_searx_query(c: httpx.AsyncClient, q: str) -> list[dict[str, Any]]:
+        try:
+            resp = await c.get(
+                f"{settings.searxng_base_url.rstrip('/')}/search",
+                params={"q": q, "format": "json"},
+            )
+            if resp.status_code == 200:
+                return resp.json().get("results", [])
+        except Exception:
+            pass
+        return []
+
+    async with httpx.AsyncClient(timeout=8.0) as client:
+        searx_batches = await asyncio.gather(
+            *[_fetch_searx_query(client, q) for q in queries],
+            return_exceptions=True,
+        )
+        for batch in searx_batches:
+            if isinstance(batch, list):
+                raw_results.extend(batch)
 
     if not raw_results:
         try:
@@ -261,14 +283,18 @@ async def scrape_google_local(
             continue
         seen.add(name.casefold())
         domain = _domain(url)
+        is_directory = any(
+            domain == item or domain.endswith(f".{item}") for item in DIRECTORY_DOMAINS
+        )
         if (
-            pages_fetched < 15
+            pages_fetched < 4
+            and not is_directory
             and url.startswith(("http://", "https://"))
-            and "google.com/maps" not in url
+            and "google.com" not in url
         ):
             try:
-                fetched = await fetch_public_page(url)
-            except (httpx.HTTPError, ValueError):
+                fetched = await asyncio.wait_for(fetch_public_page(url), timeout=3.5)
+            except Exception:
                 fetched = None
             if fetched is not None and fetched.status == "ok":
                 pages_fetched += 1
@@ -281,14 +307,13 @@ async def scrape_google_local(
                 result["rating"] = result.get("rating") or fetched.rating
                 result["review_count"] = result.get("review_count") or fetched.review_count
                 result["public_page_method"] = fetched.extraction_method
-        is_directory = any(
-            domain == item or domain.endswith(f".{item}") for item in DIRECTORY_DOMAINS
-        )
+
         website_url = None if is_directory else url
         extracted_phone, extracted_email, extracted_rating, extracted_reviews = _extract(content)
         phone = result.get("phone") or extracted_phone
         email = result.get("email") or extracted_email
-        rating = result.get("rating") if result.get("rating") is not None else extracted_rating
+        raw_rating = result.get("rating") if result.get("rating") is not None else extracted_rating
+        rating = _normalize_rating(raw_rating)
         review_count = (
             result.get("review_count")
             if result.get("review_count") is not None
@@ -343,7 +368,6 @@ async def scrape_google_local(
                 first_discovered_at=now,
             )
             session.add(existing)
-            await session.flush()
             stored_new += 1
         else:
             if phone and not existing.phone:
@@ -378,7 +402,6 @@ async def scrape_google_local(
                     "public_page_url": url,
                     "public_page_method": result["public_page_method"],
                 }
-            await session.flush()
         maps_query = urllib.parse.quote(f"{name} {clean_city}")
         output.append(
             LocalBusinessItem(
@@ -396,6 +419,8 @@ async def scrape_google_local(
         )
         if len(output) >= 100:
             break
+
+    await session.flush()
     return LocalScrapeResponse(
         niche=clean_niche,
         city=clean_city,

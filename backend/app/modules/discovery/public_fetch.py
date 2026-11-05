@@ -85,6 +85,20 @@ def _number(value: Any) -> float | None:
         return None
 
 
+def _clean_rating(value: Any, best: Any = None) -> float | None:
+    num = _number(value)
+    if num is None:
+        return None
+    best_num = _number(best)
+    if best_num and best_num > 5.0:
+        num = (num / best_num) * 5.0
+    elif num > 10.0:
+        num = (num / 100.0) * 5.0
+    elif num > 5.0:
+        num = (num / 10.0) * 5.0
+    return max(0.0, min(5.0, round(num, 2)))
+
+
 def _integer(value: Any) -> int | None:
     try:
         return int(str(value).replace(",", ""))
@@ -231,7 +245,7 @@ async def fetch_public_page(
         phone=_first_text(entity.get("telephone"), phones[0] if phones else None),
         email=_first_text(entity.get("email"), emails[0] if emails else None),
         address=_address(entity.get("address")),
-        rating=_number(aggregate.get("ratingValue")),
+        rating=_clean_rating(aggregate.get("ratingValue"), aggregate.get("bestRating")),
         review_count=_integer(aggregate.get("reviewCount") or aggregate.get("ratingCount")),
         published_at=published_at,
         website_url=_first_text(entity.get("url"), canonical_url),
