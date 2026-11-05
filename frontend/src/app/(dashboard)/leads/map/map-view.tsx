@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { BriefcaseBusiness, Download, ExternalLink, Globe2, GlobeX, ListFilter, MapPinned, Sparkles, Trash2, X } from "lucide-react";
 
 import { Header } from "@/components/layout/header";
+import { MapRadarView } from "@/components/map/map-intelligence-view";
 import { Card, EmptyState } from "@/components/ui/card";
 import { useSession } from "@/components/providers/session-provider";
 import { useTaskActivity } from "@/components/providers/task-activity-provider";
@@ -173,7 +174,14 @@ export function MapIntelligenceView() {
     <div className="flex min-h-0 flex-1 flex-col">
       <Header title="Local Business Finder" subtitle="Contacts, reviews and map locations from collected evidence" />
       <main className="flex-1 overflow-y-auto p-4 lg:p-6">
-        <div className="mx-auto max-w-[1500px] space-y-4">
+        <div className="mx-auto max-w-[1500px] space-y-5">
+          {/* Interactive Map Intelligence Radar (Image 2) */}
+          <MapRadarView
+            embedded={false}
+            initialCity={city || applied.city || "New Delhi, Delhi"}
+            initialCategory={niche || applied.niche || "Hospitals"}
+          />
+
           <Card className="relative z-30">
             <h1 className="text-xl font-semibold">Find local businesses</h1>
             <p className="mt-1 text-sm text-[var(--color-muted)]">

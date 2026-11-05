@@ -68,7 +68,7 @@ export function Sidebar() {
         {/* Brand */}
         <div
           className={cn(
-            "flex h-[68px] shrink-0 items-center border-b border-white/[0.08] px-3",
+            "flex h-[68px] shrink-0 items-center border-b border-slate-300/40 dark:border-white/[0.08] px-3",
             expanded ? "justify-between" : "justify-center"
           )}
         >
@@ -77,7 +77,7 @@ export function Sidebar() {
             className="flex items-center gap-3 group"
             title="SparkXFlow Nexus dashboard"
           >
-            <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] overflow-hidden border border-white/10 shadow-lg shadow-black/50 transition-transform duration-200 group-hover:scale-105">
+            <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] overflow-hidden border border-white/20 dark:border-white/10 shadow-lg shadow-black/20 dark:shadow-black/50 transition-transform duration-200 group-hover:scale-105">
               <Image
                 src="/logo.png"
                 alt="SparkXFlow Nexus"
@@ -89,7 +89,7 @@ export function Sidebar() {
             </div>
             {expanded && (
               <div className="truncate">
-                <span className="block text-sm font-extrabold tracking-tight text-white">
+                <span className="block text-sm font-extrabold tracking-tight text-slate-900 dark:text-white">
                   SparkXFlow
                 </span>
                 <span className="block text-[9px] font-bold tracking-[0.2em] text-[#FF7849] uppercase">
@@ -103,11 +103,11 @@ export function Sidebar() {
         {/* ── Nav Items ── */}
         <nav className="flex-1 overflow-y-auto px-2.5 py-3 space-y-0.5 scrollbar-none">
           {/* Every feature is available in this rail; no separate All Modules drawer required. */}
-          <div className="mt-3 border-t border-white/[0.08] pt-3">
+          <div className="mt-3 border-t border-slate-300/40 dark:border-white/[0.08] pt-3">
             {navigation.map((section) => {
               const sectionOpen = openSections[section.title] ?? false;
               return <div key={section.title} className="mb-2">
-                {expanded && <button className="flex w-full items-center justify-between px-2 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-[#FF7849]/75" onClick={() => setOpenSections((current) => ({ ...current, [section.title]: !sectionOpen }))} type="button"><span>{section.title}</span><ChevronRight className={cn("transition-transform", sectionOpen && "rotate-90")} size={12} /></button>}
+                {expanded && <button className="flex w-full items-center justify-between px-2 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-[#FF7849]" onClick={() => setOpenSections((current) => ({ ...current, [section.title]: !sectionOpen }))} type="button"><span>{section.title}</span><ChevronRight className={cn("transition-transform", sectionOpen && "rotate-90")} size={12} /></button>}
                 {(sectionOpen || !expanded) && <div className="space-y-0.5">{section.items.map((item) => {
                   const Icon = item.icon;
                   const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
@@ -121,15 +121,15 @@ export function Sidebar() {
                         "group relative flex items-center gap-3 rounded-[12px] text-xs font-medium transition-all",
                         expanded ? "px-3 py-2" : "mx-auto h-10 w-10 justify-center",
                         active
-                          ? "border border-white/[0.16] bg-white/[0.1] text-white shadow-[0_0_15px_rgba(0,212,255,0.08)]"
-                          : "text-white/50 hover:bg-white/[0.055] hover:text-white"
+                          ? "border border-cyan-500/30 dark:border-white/[0.16] bg-cyan-500/15 dark:bg-white/[0.1] text-cyan-900 dark:text-white shadow-[0_0_15px_rgba(0,212,255,0.12)] font-semibold"
+                          : "text-slate-600 dark:text-white/50 hover:bg-slate-900/5 dark:hover:bg-white/[0.055] hover:text-slate-950 dark:hover:text-white"
                       )}
                       title={item.label}
                     >
                       <div className="relative shrink-0 flex items-center justify-center">
                         <Icon
                           size={16}
-                          className={active ? "text-cyan-300" : "text-white/40 group-hover:text-white"}
+                          className={active ? "text-cyan-600 dark:text-cyan-300" : "text-slate-500 dark:text-white/40 group-hover:text-slate-900 dark:group-hover:text-white"}
                         />
                         {!expanded && task && (
                           <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
@@ -214,13 +214,13 @@ export function Sidebar() {
             href="/notifications"
             className={cn(
               "group relative flex items-center gap-3 rounded-[14px] w-full",
-              "text-white/45 hover:bg-white/[0.055] hover:text-white transition-all duration-200",
+              "text-slate-600 dark:text-white/45 hover:bg-slate-900/5 dark:hover:bg-white/[0.055] hover:text-slate-900 dark:hover:text-white transition-all duration-200",
               expanded ? "px-3 py-2.5" : "h-10 w-10 justify-center mx-auto"
             )}
             title="Notifications"
           >
             <div className="relative shrink-0">
-              <Bell size={16} className="group-hover:text-amber-300 transition-colors" />
+              <Bell size={16} className="group-hover:text-amber-500 dark:group-hover:text-amber-300 transition-colors" />
               <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-[#FF7849] ring-1 ring-[#06070a] animate-glow-breathe" />
             </div>
             {expanded && <span className="truncate text-xs font-medium">Notifications</span>}
@@ -231,7 +231,7 @@ export function Sidebar() {
             href="/settings"
             className={cn(
               "group flex items-center gap-3 rounded-[14px] w-full",
-              "text-white/45 hover:bg-white/[0.055] hover:text-white transition-all duration-200",
+              "text-slate-600 dark:text-white/45 hover:bg-slate-900/5 dark:hover:bg-white/[0.055] hover:text-slate-900 dark:hover:text-white transition-all duration-200",
               expanded ? "px-3 py-2.5" : "h-10 w-10 justify-center mx-auto"
             )}
             title="Settings & Data Management"
@@ -246,7 +246,7 @@ export function Sidebar() {
             onClick={() => setExpanded((prev) => !prev)}
             className={cn(
               "group flex items-center gap-2 rounded-[14px] w-full",
-              "text-white/30 hover:text-white/70 hover:bg-white/[0.04] transition-all duration-200",
+              "text-slate-500 dark:text-white/30 hover:text-slate-900 dark:hover:text-white/70 hover:bg-slate-900/5 dark:hover:bg-white/[0.04] transition-all duration-200",
               expanded ? "px-3 py-2 justify-start" : "h-9 w-9 justify-center mx-auto"
             )}
             title={expanded ? "Collapse Rail" : "Expand Rail"}
