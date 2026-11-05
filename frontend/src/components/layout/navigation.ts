@@ -28,6 +28,7 @@ export const navigation: NavSection[] = [
     title: "Find prospects",
     items: [
       { label: "Local business finder", href: "/leads/map", icon: MapPinned, available: true },
+      { label: "Verified web prospects", href: "/prospecting", icon: Compass, available: true },
       { label: "Lead results", href: "/leads/raw", icon: ListChecks, available: true },
       { label: "Business discovery", href: "/leads/discover", icon: Compass, available: true },
     ],

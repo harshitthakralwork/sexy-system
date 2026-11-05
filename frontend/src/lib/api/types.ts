@@ -1062,6 +1062,54 @@ export interface NotificationList {
   total: number;
 }
 
+// --- Verified web prospecting -------------------------------------------------
+
+export interface VerifiedProspectingRun {
+  id: string;
+  niche: string;
+  city: string;
+  source_kind: "web_index" | "osm_extract";
+  max_candidates: number;
+  status: "queued" | "running" | "completed" | "partial" | "failed" | "cancelled";
+  stage: string;
+  progress_percent: number;
+  candidate_count: number;
+  saved_count: number;
+  failed_count: number;
+  cancellation_requested: boolean;
+  error_summary: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+}
+
+export interface VerifiedProspectingLead {
+  id: string;
+  run_id: string;
+  name: string;
+  city: string;
+  source_type: "web_index" | "osm_extract";
+  source_url: string;
+  website_url: string | null;
+  website_status: "has_website" | "unknown";
+  public_phone: string | null;
+  public_email: string | null;
+  address: string | null;
+  rating: number | null;
+  review_count: number | null;
+  latitude: number | null;
+  longitude: number | null;
+  potential_score: number;
+  score_reasons: string[];
+  evidence: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface VerifiedProspectingLeadList {
+  items: VerifiedProspectingLead[];
+  total: number;
+}
+
 
 export interface PostAnnotation {
   lead_status: string;

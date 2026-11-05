@@ -20,3 +20,4 @@ from app.modules.services_catalog import models as services_models  # noqa: F401
 from app.modules.social import models as social_models  # noqa: F401
 from app.modules.sources import models as sources_models  # noqa: F401
 from app.modules.startups import models as startups_models  # noqa: F401
+from app.modules.verified_prospecting import models as verified_prospecting_models  # noqa: F401

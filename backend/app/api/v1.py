@@ -17,6 +17,7 @@ from app.modules.services_catalog.router import router as services_router
 from app.modules.social.router import router as social_router
 from app.modules.sources.router import router as sources_router
 from app.modules.startups.router import router as startups_router
+from app.modules.verified_prospecting.router import router as verified_prospecting_router
 
 api_router = APIRouter()
 api_router.include_router(info_router)
@@ -35,3 +36,4 @@ api_router.include_router(sources_router)
 api_router.include_router(exports_router)
 api_router.include_router(imports_router)
 api_router.include_router(notifications_router)
+api_router.include_router(verified_prospecting_router)
