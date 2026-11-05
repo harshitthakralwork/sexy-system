@@ -226,6 +226,7 @@ async def list_jobs(
     limit: int = Query(default=25, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ) -> JobListOut:
+    await job_service.recover_stale_jobs(session, stale_after_seconds=3600)
     jobs, total = await job_service.list_jobs(session, user.id, limit=limit, offset=offset)
     area_ids = await _area_ids_for(session, jobs)
     items = [_job_out(job, area_ids.get(job.search_id)) for job in jobs]

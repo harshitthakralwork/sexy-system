@@ -144,8 +144,7 @@ async def recover_stale_jobs(session: AsyncSession, *, stale_after_seconds: int)
         await session.scalars(
             select(DiscoveryJob).where(
                 DiscoveryJob.status == "running",
-                DiscoveryJob.started_at.is_not(None),
-                DiscoveryJob.started_at < cutoff,
+                func.coalesce(DiscoveryJob.started_at, DiscoveryJob.created_at) < cutoff,
             )
         )
     ).all()
@@ -212,15 +211,16 @@ async def cancel_job(
     would leave the record claiming something that is not true.
     """
     job = await get_job(session, job_id, owner_user_id)
-    if job.status in TERMINAL_STATUSES:
+    if job.status == "completed":
         raise JobStateError(
             f"Job is already {job.status}",
             details={"job_id": str(job_id), "status": job.status},
         )
-    job.status = "cancelled"
-    mark_finished(job)
-    await add_log(session, job.id, "warning", "Cancellation requested")
-    await session.flush()
+    if job.status != "cancelled":
+        job.status = "cancelled"
+        mark_finished(job)
+        await add_log(session, job.id, "warning", "Cancellation requested")
+        await session.flush()
     return job
 
 

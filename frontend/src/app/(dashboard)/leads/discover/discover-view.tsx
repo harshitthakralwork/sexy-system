@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Compass, Play, MapPin, RefreshCw, CheckCircle2, AlertCircle, ArrowRight, Layers, Trash2 } from "lucide-react";
+import { Compass, Play, MapPin, RefreshCw, CheckCircle2, AlertCircle, ArrowRight, Layers, Trash2, X } from "lucide-react";
 
 import { Header } from "@/components/layout/header";
 import { Card, CardTitle, EmptyState } from "@/components/ui/card";
@@ -102,6 +102,23 @@ export function DiscoverBusinessesView() {
 
   const [selectedJobIds, setSelectedJobIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [cancellingJobId, setCancellingJobId] = useState<string | null>(null);
+
+  const cancelJob = async (id: string) => {
+    setCancellingJobId(id);
+    setError(null);
+    setNotice(null);
+    try {
+      await api.post(`/discovery/jobs/${id}/cancel`, undefined, csrf);
+      setNotice("Discovery run cancelled.");
+      await queryClient.invalidateQueries({ queryKey: ["discovery-jobs"] });
+      await queryClient.invalidateQueries({ queryKey: ["active-discovery-jobs-poll"] });
+    } catch (caught) {
+      setError(isApiError(caught) ? caught.message : "Failed to cancel discovery job");
+    } finally {
+      setCancellingJobId(null);
+    }
+  };
 
   const allSelected = jobs.length > 0 && jobs.every((job) => selectedJobIds.has(job.id));
 
@@ -136,6 +153,7 @@ export function DiscoverBusinessesView() {
       });
       setNotice("Discovery job deleted.");
       await queryClient.invalidateQueries({ queryKey: ["discovery-jobs"] });
+      await queryClient.invalidateQueries({ queryKey: ["active-discovery-jobs-poll"] });
     } catch (caught) {
       setError(isApiError(caught) ? caught.message : "Failed to delete discovery job");
     } finally {
@@ -163,6 +181,7 @@ export function DiscoverBusinessesView() {
       setSelectedJobIds(new Set());
       setNotice(`${result.deleted} discovery jobs deleted.`);
       await queryClient.invalidateQueries({ queryKey: ["discovery-jobs"] });
+      await queryClient.invalidateQueries({ queryKey: ["active-discovery-jobs-poll"] });
     } catch (caught) {
       setError(isApiError(caught) ? caught.message : "Failed to delete discovery jobs");
     } finally {
@@ -422,19 +441,33 @@ export function DiscoverBusinessesView() {
                           {job.id.slice(0, 8)}…
                         </td>
                         <td className="py-2.5 px-3">
-                          <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${
-                              isDone
-                                ? "bg-[var(--color-success)]/10 text-[var(--color-success)]"
-                                : isRunning
-                                ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)] animate-pulse"
-                                : isFailed
-                                ? "bg-[var(--color-error)]/10 text-[var(--color-error)]"
-                                : "bg-[var(--color-muted)]/10 text-[var(--color-muted)]"
-                            }`}
-                          >
-                            {job.status}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium ${
+                                isDone
+                                  ? "bg-[var(--color-success)]/10 text-[var(--color-success)]"
+                                  : isRunning
+                                  ? "bg-[var(--color-primary)]/10 text-[var(--color-primary)] animate-pulse"
+                                  : isFailed
+                                  ? "bg-[var(--color-error)]/10 text-[var(--color-error)]"
+                                  : "bg-[var(--color-muted)]/10 text-[var(--color-muted)]"
+                              }`}
+                            >
+                              {job.status}
+                            </span>
+                            {(isRunning || job.status === "queued" || job.status === "running") && (
+                              <button
+                                type="button"
+                                disabled={cancellingJobId === job.id}
+                                onClick={() => cancelJob(job.id)}
+                                title="Cancel running job"
+                                className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] font-semibold text-amber-300 transition-all hover:bg-amber-500/25 hover:text-amber-100 disabled:opacity-40 cursor-pointer shadow-[0_0_8px_rgba(245,158,11,0.2)]"
+                              >
+                                <X size={10} />
+                                <span>{cancellingJobId === job.id ? "Cancelling…" : "Cancel"}</span>
+                              </button>
+                            )}
+                          </div>
                         </td>
                         <td className="py-2.5 px-3 w-32">
                           <div className="w-full bg-[var(--color-surface)] rounded-full h-1.5 overflow-hidden">
@@ -459,25 +492,13 @@ export function DiscoverBusinessesView() {
                           })}
                         </td>
                         <td className="py-2.5 px-3 text-right">
-                          <div className="inline-flex items-center justify-end gap-2">
-                            <Link
-                              href={`/leads?job_id=${job.id}`}
-                              className="inline-flex items-center gap-1 text-[var(--color-primary)] hover:underline"
-                            >
-                              <span>View Leads</span>
-                              <ArrowRight size={12} />
-                            </Link>
-                            <button
-                              type="button"
-                              disabled={deleting}
-                              onClick={() => deleteSingleJob(job.id)}
-                              title="Delete job run"
-                              className="refraction-glass-btn inline-flex items-center gap-1 rounded border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-[11px] font-medium text-rose-300 transition-colors hover:bg-rose-500/20 hover:text-rose-200 disabled:opacity-40 cursor-pointer"
-                            >
-                              <Trash2 size={11} />
-                              <span>Delete</span>
-                            </button>
-                          </div>
+                          <Link
+                            href={`/leads?job_id=${job.id}`}
+                            className="inline-flex items-center gap-1 text-[var(--color-primary)] hover:underline"
+                          >
+                            <span>View Leads</span>
+                            <ArrowRight size={12} />
+                          </Link>
                         </td>
                       </tr>
                     );
