@@ -338,6 +338,7 @@ async def retry_job(
 
 
 @router.delete("/jobs/{job_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Csrf])
+@router.post("/jobs/{job_id}/delete", status_code=status.HTTP_204_NO_CONTENT, dependencies=[Csrf])
 async def delete_job(
     request: Request,
     job_id: uuid.UUID,
@@ -357,6 +358,8 @@ async def delete_job(
 
 
 @router.post("/jobs/bulk-delete", response_model=BulkDeleteOut, dependencies=[Csrf])
+@router.delete("/jobs/bulk-delete", response_model=BulkDeleteOut, dependencies=[Csrf])
+@router.delete("/jobs", response_model=BulkDeleteOut, dependencies=[Csrf])
 async def bulk_delete_jobs(
     request: Request,
     payload: BulkDeleteIn,

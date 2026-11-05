@@ -287,6 +287,8 @@ async def archive(business_id: uuid.UUID, session: AsyncSessionDep, user: Curren
 
 
 @router.post("/bulk-delete", response_model=BulkDeleteOut, dependencies=[Csrf])
+@router.delete("/bulk-delete", response_model=BulkDeleteOut, dependencies=[Csrf])
+@router.delete("", response_model=BulkDeleteOut, dependencies=[Csrf])
 async def bulk_delete_businesses(
     payload: BulkDeleteIn,
     session: AsyncSessionDep,

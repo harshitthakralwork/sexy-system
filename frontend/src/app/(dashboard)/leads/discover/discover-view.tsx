@@ -223,7 +223,7 @@ export function DiscoverBusinessesView() {
               className="flex items-center gap-1.5 text-xs text-[var(--color-primary)] hover:underline"
             >
               <MapPin size={14} />
-              <span>Draw custom polygon on Map</span>
+              <span>Find local businesses</span>
             </Link>
           </div>
 
