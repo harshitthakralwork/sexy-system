@@ -20,7 +20,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { Header } from "@/components/layout/header";
-import { MapIntelligenceView } from "@/components/map/map-intelligence-view";
+import { MapPreviewBanner } from "@/components/dashboard/map-preview-banner";
 import { useSession } from "@/components/providers/session-provider";
 import { EmptyState } from "@/components/ui/card";
 import { useBackendStatus } from "@/hooks/use-backend-status";
@@ -504,9 +504,9 @@ export function DashboardView() {
             ))}
           </section>
 
-          {/* ── Interactive Map Intelligence Preview (Direct Access to Local Business Radar) ── */}
+          {/* ── High-Performance Map Preview Banner (0% GPU usage, direct redirect) ── */}
           <section className="animate-slide-up" style={{ animationDelay: "140ms" }}>
-            <MapIntelligenceView embedded={true} />
+            <MapPreviewBanner />
           </section>
 
           {/* ── Recent Discovery Runs ── */}
