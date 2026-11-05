@@ -362,6 +362,270 @@ textarea::placeholder {
 
 
 /* ─────────────────────────────────────────────────────────────────────────────
+   DARK LIQUID GLASS DESIGN SYSTEM TOKENS (Liquid Glass UI Kit Reference)
+───────────────────────────────────────────────────────────────────────────── */
+
+/* Layer 1: Main Viewport / Window Shell Card (28px radius) */
+.liquid-glass-shell {
+  background: rgba(10, 13, 24, 0.65);
+  backdrop-filter: blur(36px) saturate(190%);
+  -webkit-backdrop-filter: blur(36px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-top-color: rgba(255, 255, 255, 0.24);
+  box-shadow:
+    0 32px 80px -12px rgba(0, 0, 0, 0.75),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.18),
+    inset 0 -1px 1px 0 rgba(0, 0, 0, 0.45);
+  border-radius: 28px;
+}
+
+[data-theme="light"] .liquid-glass-shell {
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.90);
+  border-top-color: rgba(255, 255, 255, 1);
+  box-shadow:
+    0 24px 60px -10px rgba(15, 23, 42, 0.10),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.95);
+}
+
+/* Layer 2: Main Panels & Hero Containers (26px radius) */
+.liquid-glass-panel {
+  background: rgba(13, 17, 30, 0.52);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  border-top-color: rgba(255, 255, 255, 0.22);
+  box-shadow:
+    0 20px 50px -10px rgba(0, 0, 0, 0.55),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.14);
+  border-radius: 26px;
+  transition: border-color 0.22s ease, box-shadow 0.22s ease, transform 0.22s ease;
+}
+
+[data-theme="light"] .liquid-glass-panel {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-top-color: rgba(255, 255, 255, 1);
+  box-shadow:
+    0 16px 40px -8px rgba(15, 23, 42, 0.08),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.liquid-glass-panel:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  border-top-color: rgba(0, 212, 255, 0.35);
+}
+
+[data-theme="light"] .liquid-glass-panel:hover {
+  border-color: rgba(148, 163, 184, 0.4);
+}
+
+/* Layer 3: Nested Cards & Modules (18-20px radius) */
+.liquid-glass-card {
+  background: rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-top-color: rgba(255, 255, 255, 0.16);
+  box-shadow:
+    0 8px 24px -4px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-theme="light"] .liquid-glass-card {
+  background: rgba(255, 255, 255, 0.65);
+  border: 1px solid rgba(203, 213, 225, 0.55);
+  border-top-color: rgba(255, 255, 255, 0.95);
+  box-shadow:
+    0 6px 18px -3px rgba(15, 23, 42, 0.05),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.85);
+}
+
+.liquid-glass-card:hover {
+  background: rgba(255, 255, 255, 0.065);
+  border-color: rgba(0, 212, 255, 0.30);
+  border-top-color: rgba(255, 255, 255, 0.28);
+  box-shadow:
+    0 14px 36px -4px rgba(0, 0, 0, 0.50),
+    0 0 20px -2px rgba(0, 212, 255, 0.15),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.16);
+  transform: translateY(-1.5px);
+}
+
+[data-theme="light"] .liquid-glass-card:hover {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(2, 132, 199, 0.35);
+  box-shadow:
+    0 10px 24px -4px rgba(2, 132, 199, 0.12),
+    inset 0 1px 0 0 rgba(255, 255, 255, 1);
+}
+
+/* Layer 4: Micro Subcards (12-14px radius) */
+.liquid-glass-subcard {
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 14px;
+  transition: all 0.18s ease;
+}
+
+[data-theme="light"] .liquid-glass-subcard {
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(226, 232, 240, 0.7);
+}
+
+.liquid-glass-subcard:hover {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+/* Primary Glossy Elevated CTA Button (Cyan/Violet with Restrained Glow) */
+.liquid-btn-primary {
+  background: linear-gradient(135deg, rgba(0, 212, 255, 0.88) 0%, rgba(139, 92, 246, 0.88) 100%);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.40);
+  border-top-color: rgba(255, 255, 255, 0.70);
+  color: #ffffff;
+  border-radius: 9999px;
+  box-shadow:
+    0 8px 24px -2px rgba(0, 212, 255, 0.35),
+    0 0 18px rgba(139, 92, 246, 0.22),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.55);
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.liquid-btn-primary:hover {
+  background: linear-gradient(135deg, rgba(0, 225, 255, 0.98) 0%, rgba(168, 85, 247, 0.98) 100%);
+  box-shadow:
+    0 12px 32px -2px rgba(0, 212, 255, 0.50),
+    0 0 28px rgba(168, 85, 247, 0.35),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.75);
+  transform: translateY(-1px);
+}
+
+.liquid-btn-primary:active {
+  transform: translateY(0);
+  box-shadow:
+    0 4px 12px -2px rgba(0, 212, 255, 0.35),
+    inset 0 1px 1px 0 rgba(255, 255, 255, 0.35);
+}
+
+/* Secondary Translucent Dark Glass Pill */
+.liquid-btn-secondary {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-top-color: rgba(255, 255, 255, 0.22);
+  border-radius: 9999px;
+  color: rgba(255, 255, 255, 0.85);
+  box-shadow:
+    0 4px 14px -2px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.10);
+  cursor: pointer;
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-theme="light"] .liquid-btn-secondary {
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(203, 213, 225, 0.6);
+  border-top-color: rgba(255, 255, 255, 0.95);
+  color: #0f172a;
+  box-shadow:
+    0 4px 12px -2px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.9);
+}
+
+.liquid-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.10);
+  border-color: rgba(0, 212, 255, 0.35);
+  border-top-color: rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+  box-shadow:
+    0 8px 22px -2px rgba(0, 212, 255, 0.20),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.20);
+  transform: translateY(-1px);
+}
+
+[data-theme="light"] .liquid-btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.95);
+  border-color: rgba(2, 132, 199, 0.4);
+  color: #0284c7;
+}
+
+/* Pill Input Capsule */
+.liquid-glass-input {
+  background: rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+  color: #ffffff;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.25);
+  transition: all 0.2s ease;
+}
+
+[data-theme="light"] .liquid-glass-input {
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(203, 213, 225, 0.65);
+  color: #0f172a;
+  box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.05);
+}
+
+.liquid-glass-input:focus,
+.liquid-glass-input:focus-within {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(0, 212, 255, 0.50);
+  box-shadow:
+    0 0 22px rgba(0, 212, 255, 0.25),
+    inset 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+/* Operational Status Pills */
+.liquid-badge-emerald {
+  background: rgba(16, 185, 129, 0.14);
+  border: 1px solid rgba(52, 211, 153, 0.35);
+  color: #34d399;
+  border-radius: 9999px;
+  box-shadow: 0 0 14px rgba(52, 211, 153, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.liquid-badge-cyan {
+  background: rgba(0, 212, 255, 0.14);
+  border: 1px solid rgba(56, 189, 248, 0.38);
+  color: #38bdf8;
+  border-radius: 9999px;
+  box-shadow: 0 0 14px rgba(0, 212, 255, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.liquid-badge-violet {
+  background: rgba(168, 85, 247, 0.14);
+  border: 1px solid rgba(192, 132, 252, 0.35);
+  color: #c084fc;
+  border-radius: 9999px;
+  box-shadow: 0 0 14px rgba(168, 85, 247, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.liquid-badge-amber {
+  background: rgba(245, 158, 11, 0.14);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  color: #fbbf24;
+  border-radius: 9999px;
+}
+
+.liquid-badge-rose {
+  background: rgba(239, 68, 68, 0.14);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  color: #f87171;
+  border-radius: 9999px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
    GLASS SURFACE TOKENS
 ───────────────────────────────────────────────────────────────────────────── */
 

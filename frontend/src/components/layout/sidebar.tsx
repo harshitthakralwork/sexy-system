@@ -17,10 +17,12 @@ import { useState, useEffect } from "react";
 
 import { navigation } from "./navigation";
 import { cn } from "@/lib/utils";
+import { useSession } from "@/components/providers/session-provider";
 import { useTaskActivity } from "@/components/providers/task-activity-provider";
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { user } = useSession();
   const { getTaskForHref, isTaskRunning } = useTaskActivity();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [expanded, setExpanded] = useState(true);
@@ -59,16 +61,23 @@ export function Sidebar() {
       <aside
         className={cn(
           "relative z-30 flex h-full flex-col overflow-hidden",
-          "refraction-glass-card rounded-[28px] border-white/[0.18] shadow-2xl",
+          "liquid-glass-shell shadow-2xl",
           "transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] select-none m-2 sm:m-3",
           expanded ? "w-[252px]" : "w-[72px]"
         )}
         aria-label="Primary navigation rail"
       >
+        {/* Window controls matching Liquid Glass UI Kit */}
+        <div className={cn("flex items-center gap-1.5 px-4 pt-3.5 pb-1", !expanded && "justify-center px-0")}>
+          <span className="h-2.5 w-2.5 rounded-full bg-rose-500/80 shadow-[0_0_8px_rgba(244,63,94,0.6)]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-amber-400/80 shadow-[0_0_8px_rgba(251,191,36,0.6)]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
+        </div>
+
         {/* Brand */}
         <div
           className={cn(
-            "flex h-[68px] shrink-0 items-center border-b border-slate-300/40 dark:border-white/[0.08] px-3",
+            "flex h-[60px] shrink-0 items-center border-b border-white/[0.08] dark:border-white/[0.08] border-slate-300/40 px-3",
             expanded ? "justify-between" : "justify-center"
           )}
         >
@@ -103,12 +112,12 @@ export function Sidebar() {
         {/* ── Nav Items ── */}
         <nav className="flex-1 overflow-y-auto px-2.5 py-3 space-y-0.5 scrollbar-none">
           {/* Every feature is available in this rail; no separate All Modules drawer required. */}
-          <div className="mt-3 border-t border-slate-300/40 dark:border-white/[0.08] pt-3">
+          <div className="mt-2 border-t border-white/[0.06] dark:border-white/[0.06] border-slate-300/30 pt-3">
             {navigation.map((section) => {
               const sectionOpen = openSections[section.title] ?? false;
               return <div key={section.title} className="mb-2">
-                {expanded && <button className="flex w-full items-center justify-between px-2 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-[#FF7849]" onClick={() => setOpenSections((current) => ({ ...current, [section.title]: !sectionOpen }))} type="button"><span>{section.title}</span><ChevronRight className={cn("transition-transform", sectionOpen && "rotate-90")} size={12} /></button>}
-                {(sectionOpen || !expanded) && <div className="space-y-0.5">{section.items.map((item) => {
+                {expanded && <button className="flex w-full items-center justify-between px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.18em] text-[#FF7849]" onClick={() => setOpenSections((current) => ({ ...current, [section.title]: !sectionOpen }))} type="button"><span>{section.title}</span><ChevronRight className={cn("transition-transform", sectionOpen && "rotate-90")} size={12} /></button>}
+                {(sectionOpen || !expanded) && <div className="space-y-1">{section.items.map((item) => {
                   const Icon = item.icon;
                   const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
                   const task = getTaskForHref(item.href);
@@ -118,23 +127,23 @@ export function Sidebar() {
                       key={`${section.title}-${item.href}`}
                       href={item.href}
                       className={cn(
-                        "group relative flex items-center gap-3 rounded-[12px] text-xs font-medium transition-all",
-                        expanded ? "px-3 py-2" : "mx-auto h-10 w-10 justify-center",
+                        "group relative flex items-center gap-3 rounded-full text-xs font-semibold transition-all duration-200",
+                        expanded ? "px-3.5 py-2" : "mx-auto h-10 w-10 justify-center",
                         active
-                          ? "border border-cyan-500/30 dark:border-white/[0.16] bg-cyan-500/15 dark:bg-white/[0.1] text-cyan-900 dark:text-white shadow-[0_0_15px_rgba(0,212,255,0.12)] font-semibold"
-                          : "text-slate-600 dark:text-white/50 hover:bg-slate-900/5 dark:hover:bg-white/[0.055] hover:text-slate-950 dark:hover:text-white"
+                          ? "border border-cyan-400/40 bg-gradient-to-r from-cyan-500/20 to-violet-500/15 text-white shadow-[0_0_18px_rgba(0,212,255,0.20)]"
+                          : "text-slate-600 dark:text-white/60 hover:bg-white/[0.06] hover:text-slate-950 dark:hover:text-white"
                       )}
                       title={item.label}
                     >
                       <div className="relative shrink-0 flex items-center justify-center">
                         <Icon
                           size={16}
-                          className={active ? "text-cyan-600 dark:text-cyan-300" : "text-slate-500 dark:text-white/40 group-hover:text-slate-900 dark:group-hover:text-white"}
+                          className={active ? "text-cyan-300" : "text-slate-500 dark:text-white/45 group-hover:text-cyan-300 transition-colors"}
                         />
                         {!expanded && task && (
-                          <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                          <span className="absolute -top-1 -right-1 flex h-3 w-3">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
-                            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-cyan-400 shadow-[0_0_8px_rgba(0,212,255,0.9)]" />
+                            <span className="relative inline-flex rounded-full h-3 w-3 bg-gradient-to-r from-cyan-400 to-violet-500 shadow-[0_0_10px_rgba(0,212,255,0.9)]" />
                           </span>
                         )}
                       </div>
@@ -147,16 +156,17 @@ export function Sidebar() {
                           className="ml-auto flex items-center shrink-0 pl-1.5"
                           title={`${task.label || "Task running"} in background…`}
                         >
-                          <span className="relative flex h-3.5 w-3.5 items-center justify-center">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400/40" />
+                          <div className="relative flex h-4 w-4 items-center justify-center">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400/30" />
+                            <span className="absolute inline-flex h-3 w-3 rounded-full bg-cyan-500/20 blur-[2px]" />
                             <svg
-                              className="animate-spin h-3.5 w-3.5 text-cyan-400 drop-shadow-[0_0_8px_rgba(0,212,255,0.85)]"
+                              className="animate-spin h-4 w-4 text-cyan-400 drop-shadow-[0_0_10px_rgba(0,212,255,0.9)]"
                               xmlns="http://www.w3.org/2000/svg"
                               fill="none"
                               viewBox="0 0 24 24"
                             >
                               <circle
-                                className="opacity-25"
+                                className="opacity-20"
                                 cx="12"
                                 cy="12"
                                 r="10"
@@ -164,12 +174,13 @@ export function Sidebar() {
                                 strokeWidth="3"
                               />
                               <path
-                                className="opacity-95"
+                                className="opacity-100"
                                 fill="currentColor"
                                 d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                               />
                             </svg>
-                          </span>
+                            <span className="absolute h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_6px_#00d4ff]" />
+                          </div>
                         </div>
                       )}
 
@@ -230,31 +241,48 @@ export function Sidebar() {
           <Link
             href="/settings"
             className={cn(
-              "group flex items-center gap-3 rounded-[14px] w-full",
-              "text-slate-600 dark:text-white/45 hover:bg-slate-900/5 dark:hover:bg-white/[0.055] hover:text-slate-900 dark:hover:text-white transition-all duration-200",
-              expanded ? "px-3 py-2.5" : "h-10 w-10 justify-center mx-auto"
+              "group flex items-center gap-3 rounded-full w-full",
+              "text-slate-600 dark:text-white/50 hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-all duration-200",
+              expanded ? "px-3.5 py-2" : "h-10 w-10 justify-center mx-auto"
             )}
             title="Settings & Data Management"
           >
             <Settings size={16} className="shrink-0 group-hover:rotate-45 transition-transform duration-300" />
-            {expanded && <span className="truncate text-xs font-medium">Settings</span>}
+            {expanded && <span className="truncate text-xs font-semibold">Settings</span>}
           </Link>
+
+          {/* User Profile Capsule (Matching Image 1 Liquid Glass UI Kit) */}
+          {expanded && user && (
+            <div className="liquid-glass-card mt-2 mb-1 flex items-center gap-2.5 rounded-full px-3 py-2 border border-white/10 dark:border-white/10 shadow-sm">
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-cyan-500 via-sky-400 to-violet-600 text-[10px] font-extrabold text-white shadow-[0_0_12px_rgba(0,212,255,0.4)]">
+                {user.display_name ? user.display_name[0].toUpperCase() : "U"}
+              </div>
+              <div className="min-w-0 flex-1 truncate">
+                <span className="block truncate text-xs font-bold text-slate-900 dark:text-white leading-tight">
+                  {user.display_name || user.email.split("@")[0]}
+                </span>
+                <span className="block text-[9px] font-medium text-emerald-400 leading-tight">
+                  Verified Account
+                </span>
+              </div>
+            </div>
+          )}
 
           {/* Collapse/Expand */}
           <button
             type="button"
             onClick={() => setExpanded((prev) => !prev)}
             className={cn(
-              "group flex items-center gap-2 rounded-[14px] w-full",
-              "text-slate-500 dark:text-white/30 hover:text-slate-900 dark:hover:text-white/70 hover:bg-slate-900/5 dark:hover:bg-white/[0.04] transition-all duration-200",
-              expanded ? "px-3 py-2 justify-start" : "h-9 w-9 justify-center mx-auto"
+              "group flex items-center gap-2 rounded-full w-full",
+              "text-slate-500 dark:text-white/40 hover:text-slate-900 dark:hover:text-white hover:bg-white/[0.06] transition-all duration-200",
+              expanded ? "px-3.5 py-2 justify-start" : "h-9 w-9 justify-center mx-auto"
             )}
             title={expanded ? "Collapse Rail" : "Expand Rail"}
           >
             {expanded ? (
               <>
                 <PanelLeftClose size={14} />
-                <span className="text-[10px] font-medium">Collapse</span>
+                <span className="text-[10px] font-semibold">Collapse</span>
               </>
             ) : (
               <PanelLeftOpen size={14} />

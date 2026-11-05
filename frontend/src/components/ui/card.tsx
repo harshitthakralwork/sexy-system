@@ -6,7 +6,7 @@ export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
-        "refraction-glass-card rounded-[26px] p-5 text-[var(--color-foreground)] shadow-xl backdrop-blur-2xl transition-all",
+        "liquid-glass-panel rounded-[26px] p-5 text-[var(--color-foreground)] transition-all",
         className
       )}
       {...props}

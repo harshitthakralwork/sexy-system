@@ -26,8 +26,12 @@ function StatusBadge() {
     <Link
       href="/sources"
       className={cn(
-        "hidden items-center gap-2 rounded-full refraction-glass-btn px-3.5 py-1.5 text-xs font-medium text-white/80 shadow-sm transition-all sm:flex",
-        isOnline && "hover:shadow-[0_0_20px_rgba(52,211,153,0.28)]"
+        "hidden items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-semibold shadow-sm transition-all sm:flex",
+        isOnline
+          ? "liquid-badge-emerald"
+          : isDegraded
+            ? "liquid-badge-amber"
+            : "liquid-badge-rose"
       )}
       title="Infrastructure & Source Health"
     >
@@ -43,21 +47,21 @@ function StatusBadge() {
           className={cn(
             "relative inline-flex h-2 w-2 rounded-full",
             isOnline
-              ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.9)]"
+              ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]"
               : isDegraded
                 ? "bg-amber-400"
                 : "bg-rose-400"
           )}
         />
       </span>
-      <span className="text-[11px] font-semibold tracking-wide text-[var(--color-foreground)]">
+      <span className="text-[11px] font-bold tracking-wide">
         {STATE_LABEL[status.state]}
       </span>
       <Activity
         size={11}
         className={cn(
           "transition-colors",
-          isOnline ? "text-emerald-400" : isDegraded ? "text-amber-400" : "text-rose-400"
+          isOnline ? "text-emerald-300" : isDegraded ? "text-amber-300" : "text-rose-300"
         )}
       />
     </Link>
@@ -72,7 +76,7 @@ export function Header({ title, subtitle }: { title: string; subtitle?: string }
   }
 
   return (
-    <header className="mx-3 mt-3 flex h-[64px] shrink-0 items-center justify-between gap-4 rounded-[22px] refraction-glass-card border-white/20 dark:border-white/[0.18] px-5 shadow-2xl backdrop-blur-3xl sm:px-6">
+    <header className="mx-3 mt-3 flex h-[64px] shrink-0 items-center justify-between gap-4 rounded-[24px] liquid-glass-panel px-5 shadow-2xl sm:px-6">
 
       {/* Page Title */}
       <div className="min-w-0">
@@ -92,12 +96,12 @@ export function Header({ title, subtitle }: { title: string; subtitle?: string }
         <button
           type="button"
           onClick={triggerSearch}
-          className="refraction-glass-btn group flex items-center gap-2 rounded-full px-3.5 py-1.5 text-xs text-[var(--color-muted)] shadow-sm transition-all hover:text-[var(--color-foreground)] cursor-pointer"
+          className="liquid-btn-secondary group flex items-center gap-2.5 rounded-full px-4 py-1.5 text-xs text-[var(--color-muted)] transition-all hover:text-[var(--color-foreground)] cursor-pointer"
           title="Search Anything (⌘K)"
         >
           <Search size={13} className="text-cyan-400 group-hover:scale-110 transition-transform" aria-hidden />
           <span className="hidden sm:inline font-medium">Search...</span>
-          <kbd className="rounded-full bg-slate-900/10 dark:bg-white/[0.08] px-2 py-0.5 text-[9px] font-mono text-[var(--color-foreground)] border border-slate-300/30 dark:border-white/[0.10]">
+          <kbd className="rounded-full bg-white/[0.08] dark:bg-white/[0.08] px-2 py-0.5 text-[9px] font-mono text-[var(--color-foreground)] border border-white/[0.12]">
             ⌘K
           </kbd>
         </button>
@@ -106,7 +110,7 @@ export function Header({ title, subtitle }: { title: string; subtitle?: string }
         <button
           type="button"
           onClick={toggleTheme}
-          className="refraction-glass-btn relative flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-muted)] shadow-sm transition-all hover:text-[var(--color-foreground)] hover:rotate-12 cursor-pointer"
+          className="liquid-btn-secondary relative flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-muted)] shadow-sm transition-all hover:text-[var(--color-foreground)] hover:rotate-12 cursor-pointer"
           title="Toggle color theme"
           aria-label="Toggle color theme"
         >
@@ -117,7 +121,7 @@ export function Header({ title, subtitle }: { title: string; subtitle?: string }
         {/* Notifications */}
         <Link
           href="/notifications"
-          className="refraction-glass-btn relative flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-muted)] shadow-sm transition-all hover:text-amber-400 cursor-pointer"
+          className="liquid-btn-secondary relative flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-muted)] shadow-sm transition-all hover:text-amber-400 cursor-pointer"
           title="Notifications & Alerts"
         >
           <Bell size={15} />
@@ -177,7 +181,7 @@ function UserCapsule() {
           }
         }}
         className={cn(
-          "hidden sm:inline-flex rounded-full refraction-glass-btn px-4 py-1.5 text-xs font-bold text-[var(--color-muted)]",
+          "hidden sm:inline-flex rounded-full liquid-btn-secondary px-4 py-1.5 text-xs font-bold text-[var(--color-muted)]",
           "hover:text-rose-400 hover:border-rose-400/40 hover:shadow-[0_0_16px_rgba(248,113,113,0.20)]",
           "transition-all disabled:opacity-50 cursor-pointer"
         )}

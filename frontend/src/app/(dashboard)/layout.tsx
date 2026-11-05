@@ -54,18 +54,19 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
   return (
     <TaskActivityProvider>
-      <div className="dashboard-shell relative isolate flex h-screen overflow-hidden bg-transparent text-[var(--color-foreground)] transition-colors duration-300">
+      <div className="dashboard-shell relative isolate flex h-screen overflow-hidden bg-[#06070a] text-[var(--color-foreground)] transition-colors duration-300">
         {/* Animated Liquid Glass Background with moving particles, caustics & 3D floating glass elements */}
         <LiquidGlassBackground />
 
-        {/* Ambient Chromatic Caustic Light Flares */}
-        <div className="pointer-events-none absolute -left-32 -top-32 h-[42rem] w-[42rem] rounded-full bg-cyan-500/20 blur-[140px] -z-10 animate-caustic-1" />
-        <div className="pointer-events-none absolute -right-32 -bottom-32 h-[44rem] w-[44rem] rounded-full bg-purple-500/20 blur-[150px] -z-10 animate-caustic-2" />
-        <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[48rem] w-[48rem] rounded-full bg-amber-500/10 blur-[160px] -z-10" />
+        {/* Subtle blurred ambient light blooms in deep cyan, violet, and restrained pink around edges */}
+        <div className="pointer-events-none absolute -left-20 -top-20 h-[40rem] w-[40rem] rounded-full bg-cyan-500/15 blur-[160px] -z-10 animate-caustic-1" />
+        <div className="pointer-events-none absolute -right-20 -bottom-20 h-[44rem] w-[44rem] rounded-full bg-violet-600/16 blur-[170px] -z-10 animate-caustic-2" />
+        <div className="pointer-events-none absolute right-1/4 -top-24 h-[32rem] w-[32rem] rounded-full bg-pink-500/10 blur-[150px] -z-10" />
+        <div className="pointer-events-none absolute left-1/3 -bottom-24 h-[36rem] w-[36rem] rounded-full bg-cyan-600/10 blur-[160px] -z-10" />
 
-        {/* Translucent Frosted Glass Shell */}
+        {/* Layered Dark Frosted Glass Shell (28px radius) */}
         <Sidebar />
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-[32px] border border-white/15 dark:border-white/15 border-slate-300/40 bg-black/20 dark:bg-black/25 bg-white/40 shadow-[0_24px_80px_rgba(0,0,0,0.35)] backdrop-blur-3xl m-2 sm:m-3 transition-colors duration-300">
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden liquid-glass-shell m-2 sm:m-3 transition-colors duration-300">
           {children}
         </div>
         <CommandPalette />

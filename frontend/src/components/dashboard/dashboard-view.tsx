@@ -98,15 +98,15 @@ function KpiCard({
   return (
     <div
       className={cn(
-        "refraction-glass-card rounded-[26px] p-5 flex flex-col gap-4",
-        "hover:-translate-y-0.5 transition-all duration-300 cursor-default",
+        "liquid-glass-panel rounded-[24px] p-5 flex flex-col gap-4",
+        "hover:-translate-y-1 transition-all duration-300 cursor-default",
         glowClass,
         "animate-slide-up"
       )}
       style={{ animationDelay: `${delay}ms` }}
     >
       <div className="flex items-center justify-between">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-muted)]">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-white/45">
           {label}
         </span>
 
@@ -114,18 +114,18 @@ function KpiCard({
         <div className="relative flex items-center justify-center">
           <span
             className={cn(
-              "absolute h-9 w-9 rounded-xl opacity-0",
+              "absolute h-9 w-9 rounded-2xl opacity-0",
               loading ? "" : "animate-pulse-ring",
-              tone.split(" ")[0] // grab the bg- token
+              tone.split(" ")[0]
             )}
           />
           <span
             className={cn(
-              "relative flex h-9 w-9 items-center justify-center rounded-xl border",
+              "relative flex h-10 w-10 items-center justify-center rounded-2xl border shadow-inner",
               tone
             )}
           >
-            <Icon size={16} />
+            <Icon size={17} />
           </span>
         </div>
       </div>
@@ -133,18 +133,18 @@ function KpiCard({
       {loading ? (
         <div className="skeleton h-8 w-24" />
       ) : (
-        <div className="flex items-end gap-2">
+        <div className="flex items-end gap-2.5">
           <p className="text-3xl font-extrabold tracking-tight text-[var(--color-foreground)] leading-none font-sans">
             {value.toLocaleString()}
           </p>
-          <span className="mb-0.5 flex items-center gap-0.5 text-[10px] font-bold text-emerald-400">
+          <span className="mb-0.5 liquid-badge-emerald px-2 py-0.5 text-[10px] font-bold flex items-center gap-1">
             <TrendingUp size={10} />
             Live
           </span>
         </div>
       )}
 
-      <p className="text-[10px] text-white/35 font-medium">Total stored</p>
+      <p className="text-[11px] text-slate-500 dark:text-white/40 font-medium">Total stored records</p>
     </div>
   );
 }
@@ -154,18 +154,28 @@ function KpiCard({
 function JobBadge({ status }: { status: string }) {
   const map: Record<string, { cls: string; icon: React.ElementType; label: string }> = {
     completed: {
-      cls: "bg-emerald-500/15 border-emerald-400/30 text-emerald-300",
+      cls: "liquid-badge-emerald",
       icon: CheckCircle2,
       label: "Completed",
     },
     failed: {
-      cls: "bg-red-500/15 border-red-400/30 text-red-300",
+      cls: "liquid-badge-rose",
       icon: XCircle,
       label: "Failed",
     },
+    running: {
+      cls: "liquid-badge-cyan animate-pulse",
+      icon: Clock,
+      label: "Running",
+    },
+    pending: {
+      cls: "liquid-badge-amber",
+      icon: Clock,
+      label: "Pending",
+    },
   };
   const cfg = map[status] ?? {
-    cls: "bg-sky-500/15 border-sky-400/30 text-sky-300",
+    cls: "liquid-badge-cyan",
     icon: Clock,
     label: status.charAt(0).toUpperCase() + status.slice(1),
   };
@@ -174,7 +184,7 @@ function JobBadge({ status }: { status: string }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 w-fit rounded-full px-3 py-1 text-[10px] font-bold border",
+        "inline-flex items-center gap-1.5 w-fit px-3 py-1 text-[10px] font-bold",
         cfg.cls
       )}
     >
@@ -192,9 +202,8 @@ function JobRow({ job, index }: { job: DiscoveryJob; index: number }) {
   return (
     <div
       className={cn(
-        "group grid gap-3 rounded-[18px] border border-white/[0.08] bg-white/[0.025]",
-        "p-4 backdrop-blur-sm hover:bg-white/[0.055] hover:border-white/20",
-        "transition-all duration-200 animate-slide-up",
+        "group grid gap-3 liquid-glass-card rounded-[18px]",
+        "p-4 transition-all duration-200 animate-slide-up",
         "sm:grid-cols-[minmax(0,1fr)_auto_auto_auto] sm:items-center"
       )}
       style={{ animationDelay: `${index * 40}ms` }}
@@ -205,15 +214,15 @@ function JobRow({ job, index }: { job: DiscoveryJob; index: number }) {
           <Compass
             className={cn(
               "shrink-0 transition-colors",
-              isRunning ? "text-sky-400 animate-glow-breathe" : "text-cyan-400/70"
+              isRunning ? "text-cyan-400 animate-glow-breathe" : "text-cyan-400/70"
             )}
             size={15}
           />
-          <span className="truncate text-sm font-bold text-white group-hover:text-cyan-200 transition-colors">
+          <span className="truncate text-sm font-bold text-slate-900 dark:text-white group-hover:text-cyan-300 transition-colors">
             {job.job_type === "discover_area" ? "Geographic area discovery" : job.job_type}
           </span>
         </div>
-        <p className="text-[11px] text-white/40 font-medium pl-5">
+        <p className="text-[11px] text-slate-500 dark:text-white/40 font-medium pl-5">
           {new Date(job.created_at).toLocaleString()}
         </p>
 
@@ -227,8 +236,8 @@ function JobRow({ job, index }: { job: DiscoveryJob; index: number }) {
 
       <JobBadge status={job.status} />
 
-      <div className="text-xs text-white/55">
-        <strong className="mr-1 text-white font-mono text-sm">
+      <div className="text-xs text-slate-600 dark:text-white/60">
+        <strong className="mr-1 text-slate-900 dark:text-white font-mono text-sm">
           {job.processed_records.toLocaleString()}
         </strong>
         records
@@ -236,12 +245,12 @@ function JobRow({ job, index }: { job: DiscoveryJob; index: number }) {
 
       <Link
         href="/leads/raw"
-        className="inline-flex items-center gap-1 text-xs font-bold text-cyan-400 hover:text-cyan-200 transition-colors group/link"
+        className="liquid-btn-secondary px-3.5 py-1 text-xs font-bold inline-flex items-center gap-1.5 group/link"
       >
         <span>View</span>
         <ArrowRight
           size={12}
-          className="transition-transform group-hover/link:translate-x-0.5"
+          className="transition-transform group-hover/link:translate-x-0.5 text-cyan-400"
         />
       </Link>
     </div>
@@ -326,29 +335,29 @@ export function DashboardView() {
           <section className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(300px,.55fr)]">
 
             {/* Welcome / Quick Actions card */}
-            <div className="refraction-glass-card rounded-[28px] p-6 sm:p-8 animate-slide-up">
+            <div className="liquid-glass-panel rounded-[28px] p-6 sm:p-8 animate-slide-up">
               <div className="flex flex-col justify-between gap-5 sm:flex-row sm:items-start">
                 <div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/15 px-3.5 py-1 text-xs font-semibold text-emerald-300 shadow-sm">
+                  <div className="inline-flex items-center gap-2 liquid-badge-emerald px-3.5 py-1 text-xs font-semibold shadow-sm">
                     <Sparkles size={12} className="text-emerald-300" />
                     <span>Welcome back, {firstName}</span>
                   </div>
-                  <h2 className="mt-4 text-3xl sm:text-4xl font-extrabold tracking-tight text-white leading-tight">
+                  <h2 className="mt-4 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-white leading-tight font-sans">
                     What do you want<br className="hidden sm:block" /> to do today?
                   </h2>
-                  <p className="mt-2 max-w-2xl text-sm leading-relaxed text-white/60">
+                  <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-600 dark:text-white/60">
                     Start a search, inspect local opportunities, research demand or build outreach — all from one place.
                   </p>
                 </div>
 
                 <Link
                   href="/leads/discover"
-                  className="refraction-glass-btn inline-flex shrink-0 items-center gap-2 rounded-full px-6 py-2.5 text-sm font-bold text-white shadow-[0_0_28px_rgba(0,212,255,0.22)] hover:shadow-[0_0_40px_rgba(0,212,255,0.45)] group"
+                  className="liquid-btn-primary inline-flex shrink-0 items-center gap-2 px-6 py-2.5 text-sm group"
                 >
                   <span>New discovery</span>
                   <ArrowRight
                     size={14}
-                    className="text-cyan-400 transition-transform group-hover:translate-x-0.5"
+                    className="text-white transition-transform group-hover:translate-x-0.5"
                   />
                 </Link>
               </div>
@@ -362,31 +371,30 @@ export function DashboardView() {
                       key={action.href}
                       href={action.href}
                       className={cn(
-                        "group flex items-center gap-4 rounded-[20px] border border-white/[0.08]",
-                        "bg-white/[0.03] p-4 backdrop-blur-xl",
-                        "transition-all duration-200 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.07]",
+                        "group flex items-center gap-4 rounded-[20px] liquid-glass-card",
+                        "p-4 transition-all duration-200 hover:-translate-y-0.5",
                         action.glow
                       )}
                     >
                       <span
                         className={cn(
                           "flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border",
-                          "shadow-inner transition-transform group-hover:scale-110",
+                          "shadow-inner transition-transform group-hover:scale-105",
                           action.color
                         )}
                       >
                         <Icon size={19} />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-bold text-white group-hover:text-cyan-200 transition-colors">
+                        <span className="block text-sm font-bold text-slate-900 dark:text-white group-hover:text-cyan-300 transition-colors">
                           {action.title}
                         </span>
-                        <span className="mt-0.5 block text-xs text-white/50">
+                        <span className="mt-0.5 block text-xs text-slate-500 dark:text-white/50">
                           {action.description}
                         </span>
                       </span>
                       <ArrowRight
-                        className="text-white/25 transition-all group-hover:translate-x-1 group-hover:text-cyan-400"
+                        className="text-slate-400 dark:text-white/30 transition-all group-hover:translate-x-1 group-hover:text-cyan-400"
                         size={15}
                       />
                     </Link>
@@ -397,16 +405,16 @@ export function DashboardView() {
 
             {/* System Status card */}
             <aside
-              className="refraction-glass-card rounded-[28px] p-6 sm:p-7 flex flex-col justify-between animate-slide-up"
+              className="liquid-glass-panel rounded-[28px] p-6 sm:p-7 flex flex-col justify-between animate-slide-up"
               style={{ animationDelay: "60ms" }}
             >
               <div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-white/40">
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500 dark:text-white/40">
                       System status
                     </p>
-                    <h3 className="mt-1 text-xl font-extrabold text-white">
+                    <h3 className="mt-1 text-xl font-extrabold text-slate-900 dark:text-white">
                       {healthyComponents}/{components.length || 0}{" "}
                       <span className="text-[var(--color-muted)] font-semibold text-base">services ready</span>
                     </h3>
@@ -423,10 +431,10 @@ export function DashboardView() {
                     />
                     <span
                       className={cn(
-                        "relative flex h-11 w-11 items-center justify-center rounded-2xl border",
+                        "relative flex h-11 w-11 items-center justify-center rounded-2xl border shadow-inner",
                         status.state === "online"
-                          ? "bg-emerald-500/15 border-emerald-400/30 text-emerald-300"
-                          : "bg-amber-500/15 border-amber-400/30 text-amber-300"
+                          ? "liquid-badge-emerald"
+                          : "liquid-badge-amber"
                       )}
                     >
                       <Server size={19} />
@@ -445,10 +453,7 @@ export function DashboardView() {
                     components.map((component, i) => (
                       <div
                         key={component.name}
-                        className={cn(
-                          "flex items-center justify-between rounded-[14px] border border-white/[0.08] dark:border-white/[0.08] border-slate-300/40",
-                          "bg-white/[0.025] px-4 py-2.5 backdrop-blur-sm animate-slide-up"
-                        )}
+                        className="liquid-glass-subcard flex items-center justify-between px-4 py-2.5 animate-slide-up"
                         style={{ animationDelay: `${i * 40}ms` }}
                       >
                         <span className="text-xs font-semibold capitalize text-[var(--color-foreground)]">
@@ -456,10 +461,8 @@ export function DashboardView() {
                         </span>
                         <span
                           className={cn(
-                            "inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full border",
-                            component.ok
-                              ? "bg-emerald-500/15 border-emerald-400/30 text-emerald-300"
-                              : "bg-red-500/15 border-red-400/30 text-red-300"
+                            "inline-flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1",
+                            component.ok ? "liquid-badge-emerald" : "liquid-badge-rose"
                           )}
                         >
                           {component.ok ? (
@@ -477,12 +480,12 @@ export function DashboardView() {
 
               <Link
                 href="/sources"
-                className="mt-6 group inline-flex items-center gap-1.5 text-xs font-bold text-cyan-400 hover:text-cyan-200 transition-colors"
+                className="mt-6 w-fit liquid-btn-secondary px-3.5 py-1.5 group inline-flex items-center gap-1.5 text-xs font-bold"
               >
                 <span>Open source health</span>
                 <ArrowRight
                   size={13}
-                  className="transition-transform group-hover:translate-x-0.5"
+                  className="transition-transform group-hover:translate-x-0.5 text-cyan-400"
                 />
               </Link>
             </aside>
@@ -511,11 +514,11 @@ export function DashboardView() {
 
           {/* ── Recent Discovery Runs ── */}
           <section
-            className="refraction-glass-card rounded-[28px] p-6 sm:p-7 animate-slide-up"
+            className="liquid-glass-panel rounded-[28px] p-6 sm:p-7 animate-slide-up"
             style={{ animationDelay: "180ms" }}
           >
             {/* Header row */}
-            <div className="flex flex-col gap-4 border-b border-white/[0.08] pb-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col gap-4 border-b border-white/[0.08] dark:border-white/[0.08] border-slate-300/40 pb-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h3 className="text-base font-extrabold text-[var(--color-foreground)]">Recent discovery runs</h3>
                 <p className="mt-0.5 text-xs text-[var(--color-muted)] font-medium">
@@ -530,10 +533,10 @@ export function DashboardView() {
                     type="button"
                     onClick={() => setFilterMode(filter)}
                     className={cn(
-                      "rounded-full px-4 py-1.5 text-[11px] font-bold capitalize transition-all duration-200",
+                      "px-4 py-1.5 text-[11px] font-bold capitalize transition-all duration-200",
                       filterMode === filter
-                        ? "border border-cyan-400/40 bg-cyan-500/20 text-cyan-200 shadow-[0_0_18px_rgba(0,212,255,0.28)]"
-                        : "border border-white/[0.08] bg-white/[0.03] text-white/50 hover:text-white hover:border-white/20"
+                        ? "liquid-btn-primary shadow-[0_0_18px_rgba(0,212,255,0.3)]"
+                        : "liquid-btn-secondary"
                     )}
                   >
                     {filter}
@@ -542,10 +545,10 @@ export function DashboardView() {
 
                 <Link
                   href="/leads/discover"
-                  className="refraction-glass-btn rounded-full px-4 py-1.5 text-[11px] font-bold text-white flex items-center gap-1.5"
+                  className="liquid-btn-primary px-4 py-1.5 text-[11px] font-bold flex items-center gap-1.5"
                 >
                   <span>New run</span>
-                  <span className="text-cyan-400">+</span>
+                  <span className="text-white">+</span>
                 </Link>
               </div>
             </div>
@@ -567,7 +570,7 @@ export function DashboardView() {
                   action={
                     <Link
                       href="/leads/discover"
-                      className="refraction-glass-btn rounded-full px-5 py-2 text-xs font-bold text-white"
+                      className="liquid-btn-primary px-5 py-2 text-xs font-bold inline-flex"
                     >
                       Start discovery
                     </Link>
