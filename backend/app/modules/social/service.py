@@ -58,6 +58,13 @@ async def ensure_platforms(session: AsyncSession) -> list[SocialPlatform]:
     edit its limitations without a deploy. Descriptions come from the honest
     definitions in `platforms.py`, never optimistic placeholders.
     """
+    # Clean up any transient/test platforms created during previous test suites
+    await session.execute(
+        delete(SocialPlatform).where(
+            (SocialPlatform.slug.like("reddit-test-%")) | (SocialPlatform.name == "Reddit Test")
+        )
+    )
+
     existing = {
         row.slug: row
         for row in (await session.scalars(select(SocialPlatform))).all()
@@ -88,7 +95,12 @@ async def ensure_platforms(session: AsyncSession) -> list[SocialPlatform]:
 
 async def list_platforms(session: AsyncSession) -> list[SocialPlatform]:
     await ensure_platforms(session)
-    rows = await session.scalars(select(SocialPlatform).order_by(SocialPlatform.name))
+    valid_slugs = [d["slug"] for d in PLATFORM_DEFINITIONS]
+    rows = await session.scalars(
+        select(SocialPlatform)
+        .where(SocialPlatform.slug.in_(valid_slugs))
+        .order_by(SocialPlatform.name)
+    )
     return list(rows)
 
 

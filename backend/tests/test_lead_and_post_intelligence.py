@@ -7,6 +7,7 @@ from datetime import UTC, datetime
 import pytest
 
 from app.core.database import session_scope
+from sqlalchemy import select
 from app.modules.social.classification import classify
 from app.modules.social.models import SocialContent, SocialContentUserAnnotation, SocialPlatform
 from tests.conftest import Session
@@ -48,15 +49,17 @@ def test_user_annotation_isolation(session_account: Session):
 
     async def seed_data():
         async with session_scope() as db:
-            plat = SocialPlatform(
-                name="Reddit Test",
-                slug=f"reddit-test-{uuid.uuid4().hex[:6]}",
-                adapter_key="reddit",
-                is_enabled=True,
-                health_status="working",
-            )
-            db.add(plat)
-            await db.flush()
+            plat = await db.scalar(select(SocialPlatform).where(SocialPlatform.slug == "reddit"))
+            if plat is None:
+                plat = SocialPlatform(
+                    name="Reddit",
+                    slug="reddit",
+                    adapter_key="reddit",
+                    is_enabled=True,
+                    health_status="working",
+                )
+                db.add(plat)
+                await db.flush()
 
             content = SocialContent(
                 id=content_id,

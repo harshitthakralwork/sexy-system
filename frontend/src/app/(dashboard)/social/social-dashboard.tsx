@@ -56,7 +56,20 @@ export function SocialDashboard() {
     queryFn: () => api.get<SocialContentList>(`/social/content?${contentParams}`),
   });
 
-  const enabledPlatforms = (platforms.data ?? []).filter((p) => p.is_enabled);
+  const enabledPlatforms = useMemo(() => {
+    const list = (platforms.data ?? []).filter(
+      (p) =>
+        p.is_enabled &&
+        !p.slug.startsWith("reddit-test") &&
+        !p.name.toLowerCase().includes("test")
+    );
+    const seen = new Set<string>();
+    return list.filter((p) => {
+      if (seen.has(p.slug)) return false;
+      seen.add(p.slug);
+      return true;
+    });
+  }, [platforms.data]);
   const totalContent = content.data?.total ?? 0;
   const rows = content.data?.items ?? [];
 
@@ -319,21 +332,21 @@ function PlatformCard({ platform }: { platform: SocialPlatform }) {
     (value): value is string => typeof value === "string" && value.length > 0,
   );
   const status = !platform.is_enabled
-    ? { label: "restricted", tone: "text-[var(--color-muted)]" }
+    ? { label: "restricted", tone: "liquid-badge-amber" }
     : platform.health_status === "working"
-      ? { label: "working", tone: "text-[var(--color-success)]" }
+      ? { label: "working", tone: "liquid-badge-emerald" }
       : platform.health_status === "failed"
-        ? { label: "failing", tone: "text-[var(--color-error)]" }
+        ? { label: "failing", tone: "liquid-badge-rose" }
         : platform.health_status === "degraded"
-          ? { label: "degraded", tone: "text-[var(--color-warning)]" }
-          : { label: "not tested", tone: "text-[var(--color-muted)]" };
+          ? { label: "degraded", tone: "liquid-badge-amber" }
+          : { label: "not tested", tone: "liquid-btn-secondary text-[var(--color-muted)]" };
   return (
-    <div className="rounded-md border border-border p-3">
+    <div className="liquid-glass-card rounded-[18px] p-4 transition-all hover:-translate-y-0.5">
       <div className="flex items-center justify-between">
-        <span className="font-medium">{platform.name}</span>
-        <span className={`text-xs ${status.tone}`}>{status.label}</span>
+        <span className="font-bold text-sm text-[var(--color-foreground)]">{platform.name}</span>
+        <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${status.tone}`}>{status.label}</span>
       </div>
-      <p className="mt-1 text-xs text-[var(--color-muted)]">
+      <p className="mt-1.5 text-xs text-[var(--color-muted)] leading-relaxed">
         {platform.last_error ??
           firstLimitation ??
           (platform.is_enabled ? "Connector installed; run a query to test it." : "No permitted access.")}
