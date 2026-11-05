@@ -56,6 +56,16 @@ def _clear_session_cookie(response: Response, settings: Settings) -> None:
     response.delete_cookie(settings.csrf_cookie_name, path="/")
 
 
+@router.get("/status")
+async def auth_status(settings: Settings = Depends(get_settings)) -> dict[str, bool]:
+    """Expose only whether this instance permits account creation.
+
+    The login screen needs this to show the signup action accurately; it must
+    not have to infer registration state from a failed protected request.
+    """
+    return {"allow_registration": settings.allow_registration}
+
+
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 async def register(
     payload: RegisterRequest,
