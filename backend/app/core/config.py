@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from functools import lru_cache
 from pathlib import Path
 
@@ -70,6 +71,9 @@ class Settings(BaseSettings):
 
     password_min_length: int = 12
     allow_registration: bool = True
+    # A production signup window must be explicitly time-bounded. When the
+    # deadline passes registration closes without another deployment.
+    registration_open_until: datetime | None = None
 
     login_max_attempts: int = 10
     login_window_seconds: int = 300
@@ -346,6 +350,19 @@ class Settings(BaseSettings):
         return self.app_env.lower() in {"production", "prod"}
 
     @property
+    def registration_open(self) -> bool:
+        if not self.allow_registration:
+            return False
+        if not self.is_production:
+            return True
+        if self.registration_open_until is None:
+            return False
+        deadline = self.registration_open_until
+        if deadline.tzinfo is None:
+            deadline = deadline.replace(tzinfo=UTC)
+        return deadline > datetime.now(UTC)
+
+    @property
     def storage_root(self) -> Path:
         """Absolute root for generated and uploaded files.
 
@@ -381,9 +398,9 @@ class Settings(BaseSettings):
                 problems.append("SPARKX_CORS_ORIGINS must not contain '*' with cookie auth")
             # Open registration turns a private tool into a hosted one. Deliberate,
             # never accidental.
-            if self.allow_registration:
+            if self.allow_registration and self.registration_open_until is None:
                 problems.append(
-                    "SPARKX_ALLOW_REGISTRATION must be false unless multi-user signup is intended"
+                    "SPARKX_REGISTRATION_OPEN_UNTIL must be set when registration is enabled in production"
                 )
             # CSRF tokens are HMAC-signed. Development falls back to a fixed,
             # documented key; in production that fallback is a predictable token,

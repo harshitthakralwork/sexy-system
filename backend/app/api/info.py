@@ -35,7 +35,7 @@ async def info() -> RuntimeInfo:
         default_region=settings.default_region,
         execution_model="local_first",
         ai_enabled=False,
-        registration_open=settings.allow_registration,
+        registration_open=settings.registration_open,
         modules_enabled=[
             "auth",
             "sources",

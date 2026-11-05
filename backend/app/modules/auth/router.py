@@ -63,7 +63,7 @@ async def auth_status(settings: Settings = Depends(get_settings)) -> dict[str, b
     The login screen needs this to show the signup action accurately; it must
     not have to infer registration state from a failed protected request.
     """
-    return {"allow_registration": settings.allow_registration}
+    return {"allow_registration": settings.registration_open}
 
 
 @router.post("/register", response_model=UserOut, status_code=status.HTTP_201_CREATED)
@@ -79,7 +79,7 @@ async def register(
     private tool: an always-open signup turns a loopback app into a hosted one the
     moment someone forwards a port.
     """
-    if not settings.allow_registration:
+    if not settings.registration_open:
         raise PermissionDeniedError("Registration is disabled on this instance")
 
     _guard(
