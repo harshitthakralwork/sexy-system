@@ -193,7 +193,7 @@ export function MapIntelligenceView() {
       <Header title="Local Business Finder" subtitle="Contacts, reviews and map locations from collected evidence" />
       <main className="flex-1 overflow-y-auto p-4 lg:p-6">
         <div className="mx-auto max-w-[1500px] space-y-4">
-          <Card>
+          <Card className="relative z-30">
             <h1 className="text-xl font-semibold">Find local businesses</h1>
             <p className="mt-1 text-sm text-[var(--color-muted)]">
               Search records collected from permitted public sources. Missing values are never guessed.
@@ -220,7 +220,7 @@ export function MapIntelligenceView() {
             </p>
           </Card>
 
-          <Card>
+          <Card className="relative z-10">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold">{businesses.data?.total ?? 0} businesses found, {noWebsite} with no website ({percent}%)</h2>
@@ -294,10 +294,65 @@ export function MapIntelligenceView() {
 
 function SearchInput({ icon: Icon, label, listId, onChange, onSearch, placeholder, tone, value }: { icon: typeof BriefcaseBusiness; label: string; listId?: string; onChange: (value: string) => void; onSearch: () => void; placeholder: string; tone: "orange" | "cyan"; value: string }) {
   const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
   const options = listId === "india-niches" ? INDIA_NICHE_OPTIONS : TARGET_CITY_OPTIONS;
   const filteredOptions = options.filter(([optionLabel, optionValue]) => `${optionLabel} ${optionValue}`.toLowerCase().includes(value.toLowerCase())).slice(0, 12);
   const accent = tone === "orange" ? "text-orange-300 border-orange-300/30 focus-within:border-orange-300/70 focus-within:ring-orange-300/20" : "text-cyan-300 border-cyan-300/30 focus-within:border-cyan-300/70 focus-within:ring-cyan-300/20";
-  return <label className="relative text-sm"><span className={`mb-1.5 flex items-center gap-2 font-semibold ${accent.split(" ")[0]}`}><span className="flex h-6 w-6 items-center justify-center rounded-lg bg-white/[0.06]"><Icon size={14} /></span>{label}<span className="text-[10px] font-normal text-white/35">{label === "Niche" ? "What service?" : "Where?"}</span></span><span className={`flex items-center rounded-xl border bg-black/20 px-3 transition-all focus-within:ring-4 ${accent}`}><input className="w-full bg-transparent py-2.5 text-sm text-white outline-none placeholder:text-white/35" onFocus={() => setOpen(true)} onChange={(event) => { onChange(event.target.value); setOpen(true); }} onKeyDown={(event) => { if (event.key === "Enter") { setOpen(false); onSearch(); } if (event.key === "Escape") setOpen(false); }} placeholder={placeholder} value={value} />{value && <button aria-label={`Clear ${label}`} className="mr-1 rounded-md p-1 text-white/45 transition hover:bg-white/10 hover:text-white" onClick={(event) => { event.preventDefault(); onChange(""); setOpen(false); }} type="button"><X size={14} /></button>}{listId && <button aria-label={`Show ${label} suggestions`} className="px-1 text-xs text-white/40 hover:text-white" onClick={() => setOpen((current) => !current)} type="button">⌄</button>}</span>{open && listId && filteredOptions.length > 0 && <div className="absolute left-0 right-0 top-[4.65rem] z-40 max-h-72 overflow-y-auto rounded-xl border border-white/15 bg-[#171923]/98 p-1.5 shadow-2xl shadow-black/50 backdrop-blur-xl">{filteredOptions.map(([optionLabel, optionValue]) => <button className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm text-white/80 transition hover:bg-white/10 hover:text-white" key={optionValue} onClick={() => { onChange(optionValue); setOpen(false); }} type="button"><span>{optionLabel}</span><span className="text-[10px] text-white/35">{optionValue}</span></button>)}</div>}</label>;
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [open]);
+
+  return (
+    <div ref={containerRef} className={`relative ${open ? "z-50" : "z-20"} text-sm`}>
+      <div className={`mb-1.5 flex items-center gap-2 font-semibold ${accent.split(" ")[0]}`}>
+        <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-white/[0.06]"><Icon size={14} /></span>
+        <span>{label}</span>
+        <span className="text-[10px] font-normal text-white/35">{label === "Niche" ? "What service?" : "Where?"}</span>
+      </div>
+      <div className={`flex items-center rounded-xl border bg-black/40 px-3 transition-all focus-within:ring-4 ${accent}`}>
+        <input
+          className="w-full bg-transparent py-2.5 text-sm text-white outline-none placeholder:text-white/35"
+          onFocus={() => setOpen(true)}
+          onChange={(event) => { onChange(event.target.value); setOpen(true); }}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") { setOpen(false); onSearch(); }
+            if (event.key === "Escape") setOpen(false);
+          }}
+          placeholder={placeholder}
+          value={value}
+        />
+        {value && (
+          <button aria-label={`Clear ${label}`} className="mr-1 rounded-md p-1 text-white/45 transition hover:bg-white/10 hover:text-white" onClick={(event) => { event.preventDefault(); onChange(""); setOpen(false); }} type="button">
+            <X size={14} />
+          </button>
+        )}
+        {listId && (
+          <button aria-label={`Show ${label} suggestions`} className="px-1 text-xs text-white/40 hover:text-white cursor-pointer" onClick={() => setOpen((current) => !current)} type="button">
+            ⌄
+          </button>
+        )}
+      </div>
+      {open && listId && filteredOptions.length > 0 && (
+        <div className="absolute left-0 right-0 top-[4.65rem] z-50 max-h-72 overflow-y-auto rounded-xl border border-white/20 bg-[#121624]/98 p-1.5 shadow-[0_24px_60px_rgba(0,0,0,0.85)] backdrop-blur-2xl">
+          {filteredOptions.map(([optionLabel, optionValue]) => (
+            <button className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm text-white/80 transition hover:bg-white/10 hover:text-white cursor-pointer" key={optionValue} onClick={() => { onChange(optionValue); setOpen(false); }} type="button">
+              <span className="font-medium text-white">{optionLabel}</span>
+              <span className="text-[10px] text-white/40">{optionValue}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 function BusinessRow({ business, checked, onChecked }: { business: Business; checked: boolean; onChecked: (checked: boolean) => void }) {
