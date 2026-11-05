@@ -25,20 +25,20 @@ function StatusBadge() {
   return (
     <Link
       href="/sources"
-      className="hidden items-center gap-2 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)]/70 px-3 py-1.5 text-xs font-medium text-[var(--color-muted)] shadow-inner hover:border-[var(--color-border-highlight)] transition-all sm:flex"
+      className="hidden items-center gap-2 rounded-full refraction-glass-btn px-3.5 py-1.5 text-xs font-medium text-white/80 shadow-sm transition-all sm:flex"
       title="Infrastructure & Source Health"
     >
       <span
         className={cn(
           "h-2 w-2 rounded-full",
           isOnline
-            ? "bg-[#D4EF8A] shadow-[0_0_8px_rgba(212,239,138,0.6)]"
+            ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]"
             : isDegraded
-              ? "bg-[#FFB020]"
-              : "bg-[#FF6666]"
+              ? "bg-amber-400"
+              : "bg-rose-400"
         )}
       />
-      <span className="text-[11px] font-semibold tracking-wide text-[var(--color-foreground)]">
+      <span className="text-[11px] font-semibold tracking-wide text-white">
         {STATE_LABEL[status.state]}
       </span>
     </Link>
@@ -52,20 +52,20 @@ export function Header({ title, subtitle }: { title: string; subtitle?: string }
   }
 
   return (
-    <header className="mx-3 mt-3 flex h-[68px] shrink-0 items-center justify-between gap-4 rounded-[24px] border border-[var(--color-border)] bg-[var(--color-sidebar)] px-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_16px_38px_rgba(45,48,43,0.12)] backdrop-blur-2xl sm:px-6">
+    <header className="mx-3 mt-3 flex h-[68px] shrink-0 items-center justify-between gap-4 rounded-[26px] refraction-glass-card border-white/20 px-5 shadow-2xl backdrop-blur-3xl sm:px-6">
       {/* Page Title & Subtitle */}
       <div className="min-w-0">
-        <h1 className="truncate text-xl font-bold tracking-tight text-[var(--color-foreground)] sm:text-2xl font-sans">
+        <h1 className="truncate text-xl font-bold tracking-tight text-white sm:text-2xl font-sans">
           {title}
         </h1>
         {subtitle && (
-          <p className="truncate text-xs font-medium text-[var(--color-muted)] mt-0.5">
+          <p className="truncate text-xs font-medium text-white/60 mt-0.5">
             {subtitle}
           </p>
         )}
       </div>
 
-      {/* Top Right Actions (Matching Image 2) */}
+      {/* Top Right Actions */}
       <div className="flex shrink-0 items-center gap-3">
         <StatusBadge />
 
@@ -73,12 +73,12 @@ export function Header({ title, subtitle }: { title: string; subtitle?: string }
         <button
           type="button"
           onClick={triggerSearch}
-          className="flex items-center gap-2.5 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)]/70 px-3.5 py-1.5 text-xs text-[var(--color-muted)] shadow-inner transition-all hover:border-[var(--color-border-highlight)] hover:text-[var(--color-foreground)]"
+          className="refraction-glass-btn flex items-center gap-2.5 rounded-full px-3.5 py-1.5 text-xs text-white/70 shadow-sm transition-all hover:text-white"
           title="Search Anything (⌘K)"
         >
-          <Search size={14} className="text-[var(--color-muted)]" aria-hidden />
+          <Search size={14} className="text-cyan-400" aria-hidden />
           <span className="hidden sm:inline font-medium">Search...</span>
-          <kbd className="rounded bg-[var(--color-surface-elevated)] px-1.5 py-0.5 text-[10px] font-mono text-[var(--color-muted)]">
+          <kbd className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-mono text-white/80">
             ⌘K
           </kbd>
         </button>
@@ -86,7 +86,7 @@ export function Header({ title, subtitle }: { title: string; subtitle?: string }
         <button
           type="button"
           onClick={toggleTheme}
-          className="relative flex h-9 w-9 items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-surface)]/70 text-[var(--color-muted)] shadow-inner transition-colors hover:border-[var(--color-border-highlight)] hover:text-[var(--color-foreground)]"
+          className="refraction-glass-btn relative flex h-9 w-9 items-center justify-center rounded-full text-white/70 shadow-sm transition-colors hover:text-white"
           title="Toggle color theme"
           aria-label="Toggle color theme"
         >
@@ -97,7 +97,7 @@ export function Header({ title, subtitle }: { title: string; subtitle?: string }
         {/* Notification Bell */}
         <Link
           href="/notifications"
-          className="relative flex h-9 w-9 items-center justify-center rounded-full border border-[var(--color-border)] bg-[var(--color-surface)]/70 text-[var(--color-muted)] shadow-inner transition-colors hover:border-[var(--color-border-highlight)] hover:text-[var(--color-foreground)]"
+          className="refraction-glass-btn relative flex h-9 w-9 items-center justify-center rounded-full text-white/70 shadow-sm transition-colors hover:text-white"
           title="Notifications & Alerts"
         >
           <Bell size={16} />

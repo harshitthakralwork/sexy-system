@@ -57,10 +57,10 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Primary Vertical Rail (Inspired by Image 2) */}
+      {/* Primary Vertical Rail with Frosted Glass UI */}
       <aside
         className={cn(
-          "relative z-30 flex h-full flex-col overflow-hidden rounded-[30px] border border-[var(--color-border)] bg-[var(--color-sidebar)] shadow-[inset_0_1px_0_rgba(255,255,255,0.42),0_24px_70px_rgba(45,48,43,0.16)] backdrop-blur-2xl transition-all duration-300 select-none",
+          "relative z-30 flex h-full flex-col overflow-hidden rounded-[32px] refraction-glass-card border-white/20 shadow-2xl transition-all duration-300 select-none m-2 sm:m-3",
           expanded ? "w-[260px]" : "w-[78px]"
         )}
         aria-label="Primary navigation rail"
@@ -113,15 +113,15 @@ export function Sidebar() {
                     "flex items-center gap-3 rounded-2xl transition-all duration-200",
                     expanded ? "px-3.5 py-2.5 w-full" : "h-12 w-12 justify-center mx-auto",
                     active
-                      ? "bg-[var(--color-surface-elevated)] text-[var(--color-foreground)] border border-[var(--color-border-highlight)] shadow-[inset_0_1px_0_rgba(255,255,255,0.4),0_10px_24px_rgba(45,48,43,0.12)]"
-                      : "text-[var(--color-muted)] hover:bg-[var(--color-surface)] hover:text-[var(--color-foreground)]"
+                      ? "bg-white/[0.12] text-white border border-white/25 shadow-[0_0_20px_rgba(0,212,255,0.22),inset_0_1px_1px_rgba(255,255,255,0.35)]"
+                      : "text-white/60 hover:bg-white/[0.05] hover:text-white"
                   )}
                 >
                   <Icon
                     size={20}
                     className={cn(
                       "shrink-0 transition-colors",
-                      active ? "text-[var(--color-primary)]" : "text-[var(--color-muted)] group-hover:text-[var(--color-foreground)]"
+                      active ? "text-cyan-400 drop-shadow-[0_0_8px_rgba(0,212,255,0.6)]" : "text-white/50 group-hover:text-white"
                     )}
                     aria-hidden
                   />
