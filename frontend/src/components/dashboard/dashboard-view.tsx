@@ -106,7 +106,7 @@ function KpiCard({
       style={{ animationDelay: `${delay}ms` }}
     >
       <div className="flex items-center justify-between">
-        <span className="text-[10px] font-bold uppercase tracking-widest text-white/45">
+        <span className="text-[10px] font-bold uppercase tracking-widest text-[var(--color-muted)]">
           {label}
         </span>
 
@@ -134,7 +134,7 @@ function KpiCard({
         <div className="skeleton h-8 w-24" />
       ) : (
         <div className="flex items-end gap-2">
-          <p className="text-3xl font-extrabold tracking-tight text-white leading-none font-sans">
+          <p className="text-3xl font-extrabold tracking-tight text-[var(--color-foreground)] leading-none font-sans">
             {value.toLocaleString()}
           </p>
           <span className="mb-0.5 flex items-center gap-0.5 text-[10px] font-bold text-emerald-400">
@@ -408,7 +408,7 @@ export function DashboardView() {
                     </p>
                     <h3 className="mt-1 text-xl font-extrabold text-white">
                       {healthyComponents}/{components.length || 0}{" "}
-                      <span className="text-white/60 font-semibold text-base">services ready</span>
+                      <span className="text-[var(--color-muted)] font-semibold text-base">services ready</span>
                     </h3>
                   </div>
                   <div className="relative">
@@ -446,12 +446,12 @@ export function DashboardView() {
                       <div
                         key={component.name}
                         className={cn(
-                          "flex items-center justify-between rounded-[14px] border border-white/[0.08]",
+                          "flex items-center justify-between rounded-[14px] border border-white/[0.08] dark:border-white/[0.08] border-slate-300/40",
                           "bg-white/[0.025] px-4 py-2.5 backdrop-blur-sm animate-slide-up"
                         )}
                         style={{ animationDelay: `${i * 40}ms` }}
                       >
-                        <span className="text-xs font-semibold capitalize text-white/80">
+                        <span className="text-xs font-semibold capitalize text-[var(--color-foreground)]">
                           {component.name}
                         </span>
                         <span
@@ -517,8 +517,8 @@ export function DashboardView() {
             {/* Header row */}
             <div className="flex flex-col gap-4 border-b border-white/[0.08] pb-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <h3 className="text-base font-extrabold text-white">Recent discovery runs</h3>
-                <p className="mt-0.5 text-xs text-white/45 font-medium">
+                <h3 className="text-base font-extrabold text-[var(--color-foreground)]">Recent discovery runs</h3>
+                <p className="mt-0.5 text-xs text-[var(--color-muted)] font-medium">
                   Worker activity and collected-record counts
                 </p>
               </div>

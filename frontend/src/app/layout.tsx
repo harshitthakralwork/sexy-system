@@ -1,10 +1,18 @@
 import type { Metadata, Viewport } from "next";
+import { Plus_Jakarta_Sans } from "next/font/google";
 
 import "./globals.css";
 
 import { QueryProvider } from "@/components/providers/query-provider";
 import { SessionProvider } from "@/components/providers/session-provider";
 import { ThemeProvider } from "@/components/providers/theme-provider";
+
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-plus-jakarta",
+  display: "swap",
+  weight: ["300", "400", "500", "600", "700", "800"],
+});
 
 export const metadata: Metadata = {
   title: "SparkXFlow Nexus",
@@ -29,7 +37,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" data-theme="dark" suppressHydrationWarning>
       <body
         suppressHydrationWarning
-        className="font-sans bg-[var(--color-background)] text-[var(--color-foreground)] antialiased selection:bg-[#FF7849]/30 selection:text-white"
+        className={`${plusJakartaSans.variable} font-sans bg-[var(--color-background)] text-[var(--color-foreground)] antialiased selection:bg-[#FF7849]/30 selection:text-white`}
       >
         {/* The light control-panel theme is the default; the provider restores
             an explicit dark preference after mount. */}
