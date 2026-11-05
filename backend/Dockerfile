@@ -23,4 +23,7 @@ ENV PATH="/app/.venv/bin:${PATH}" \
 
 EXPOSE 8000
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# A fresh managed database has no schema. Run the idempotent Alembic upgrade
+# before starting the API so deployed authentication does not fail on missing
+# tables after a first deploy.
+CMD ["sh", "-c", "alembic upgrade head && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"]
