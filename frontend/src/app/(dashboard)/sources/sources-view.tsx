@@ -42,10 +42,16 @@ const HEALTH_COPY: Record<string, string> = {
 };
 
 function healthTone(status: string): string {
-  if (status === "working") return "border-emerald-500/25 bg-emerald-500/10 text-emerald-600 dark:text-emerald-300";
-  if (status === "failed") return "border-rose-500/25 bg-rose-500/10 text-rose-600 dark:text-rose-300";
-  if (status === "degraded") return "border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300";
-  return "border-[var(--color-border)] bg-[var(--color-surface)] text-[var(--color-muted)]";
+  if (status === "working") {
+    return "border-emerald-400/40 bg-emerald-500/15 text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.25)]";
+  }
+  if (status === "failed") {
+    return "border-rose-400/40 bg-rose-500/15 text-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.25)]";
+  }
+  if (status === "degraded") {
+    return "border-amber-400/40 bg-amber-500/15 text-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.25)]";
+  }
+  return "border-white/15 bg-white/5 text-white/60";
 }
 
 function HealthIcon({ status, className = "size-4" }: { status: string; className?: string }) {
@@ -57,10 +63,10 @@ function HealthIcon({ status, className = "size-4" }: { status: string; classNam
 
 function buttonClass(active: boolean): string {
   return [
-    "rounded-md border px-2.5 py-1.5 text-xs transition-colors disabled:opacity-50",
+    "rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-all disabled:opacity-50",
     active
-      ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white"
-      : "border-border text-[var(--color-muted)] hover:border-[var(--color-primary)]",
+      ? "refraction-glass-btn border-cyan-400/40 bg-cyan-500/20 text-cyan-200 shadow-[0_0_15px_rgba(0,212,255,0.3)]"
+      : "border-white/15 bg-white/[0.04] text-white/70 hover:border-white/30 hover:text-white hover:bg-white/[0.08]",
   ].join(" ");
 }
 
@@ -121,35 +127,62 @@ export function SourcesView() {
   if (!user) return null;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col text-white">
       <Header
         title="Source Manager"
         subtitle="Every provider this build can actually query, with its real limits"
       />
       <main className="flex-1 overflow-y-auto px-4 pb-10 pt-4 sm:px-6">
         {sources.isError && (
-          <p className="mb-3 text-sm text-[var(--color-error)]">
+          <p className="mb-3 text-sm text-rose-400">
             {sources.error instanceof Error ? sources.error.message : "Sources failed to load"}
           </p>
         )}
-        <section className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <HealthMetric icon={ShieldCheck} label="Answering" value={counts.working} detail={`of ${allSources.length} registered`} tone="emerald" />
-          <HealthMetric icon={AlertTriangle} label="Needs attention" value={counts.attention} detail="failed or degraded" tone="amber" />
-          <HealthMetric icon={Clock3} label="Not tested" value={counts.unknown} detail="run a connection test" tone="slate" />
-          <HealthMetric icon={Power} label="Enabled" value={counts.enabled} detail="for your account" tone="sky" />
+
+        {/* 4 Top Health Metric Tiles */}
+        <section className="mb-5 grid gap-3.5 sm:grid-cols-2 xl:grid-cols-4">
+          <HealthMetric
+            icon={ShieldCheck}
+            label="Answering"
+            value={counts.working}
+            detail={`of ${allSources.length} registered`}
+            tone="emerald"
+          />
+          <HealthMetric
+            icon={AlertTriangle}
+            label="Needs attention"
+            value={counts.attention}
+            detail="failed or degraded"
+            tone="amber"
+          />
+          <HealthMetric
+            icon={Clock3}
+            label="Not tested"
+            value={counts.unknown}
+            detail="run a connection test"
+            tone="slate"
+          />
+          <HealthMetric
+            icon={Power}
+            label="Enabled"
+            value={counts.enabled}
+            detail="for your account"
+            tone="sky"
+          />
         </section>
 
-        <div className="mb-5 grid gap-3 xl:grid-cols-[1.35fr_.65fr]">
+        {/* Extraction Engine & Reporting Cards */}
+        <div className="mb-5 grid gap-3.5 xl:grid-cols-[1.35fr_.65fr]">
           <PublicPageFetchCard />
-          <Card className="relative overflow-hidden !p-5 hover:translate-y-0">
-            <div className="absolute -right-10 -top-12 size-36 rounded-full bg-[var(--color-accent-lavender)]/10 blur-3xl" />
-            <div className="relative flex items-start gap-3">
-              <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-[var(--color-surface-elevated)] text-[var(--color-accent-lavender)]">
+          <Card className="relative overflow-hidden p-5 hover:border-white/30">
+            <div className="absolute -right-10 -top-12 size-36 rounded-full bg-cyan-500/10 blur-3xl" />
+            <div className="relative flex items-start gap-3.5">
+              <span className="grid size-10 shrink-0 place-items-center rounded-2xl border border-cyan-400/30 bg-cyan-500/15 text-cyan-300">
                 <ShieldCheck className="size-5" />
               </span>
               <div>
-                <h2 className="text-sm font-semibold">Honest source reporting</h2>
-                <p className="mt-1.5 text-xs leading-5 text-[var(--color-muted)]">
+                <h2 className="text-sm font-bold text-white">Honest source reporting</h2>
+                <p className="mt-1.5 text-xs leading-5 text-white/70">
                   “Answering” only appears after a successful live probe. Restricted platforms stay in Social Sources until a compliant connector exists.
                 </p>
               </div>
@@ -157,37 +190,57 @@ export function SourcesView() {
           </Card>
         </div>
 
-        <section className="mb-6 rounded-[24px] border border-[var(--color-border)] bg-[var(--color-card)] p-3 shadow-sm backdrop-blur-xl">
+        {/* Search & Category Filter Capsule */}
+        <section className="mb-6 rounded-[26px] refraction-glass-card p-4 border-white/15 shadow-xl">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
             <label className="relative min-w-0 flex-1">
-              <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-[var(--color-muted)]" />
+              <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-cyan-400" />
               <input
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search providers, adapters or capabilities…"
-                className="h-11 w-full rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] pl-10 pr-4 text-sm outline-none transition focus:border-[var(--color-info)] focus:ring-4 focus:ring-[var(--color-info)]/10"
+                className="h-11 w-full rounded-2xl border border-white/15 bg-white/[0.04] pl-11 pr-4 text-sm text-white placeholder-white/40 outline-none transition focus:border-cyan-400/50 focus:bg-white/[0.08]"
               />
             </label>
-            <div className="flex gap-1.5 overflow-x-auto pb-1 xl:pb-0">
+            <div className="flex gap-2 overflow-x-auto pb-1 xl:pb-0">
               {[
                 ["all", "All"],
                 ["working", "Answering"],
                 ["attention", "Needs attention"],
                 ["unknown", "Not tested"],
               ].map(([value, label]) => (
-                <button key={value} type="button" onClick={() => setStatusFilter(value)} className={`whitespace-nowrap rounded-xl px-3 py-2 text-xs font-semibold transition ${statusFilter === value ? "bg-[var(--color-foreground)] text-[var(--color-background)] shadow-sm" : "text-[var(--color-muted)] hover:bg-[var(--color-surface-elevated)] hover:text-[var(--color-foreground)]"}`}>
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setStatusFilter(value)}
+                  className={`whitespace-nowrap rounded-full px-4 py-2 text-xs font-bold transition-all ${
+                    statusFilter === value
+                      ? "border border-cyan-400/40 bg-cyan-500/20 text-cyan-200 shadow-[0_0_15px_rgba(0,212,255,0.3)]"
+                      : "border border-white/10 bg-white/[0.04] text-white/65 hover:border-white/20 hover:text-white"
+                  }`}
+                >
                   {label}
                 </button>
               ))}
             </div>
           </div>
-          <div className="mt-3 flex gap-2 overflow-x-auto border-t border-[var(--color-border-subtle)] pt-3">
-            <CategoryChip active={categoryFilter === "all"} onClick={() => setCategoryFilter("all")} label="All categories" />
+          <div className="mt-3.5 flex gap-2 overflow-x-auto border-t border-white/10 pt-3.5">
+            <CategoryChip
+              active={categoryFilter === "all"}
+              onClick={() => setCategoryFilter("all")}
+              label="All categories"
+            />
             {categories.map((category) => (
-              <CategoryChip key={category} active={categoryFilter === category} onClick={() => setCategoryFilter(category)} label={CATEGORY_LABELS[category] ?? category} />
+              <CategoryChip
+                key={category}
+                active={categoryFilter === category}
+                onClick={() => setCategoryFilter(category)}
+                label={CATEGORY_LABELS[category] ?? category}
+              />
             ))}
           </div>
         </section>
+
         {sources.isPending && !sources.isError && (
           <EmptyState title="Reading the registry…" description="" />
         )}
@@ -200,15 +253,21 @@ export function SourcesView() {
         {sources.data && filteredGroups.length === 0 && (
           <EmptyState title="No matching sources" description="Clear a filter or search for another provider." />
         )}
+
+        {/* Source Categories and Grid */}
         <div className="space-y-8">
           {filteredGroups.map((group) => (
             <section key={group.category}>
-              <div className="mb-3 flex items-center gap-3">
-                <h2 className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--color-muted)]">{CATEGORY_LABELS[group.category] ?? group.category}</h2>
-                <span className="rounded-full bg-[var(--color-surface-elevated)] px-2 py-0.5 text-[0.65rem] font-bold text-[var(--color-muted)]">{group.items.length}</span>
-                <span className="h-px flex-1 bg-[var(--color-border)]" />
+              <div className="mb-4 flex items-center gap-3">
+                <span className="inline-flex items-center gap-2 rounded-full border border-cyan-400/30 bg-cyan-500/10 px-3.5 py-1 text-xs font-bold uppercase tracking-wider text-cyan-300">
+                  <span>{CATEGORY_LABELS[group.category] ?? group.category}</span>
+                  <span className="rounded-full bg-cyan-400/20 px-2 py-0.5 text-[10px] text-cyan-200">
+                    {group.items.length}
+                  </span>
+                </span>
+                <span className="h-px flex-1 bg-white/10" />
               </div>
-              <div className="grid gap-3 lg:grid-cols-2 2xl:grid-cols-3">
+              <div className="grid gap-3.5 lg:grid-cols-2 2xl:grid-cols-3">
                 {group.items.map((source) => (
                   <SourceCard key={source.id} source={source} />
                 ))}
@@ -221,23 +280,61 @@ export function SourcesView() {
   );
 }
 
-function HealthMetric({ icon: Icon, label, value, detail, tone }: { icon: typeof Activity; label: string; value: number; detail: string; tone: "emerald" | "amber" | "slate" | "sky" }) {
+function HealthMetric({
+  icon: Icon,
+  label,
+  value,
+  detail,
+  tone,
+}: {
+  icon: typeof Activity;
+  label: string;
+  value: number;
+  detail: string;
+  tone: "emerald" | "amber" | "slate" | "sky";
+}) {
   const tones = {
-    emerald: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-300",
-    amber: "bg-amber-500/10 text-amber-700 dark:text-amber-300",
-    slate: "bg-[var(--color-surface-elevated)] text-[var(--color-muted)]",
-    sky: "bg-sky-500/10 text-sky-600 dark:text-sky-300",
+    emerald: "border-emerald-400/30 bg-emerald-500/15 text-emerald-300",
+    amber: "border-amber-400/30 bg-amber-500/15 text-amber-300",
+    slate: "border-white/15 bg-white/10 text-white/70",
+    sky: "border-sky-400/30 bg-sky-500/15 text-sky-300",
   };
   return (
-    <Card className="flex items-center gap-4 !p-4 hover:translate-y-0">
-      <span className={`grid size-11 shrink-0 place-items-center rounded-2xl ${tones[tone]}`}><Icon className="size-5" /></span>
-      <div className="min-w-0"><p className="text-xs font-semibold text-[var(--color-muted)]">{label}</p><p className="mt-0.5 text-2xl font-bold tracking-tight">{value}</p><p className="truncate text-[0.68rem] text-[var(--color-muted-dim)]">{detail}</p></div>
+    <Card className="flex items-center gap-4 !p-4.5 hover:border-white/30">
+      <span className={`grid size-11 shrink-0 place-items-center rounded-2xl border ${tones[tone]}`}>
+        <Icon className="size-5" />
+      </span>
+      <div className="min-w-0">
+        <p className="text-xs font-semibold text-white/60">{label}</p>
+        <p className="mt-0.5 text-2xl font-extrabold tracking-tight text-white font-sans">{value}</p>
+        <p className="truncate text-[0.68rem] text-white/45">{detail}</p>
+      </div>
     </Card>
   );
 }
 
-function CategoryChip({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {
-  return <button type="button" onClick={onClick} className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-medium transition ${active ? "border-[var(--color-info)]/40 bg-[var(--color-info)]/10 text-[var(--color-info)]" : "border-[var(--color-border)] text-[var(--color-muted)] hover:border-[var(--color-border-highlight)] hover:text-[var(--color-foreground)]"}`}>{label}</button>;
+function CategoryChip({
+  active,
+  onClick,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium transition-all ${
+        active
+          ? "border-cyan-400/40 bg-cyan-500/20 text-cyan-200 shadow-[0_0_12px_rgba(0,212,255,0.25)]"
+          : "border-white/15 bg-white/[0.04] text-white/65 hover:border-white/25 hover:text-white"
+      }`}
+    >
+      {label}
+    </button>
+  );
 }
 
 function PublicPageFetchCard() {
@@ -253,19 +350,33 @@ function PublicPageFetchCard() {
   });
 
   return (
-    <Card className="relative overflow-hidden !p-5 hover:translate-y-0">
-      <div className="absolute -left-12 -top-16 size-44 rounded-full bg-[var(--color-info)]/10 blur-3xl" />
+    <Card className="relative overflow-hidden p-5 hover:border-white/30">
+      <div className="absolute -left-12 -top-16 size-44 rounded-full bg-cyan-500/10 blur-3xl" />
       <div className="relative flex flex-wrap items-start justify-between gap-3">
         <div className="flex items-start gap-3">
-          <span className="grid size-10 shrink-0 place-items-center rounded-2xl bg-sky-500/10 text-sky-600 dark:text-sky-300"><Globe2 className="size-5" /></span>
+          <span className="grid size-10 shrink-0 place-items-center rounded-2xl border border-cyan-400/30 bg-cyan-500/15 text-cyan-300">
+            <Globe2 className="size-5" />
+          </span>
           <div>
-            <p className="text-[0.65rem] font-bold uppercase tracking-[0.16em] text-[var(--color-muted)]">Extraction engine</p>
-            <h2 className="mt-1 text-base font-semibold">Public Page Fetch</h2>
-            <p className="mt-1 text-xs leading-5 text-[var(--color-muted)]">Reads public SearXNG and directory pages for structured business evidence.</p>
+            <p className="text-[0.65rem] font-bold uppercase tracking-wider text-cyan-400">
+              Extraction engine
+            </p>
+            <h2 className="mt-1 text-base font-bold text-white">Public Page Fetch</h2>
+            <p className="mt-1 text-xs leading-5 text-white/70">
+              Reads public SearXNG and directory pages for structured business evidence.
+            </p>
           </div>
         </div>
-        <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.7rem] font-bold ${health.data?.status === "ok" ? healthTone("working") : healthTone("unknown")}`}>
-          {health.isPending ? <RefreshCw className="size-3 animate-spin" /> : <HealthIcon status={health.data?.status === "ok" ? "working" : "unknown"} className="size-3" />}
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[0.7rem] font-bold ${
+            health.data?.status === "ok" ? healthTone("working") : healthTone("unknown")
+          }`}
+        >
+          {health.isPending ? (
+            <RefreshCw className="size-3 animate-spin" />
+          ) : (
+            <HealthIcon status={health.data?.status === "ok" ? "working" : "unknown"} className="size-3" />
+          )}
           {health.isPending ? "Checking" : health.data?.status === "ok" ? "Ready" : "Unavailable"}
         </span>
       </div>
@@ -273,16 +384,26 @@ function PublicPageFetchCard() {
         <div className="relative mt-4 grid gap-2 sm:grid-cols-3">
           <MiniFact label="Method" value={health.data.method} />
           <MiniFact label="Access" value={health.data.access} />
-          <MiniFact label="Safety limit" value={`${Math.round(health.data.limits.max_response_bytes / 100_000) / 10} MB · ${health.data.limits.max_redirects} redirects`} />
+          <MiniFact
+            label="Safety limit"
+            value={`${Math.round(health.data.limits.max_response_bytes / 100_000) / 10} MB · ${health.data.limits.max_redirects} redirects`}
+          />
         </div>
       )}
-      {health.isError && <p className="mt-3 text-xs text-[var(--color-error)]">Public fetch health could not be read.</p>}
+      {health.isError && <p className="mt-3 text-xs text-rose-400">Public fetch health could not be read.</p>}
     </Card>
   );
 }
 
 function MiniFact({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-2xl border border-[var(--color-border-subtle)] bg-[var(--color-surface)]/60 px-3 py-2.5"><p className="text-[0.62rem] font-bold uppercase tracking-wider text-[var(--color-muted-dim)]">{label}</p><p className="mt-1 truncate text-xs font-medium" title={value}>{value}</p></div>;
+  return (
+    <div className="rounded-2xl border border-white/10 bg-black/40 px-3 py-2.5 backdrop-blur-md">
+      <p className="text-[0.62rem] font-bold uppercase tracking-wider text-white/45">{label}</p>
+      <p className="mt-1 truncate text-xs font-semibold text-white" title={value}>
+        {value}
+      </p>
+    </div>
+  );
 }
 
 function SourceCard({ source }: { source: SourceItem }) {
@@ -329,166 +450,277 @@ function SourceCard({ source }: { source: SourceItem }) {
   const note = source.configuration["note"];
 
   return (
-    <Card className="group flex flex-col !p-0">
+    <Card className="group flex flex-col !p-0 border border-white/15 bg-[rgba(14,18,30,0.58)] hover:border-cyan-400/40 transition-all duration-200">
       <div className="flex flex-1 flex-col p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
-          <span className={`grid size-10 shrink-0 place-items-center rounded-2xl border ${healthTone(source.health_status)}`}><HealthIcon status={source.health_status} /></span>
-          <div className="min-w-0">
-            <h3 className="truncate text-sm font-semibold" title={source.name}>{source.name}</h3>
-            <p className="mt-0.5 truncate text-[0.68rem] font-medium text-[var(--color-muted)]">{source.adapter_key} · {source.slug}</p>
+        {/* Source Header */}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex min-w-0 items-start gap-3">
+            <span
+              className={`grid size-10 shrink-0 place-items-center rounded-2xl border ${healthTone(
+                source.health_status,
+              )}`}
+            >
+              <HealthIcon status={source.health_status} />
+            </span>
+            <div className="min-w-0">
+              <h3 className="truncate text-sm font-bold text-white" title={source.name}>
+                {source.name}
+              </h3>
+              <p className="mt-0.5 truncate text-[0.68rem] font-medium text-white/50">
+                {source.adapter_key} · {source.slug}
+              </p>
+            </div>
           </div>
+          <span
+            className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.68rem] font-bold ${healthTone(
+              source.health_status,
+            )}`}
+          >
+            {HEALTH_COPY[source.health_status] ?? source.health_status}
+          </span>
         </div>
-        <span className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.68rem] font-bold ${healthTone(source.health_status)}`}>
-          {HEALTH_COPY[source.health_status] ?? source.health_status}
-        </span>
-      </div>
 
-      {source.last_error && (
-        <div className="mt-4 flex gap-2 rounded-2xl border border-rose-500/20 bg-rose-500/8 px-3 py-2.5 text-xs text-rose-600 dark:text-rose-300"><AlertTriangle className="mt-0.5 size-3.5 shrink-0" /><p className="line-clamp-2">{source.last_error}</p></div>
-      )}
-      {probe && (
-        <p className="mt-3 rounded-xl bg-[var(--color-surface)] px-3 py-2 text-xs text-[var(--color-muted)]">
-          Probe: {probe.status}
-          {probe.detail ? ` — ${probe.detail}` : ""}
-          {probe.response_time_ms != null ? ` (${probe.response_time_ms} ms)` : ""}
-        </p>
-      )}
-
-      {source.description && !source.last_error && <p className="mt-4 line-clamp-2 text-xs leading-5 text-[var(--color-muted)]">{source.description}</p>}
-
-      <div className="mt-4 grid grid-cols-3 overflow-hidden rounded-2xl border border-[var(--color-border-subtle)] bg-[var(--color-surface)]/55">
-        <SourceStat label="Runs" value={source.runs_recorded} />
-        <SourceStat label="Requests" value={source.requests_count} bordered />
-        <SourceStat label="Returned" value={source.records_returned} />
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[0.68rem] text-[var(--color-muted)]">
-        <span className="inline-flex items-center gap-1.5"><Clock3 className="size-3.5" />Last probe: {whenSet(source.last_check_at)}{source.last_check_response_ms != null ? ` · ${source.last_check_response_ms} ms` : ""}</span>
-        <span className={`inline-flex items-center gap-1.5 font-semibold ${source.enabled_for_user ? "text-emerald-600 dark:text-emerald-300" : "text-[var(--color-muted)]"}`}><span className={`size-1.5 rounded-full ${source.enabled_for_user ? "bg-emerald-500" : "bg-[var(--color-muted-dim)]"}`} />{source.enabled_for_user ? "Enabled" : "Disabled"}</span>
-      </div>
-
-      {feeds.length > 0 && (
-        <div className="text-xs">
-          <p className="text-[var(--color-muted)]">Your feeds</p>
-          <ul className="list-disc pl-4">
-            {feeds.map((feed) => (
-              <li key={String(feed)} className="truncate">
-                {String(feed)}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {typeof note === "string" && note && (
-        <p className="text-xs text-[var(--color-muted)]">Note: {note}</p>
-      )}
-
-      {error && <p className="text-xs text-[var(--color-error)]">{error}</p>}
-
-      {source.slug === "file_import" && (
-        <p className="text-xs text-[var(--color-muted)]">
-          This source is fed by the files you import. There is no provider behind it, so
-          there is nothing to enable or probe &mdash; imported records point at the file
-          they came from.
-        </p>
-      )}
-
-      <div className="mt-auto flex flex-wrap items-center gap-2 pt-5">
-        {source.slug !== "file_import" && (
-          <>
-            <button
-              className={buttonClass(!source.enabled_for_user)}
-              disabled={toggle.isPending}
-              onClick={() => toggle.mutate()}
-              type="button"
-            >
-              <Power className="mr-1 inline size-3" />{source.enabled_for_user ? "Disable" : "Enable"}
-            </button>
-            <button
-              className={buttonClass(false)}
-              disabled={test.isPending}
-              onClick={() => test.mutate()}
-              type="button"
-            >
-              <RefreshCw className={`mr-1 inline size-3 ${test.isPending ? "animate-spin" : ""}`} />{test.isPending ? "Testing…" : "Test"}
-            </button>
-          </>
+        {source.last_error && (
+          <div className="mt-4 flex gap-2 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-3 py-2.5 text-xs text-rose-300">
+            <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+            <p className="line-clamp-2">{source.last_error}</p>
+          </div>
         )}
-        <button className={`${buttonClass(false)} ml-auto`} onClick={() => setOpen(!open)} type="button">
-          <ChevronDown className={`mr-1 inline size-3 transition ${open ? "rotate-180" : ""}`} />{open ? "Less" : "Details"}
-        </button>
-      </div>
 
-      {open && (
-        <div className="mt-4 space-y-4 border-t border-[var(--color-border)] pt-4">
-          <DetailRow icon={Database} label="Account / provider" value={`${source.enabled_for_user ? "Enabled" : "Disabled"} / ${source.globally_enabled ? "Enabled" : "Disabled"}`} />
-          <DetailRow icon={Activity} label="Last successful run" value={whenSet(source.last_successful_run_at)} />
-          <DetailRow icon={Gauge} label="Records accepted" value={source.records_accepted == null ? "Not reported per source" : String(source.records_accepted)} />
-          <DetailRow icon={Globe2} label="Coverage" value={String(source.coverage["geographic_coverage"] ?? "Not stated")} />
-          <div className="rounded-2xl bg-[var(--color-surface)]/65 p-3 text-xs"><p className="font-semibold">Limitations</p><ul className="mt-2 list-disc space-y-1.5 pl-4 leading-5 text-[var(--color-muted)]"><li>{String(source.limitations["rate_limit_notes"] ?? "No rate limit stated")}</li><li>{String(source.limitations["terms_notes"] ?? "No terms stated")}</li></ul></div>
+        {probe && (
+          <p className="mt-3 rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-xs text-white/80">
+            Probe: {probe.status}
+            {probe.detail ? ` — ${probe.detail}` : ""}
+            {probe.response_time_ms != null ? ` (${probe.response_time_ms} ms)` : ""}
+          </p>
+        )}
+
+        {source.description && !source.last_error && (
+          <p className="mt-4 line-clamp-2 text-xs leading-5 text-white/70">
+            {source.description}
+          </p>
+        )}
+
+        {/* 3 Stats Sub-boxes (Runs, Requests, Returned) with Sleek Dark Glass */}
+        <div className="mt-4 grid grid-cols-3 overflow-hidden rounded-2xl border border-white/10 bg-black/40 backdrop-blur-md">
+          <SourceStat label="Runs" value={source.runs_recorded} />
+          <SourceStat label="Requests" value={source.requests_count} bordered />
+          <SourceStat label="Returned" value={source.records_returned} />
         </div>
-      )}
 
-      {source.adapter_key === "rss" && open && <FeedConfig source={source} />}
+        {/* Probe Timing & Enabled State */}
+        <div className="mt-3.5 flex flex-wrap items-center justify-between gap-2 text-[0.68rem] text-white/55">
+          <span className="inline-flex items-center gap-1.5">
+            <Clock3 className="size-3.5 text-white/40" />
+            Last probe: {whenSet(source.last_check_at)}
+            {source.last_check_response_ms != null ? ` · ${source.last_check_response_ms} ms` : ""}
+          </span>
+          <span
+            className={`inline-flex items-center gap-1.5 font-semibold ${
+              source.enabled_for_user ? "text-emerald-300" : "text-white/40"
+            }`}
+          >
+            <span
+              className={`size-1.5 rounded-full ${
+                source.enabled_for_user
+                  ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]"
+                  : "bg-white/30"
+              }`}
+            />
+            {source.enabled_for_user ? "Enabled" : "Disabled"}
+          </span>
+        </div>
 
-      {open && (
-        <div className="mt-4 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]/45 p-3">
-          {history.isError && (
-            <p className="text-xs text-[var(--color-error)]">
-              {history.error instanceof Error ? history.error.message : "History failed to load"}
-            </p>
-          )}
-          {!history.isError && (history.isPending || !history.data) && (
-            <p className="text-xs text-[var(--color-muted)]">Loading…</p>
-          )}
-          {history.data && (
+        {feeds.length > 0 && (
+          <div className="text-xs mt-3">
+            <p className="text-white/60 font-medium">Your feeds</p>
+            <ul className="list-disc pl-4 text-white/70">
+              {feeds.map((feed) => (
+                <li key={String(feed)} className="truncate">
+                  {String(feed)}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {typeof note === "string" && note && (
+          <p className="text-xs text-white/60 mt-2">Note: {note}</p>
+        )}
+
+        {error && <p className="text-xs text-rose-400 mt-2">{error}</p>}
+
+        {source.slug === "file_import" && (
+          <p className="text-xs text-white/60 mt-3">
+            This source is fed by the files you import. There is no provider behind it, so
+            there is nothing to enable or probe &mdash; imported records point at the file
+            they came from.
+          </p>
+        )}
+
+        {/* Action Buttons: Enable/Disable, Test, Details */}
+        <div className="mt-auto flex flex-wrap items-center gap-2 pt-5 border-t border-white/10">
+          {source.slug !== "file_import" && (
             <>
-              <p className="flex items-center gap-1.5 text-xs font-semibold"><History className="size-3.5" />Recent probes ({history.data.checks.length})
-              </p>
-              {history.data.checks.length === 0 ? (
-                <p className="text-xs text-[var(--color-muted)]">Never probed.</p>
-              ) : (
-                <ul className="mt-1 space-y-0.5 text-xs">
-                  {history.data.checks.map((check) => (
-                    <li key={check.id}>
-                      {new Date(check.checked_at).toLocaleString()} · {check.status}
-                      {check.error_message ? ` — ${check.error_message}` : ""}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <p className="mt-3 text-xs font-semibold text-[var(--color-muted)]">
-                Runs ({history.data.runs.length})
-              </p>
-              {history.data.runs.length === 0 ? (
-                <p className="text-xs text-[var(--color-muted)]">No recorded runs.</p>
-              ) : (
-                <ul className="mt-1 space-y-0.5 text-xs">
-                  {history.data.runs.map((run) => (
-                    <li key={run.id}>
-                      {new Date(run.measured_at).toLocaleString()} · {run.requests_count} req ·{" "}
-                      {run.records_returned} returned
-                      {run.records_accepted != null ? ` · ${run.records_accepted} accepted` : ""}
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <button
+                className={buttonClass(!source.enabled_for_user)}
+                disabled={toggle.isPending}
+                onClick={() => toggle.mutate()}
+                type="button"
+              >
+                <Power className="mr-1 inline size-3" />
+                {source.enabled_for_user ? "Disable" : "Enable"}
+              </button>
+              <button
+                className={buttonClass(false)}
+                disabled={test.isPending}
+                onClick={() => test.mutate()}
+                type="button"
+              >
+                <RefreshCw
+                  className={`mr-1 inline size-3 ${test.isPending ? "animate-spin text-cyan-400" : ""}`}
+                />
+                {test.isPending ? "Testing…" : "Test"}
+              </button>
             </>
           )}
+          <button
+            className={`${buttonClass(false)} ml-auto`}
+            onClick={() => setOpen(!open)}
+            type="button"
+          >
+            <ChevronDown
+              className={`mr-1 inline size-3 transition-transform ${open ? "rotate-180" : ""}`}
+            />
+            {open ? "Less" : "Details"}
+          </button>
         </div>
-      )}
+
+        {open && (
+          <div className="mt-4 space-y-3 border-t border-white/10 pt-4 text-xs">
+            <DetailRow
+              icon={Database}
+              label="Account / provider"
+              value={`${source.enabled_for_user ? "Enabled" : "Disabled"} / ${
+                source.globally_enabled ? "Enabled" : "Disabled"
+              }`}
+            />
+            <DetailRow
+              icon={Activity}
+              label="Last successful run"
+              value={whenSet(source.last_successful_run_at)}
+            />
+            <DetailRow
+              icon={Gauge}
+              label="Records accepted"
+              value={
+                source.records_accepted == null
+                  ? "Not reported per source"
+                  : String(source.records_accepted)
+              }
+            />
+            <DetailRow
+              icon={Globe2}
+              label="Coverage"
+              value={String(source.coverage["geographic_coverage"] ?? "Not stated")}
+            />
+            <div className="rounded-2xl border border-white/10 bg-black/40 p-3 text-xs backdrop-blur-md">
+              <p className="font-bold text-white">Limitations</p>
+              <ul className="mt-2 list-disc space-y-1.5 pl-4 leading-5 text-white/70">
+                <li>{String(source.limitations["rate_limit_notes"] ?? "No rate limit stated")}</li>
+                <li>{String(source.limitations["terms_notes"] ?? "No terms stated")}</li>
+              </ul>
+            </div>
+          </div>
+        )}
+
+        {source.adapter_key === "rss" && open && <FeedConfig source={source} />}
+
+        {open && (
+          <div className="mt-4 rounded-2xl border border-white/10 bg-black/40 p-3 backdrop-blur-md">
+            {history.isError && (
+              <p className="text-xs text-rose-400">
+                {history.error instanceof Error ? history.error.message : "History failed to load"}
+              </p>
+            )}
+            {!history.isError && (history.isPending || !history.data) && (
+              <p className="text-xs text-white/60">Loading…</p>
+            )}
+            {history.data && (
+              <>
+                <p className="flex items-center gap-1.5 text-xs font-bold text-white">
+                  <History className="size-3.5 text-cyan-400" />
+                  Recent probes ({history.data.checks.length})
+                </p>
+                {history.data.checks.length === 0 ? (
+                  <p className="text-xs text-white/50 mt-1">Never probed.</p>
+                ) : (
+                  <ul className="mt-2 space-y-1 text-[11px] text-white/70">
+                    {history.data.checks.map((probeItem) => (
+                      <li key={probeItem.id} className="flex items-center gap-2">
+                        <span
+                          className={`size-1.5 rounded-full ${
+                            probeItem.status === "ok" ? "bg-emerald-400" : "bg-rose-400"
+                          }`}
+                        />
+                        <span>{new Date(probeItem.checked_at).toLocaleTimeString()}</span>
+                        <span>·</span>
+                        <span className="font-semibold">{probeItem.status}</span>
+                        {probeItem.response_time_ms != null && (
+                          <span className="text-white/45">({probeItem.response_time_ms}ms)</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </>
+            )}
+          </div>
+        )}
       </div>
     </Card>
   );
 }
 
-function SourceStat({ label, value, bordered = false }: { label: string; value: number; bordered?: boolean }) {
-  return <div className={`px-3 py-3 text-center ${bordered ? "border-x border-[var(--color-border-subtle)]" : ""}`}><p className="text-base font-bold tracking-tight">{value.toLocaleString()}</p><p className="mt-0.5 text-[0.62rem] font-semibold uppercase tracking-wider text-[var(--color-muted-dim)]">{label}</p></div>;
+function SourceStat({
+  label,
+  value,
+  bordered = false,
+}: {
+  label: string;
+  value: number;
+  bordered?: boolean;
+}) {
+  return (
+    <div className={`px-3 py-3 text-center ${bordered ? "border-x border-white/10" : ""}`}>
+      <p className="text-base font-extrabold tracking-tight text-white font-mono">
+        {value.toLocaleString()}
+      </p>
+      <p className="mt-0.5 text-[0.62rem] font-bold uppercase tracking-wider text-white/50">
+        {label}
+      </p>
+    </div>
+  );
 }
 
-function DetailRow({ icon: Icon, label, value }: { icon: typeof Activity; label: string; value: string }) {
-  return <div className="flex items-start gap-2 text-xs"><Icon className="mt-0.5 size-3.5 shrink-0 text-[var(--color-muted)]" /><p><span className="text-[var(--color-muted)]">{label}: </span><span className="font-medium">{value}</span></p></div>;
+function DetailRow({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof Activity;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-start gap-2 text-xs">
+      <Icon className="mt-0.5 size-3.5 shrink-0 text-cyan-400" />
+      <p>
+        <span className="text-white/50">{label}: </span>
+        <span className="font-semibold text-white">{value}</span>
+      </p>
+    </div>
+  );
 }
 
 function FeedConfig({ source }: { source: SourceItem }) {
@@ -515,18 +747,18 @@ function FeedConfig({ source }: { source: SourceItem }) {
   });
 
   return (
-    <div className="rounded-md border border-border p-2">
+    <div className="mt-4 rounded-2xl border border-white/10 bg-black/40 p-3.5 backdrop-blur-md">
       <label className="text-xs">
-        <span className="text-[var(--color-muted)]">Feed URLs (one per line, http(s) only)</span>
+        <span className="text-white/60 font-medium">Feed URLs (one per line, http(s) only)</span>
         <textarea
-          className="mt-1 h-20 w-full rounded-md border border-border bg-[var(--color-background)] px-2 py-1.5 text-xs"
+          className="mt-1.5 h-20 w-full rounded-xl border border-white/15 bg-white/[0.04] px-3 py-2 text-xs text-white placeholder-white/40 outline-none focus:border-cyan-400/50"
           value={value}
           onChange={(event) => setValue(event.target.value)}
         />
       </label>
-      {message && <p className="mt-1 text-xs text-[var(--color-muted)]">{message}</p>}
+      {message && <p className="mt-1 text-xs text-emerald-300">{message}</p>}
       <button
-        className={`${buttonClass(true)} mt-2`}
+        className={`${buttonClass(true)} mt-2.5`}
         disabled={save.isPending}
         onClick={() => save.mutate()}
         type="button"

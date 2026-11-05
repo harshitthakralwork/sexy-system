@@ -127,10 +127,10 @@ function UserCapsule() {
     : "H";
 
   return (
-    <div className="flex items-center gap-2">
-      {/* Stylized Avatar Frame (Matching Image 2's gold/amber avatar ring) */}
+    <div className="flex items-center gap-2.5">
+      {/* Sleek Neon Glass Avatar Capsule */}
       <div
-        className="relative flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-tr from-[var(--color-primary)] to-[var(--color-secondary)] border-2 border-white/50 shadow-md font-bold text-xs text-white"
+        className="relative flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-tr from-cyan-500 via-sky-500 to-indigo-600 border border-white/40 shadow-[0_0_15px_rgba(0,212,255,0.45)] font-extrabold text-xs text-white"
         title={user.email}
       >
         <span>{initials}</span>
@@ -147,7 +147,7 @@ function UserCapsule() {
             setBusy(false);
           }
         }}
-        className="hidden sm:inline-flex rounded-full border border-[var(--color-border)] bg-[var(--color-surface)]/70 px-3 py-1.5 text-xs font-semibold text-[var(--color-muted)] hover:border-[var(--color-border-highlight)] hover:text-[var(--color-foreground)] transition-all disabled:opacity-50"
+        className="hidden sm:inline-flex rounded-full refraction-glass-btn px-4 py-1.5 text-xs font-bold text-white/80 hover:text-rose-400 hover:border-rose-400/40 transition-all disabled:opacity-50"
       >
         {busy ? "..." : "Sign out"}
       </button>
