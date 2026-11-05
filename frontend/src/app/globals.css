@@ -39,10 +39,10 @@
 [data-theme="dark"] {
   --color-background: #06070a;
   --color-sidebar: rgba(14, 18, 28, 0.45);
-  --color-surface: rgba(255, 255, 255, 0.04);
-  --color-surface-elevated: rgba(255, 255, 255, 0.08);
-  --color-card: rgba(14, 18, 30, 0.42);
-  --color-card-elevated: rgba(22, 28, 44, 0.52);
+  --color-surface: rgba(14, 18, 30, 0.55);
+  --color-surface-elevated: rgba(24, 28, 42, 0.65);
+  --color-card: rgba(14, 18, 30, 0.55);
+  --color-card-elevated: rgba(24, 30, 48, 0.65);
   --color-primary: #00d4ff;
   --color-primary-hover: #38bdf8;
   --color-secondary: #c084fc;
@@ -72,10 +72,10 @@
 [data-theme="light"] {
   --color-background: #0a0c12;
   --color-sidebar: rgba(255, 255, 255, 0.08);
-  --color-surface: rgba(255, 255, 255, 0.06);
-  --color-surface-elevated: rgba(255, 255, 255, 0.12);
-  --color-card: rgba(255, 255, 255, 0.07);
-  --color-card-elevated: rgba(255, 255, 255, 0.14);
+  --color-surface: rgba(14, 18, 30, 0.55);
+  --color-surface-elevated: rgba(24, 28, 42, 0.65);
+  --color-card: rgba(14, 18, 30, 0.55);
+  --color-card-elevated: rgba(24, 30, 48, 0.65);
   --color-primary: #00d4ff;
   --color-primary-hover: #38bdf8;
   --color-secondary: #c084fc;

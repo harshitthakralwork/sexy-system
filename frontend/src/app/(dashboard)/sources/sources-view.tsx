@@ -190,8 +190,8 @@ export function SourcesView() {
           </Card>
         </div>
 
-        {/* Search & Category Filter Capsule */}
-        <section className="mb-6 rounded-[26px] refraction-glass-card p-4 border-white/15 shadow-xl">
+        {/* Search & Category Filter Capsule with Deep Dark Glass */}
+        <section className="mb-6 rounded-[26px] refraction-glass-card p-4.5 border-white/15 shadow-2xl bg-[rgba(14,18,30,0.68)]">
           <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
             <label className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-cyan-400" />
@@ -199,7 +199,7 @@ export function SourcesView() {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search providers, adapters or capabilities…"
-                className="h-11 w-full rounded-2xl border border-white/15 bg-white/[0.04] pl-11 pr-4 text-sm text-white placeholder-white/40 outline-none transition focus:border-cyan-400/50 focus:bg-white/[0.08]"
+                className="h-11 w-full rounded-2xl border border-white/15 bg-black/45 pl-11 pr-4 text-sm text-white placeholder-white/40 outline-none transition focus:border-cyan-400/60 focus:bg-black/65 shadow-inner"
               />
             </label>
             <div className="flex gap-2 overflow-x-auto pb-1 xl:pb-0">
@@ -294,10 +294,10 @@ function HealthMetric({
   tone: "emerald" | "amber" | "slate" | "sky";
 }) {
   const tones = {
-    emerald: "border-emerald-400/30 bg-emerald-500/15 text-emerald-300",
-    amber: "border-amber-400/30 bg-amber-500/15 text-amber-300",
-    slate: "border-white/15 bg-white/10 text-white/70",
-    sky: "border-sky-400/30 bg-sky-500/15 text-sky-300",
+    emerald: "border-emerald-400/30 bg-emerald-500/15 text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.2)]",
+    amber: "border-amber-400/30 bg-amber-500/15 text-amber-300 shadow-[0_0_12px_rgba(251,191,36,0.2)]",
+    slate: "border-violet-400/40 bg-violet-500/20 text-violet-300 shadow-[0_0_12px_rgba(167,139,250,0.3)]",
+    sky: "border-sky-400/30 bg-sky-500/15 text-sky-300 shadow-[0_0_12px_rgba(56,189,248,0.2)]",
   };
   return (
     <Card className="flex items-center gap-4 !p-4.5 hover:border-white/30">
@@ -397,9 +397,9 @@ function PublicPageFetchCard() {
 
 function MiniFact({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-black/40 px-3 py-2.5 backdrop-blur-md">
-      <p className="text-[0.62rem] font-bold uppercase tracking-wider text-white/45">{label}</p>
-      <p className="mt-1 truncate text-xs font-semibold text-white" title={value}>
+    <div className="rounded-2xl border border-white/15 bg-black/60 px-3.5 py-2.5 backdrop-blur-xl shadow-inner">
+      <p className="text-[0.62rem] font-bold uppercase tracking-wider text-cyan-400">{label}</p>
+      <p className="mt-1 truncate text-xs font-semibold text-white font-mono" title={value}>
         {value}
       </p>
     </div>
@@ -502,7 +502,7 @@ function SourceCard({ source }: { source: SourceItem }) {
         )}
 
         {/* 3 Stats Sub-boxes (Runs, Requests, Returned) with Sleek Dark Glass */}
-        <div className="mt-4 grid grid-cols-3 overflow-hidden rounded-2xl border border-white/10 bg-black/40 backdrop-blur-md">
+        <div className="mt-4 grid grid-cols-3 overflow-hidden rounded-2xl border border-white/15 bg-black/60 backdrop-blur-xl shadow-inner">
           <SourceStat label="Runs" value={source.runs_recorded} />
           <SourceStat label="Requests" value={source.requests_count} bordered />
           <SourceStat label="Returned" value={source.records_returned} />
@@ -696,7 +696,7 @@ function SourceStat({
       <p className="text-base font-extrabold tracking-tight text-white font-mono">
         {value.toLocaleString()}
       </p>
-      <p className="mt-0.5 text-[0.62rem] font-bold uppercase tracking-wider text-white/50">
+      <p className="mt-0.5 text-[0.62rem] font-bold uppercase tracking-wider text-cyan-400">
         {label}
       </p>
     </div>
