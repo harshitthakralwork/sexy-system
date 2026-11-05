@@ -49,47 +49,41 @@ export function LiquidGlassBackground() {
         />
       </div>
 
-      {/* 3. Floating 3D Liquid Glass Pills (Matching Liquid Glass UI Kit) */}
-      <div className="absolute inset-0 overflow-hidden">
-        {/* Floating pill 1: Primary Glass Button pill */}
+      {/* 3. Floating 3D Liquid Glass Caustic Orbs */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {/* Floating orb 1: Violet/Purple caustic glass orb */}
         <div
-          className={`absolute left-[6%] top-[12%] flex items-center gap-2 rounded-full px-4 py-2 border backdrop-blur-2xl shadow-xl transition-all duration-700 animate-float-slow ${
+          className={`absolute left-[6%] top-[12%] flex h-10 w-10 items-center justify-center rounded-full border backdrop-blur-2xl shadow-xl transition-all duration-700 animate-float-slow ${
             isLight
-              ? "bg-white/70 border-purple-400/40 text-purple-700 shadow-[0_12px_32px_rgba(168,85,247,0.14)]"
-              : "bg-purple-950/30 border-purple-400/30 text-purple-300 shadow-[0_0_28px_rgba(168,85,247,0.22)]"
+              ? "bg-white/70 border-purple-400/40 shadow-[0_12px_32px_rgba(168,85,247,0.14)]"
+              : "bg-purple-950/20 border-purple-400/30 shadow-[0_0_28px_rgba(168,85,247,0.22)]"
           }`}
-          style={{ transform: "rotate(-6deg)" }}
         >
-          <span className="h-2 w-2 rounded-full bg-purple-400 shadow-[0_0_8px_#a855f7] animate-pulse" />
-          <span className="text-[11px] font-semibold tracking-wide">Primary Glass</span>
+          <span className="h-2.5 w-2.5 rounded-full bg-purple-400 shadow-[0_0_8px_#a855f7] animate-pulse" />
         </div>
 
-        {/* Floating pill 2: Cyan Secondary Glass pill */}
+        {/* Floating orb 2: Cyan caustic glass orb */}
         <div
-          className={`absolute right-[8%] top-[18%] flex items-center gap-2 rounded-full px-4 py-2 border backdrop-blur-2xl shadow-xl transition-all duration-700 animate-float-reverse ${
+          className={`absolute right-[8%] top-[18%] flex h-9 w-9 items-center justify-center rounded-full border backdrop-blur-2xl shadow-xl transition-all duration-700 animate-float-reverse ${
             isLight
-              ? "bg-white/70 border-cyan-400/40 text-cyan-700 shadow-[0_12px_32px_rgba(0,212,255,0.14)]"
-              : "bg-cyan-950/30 border-cyan-400/30 text-cyan-300 shadow-[0_0_28px_rgba(0,212,255,0.22)]"
+              ? "bg-white/70 border-cyan-400/40 shadow-[0_12px_32px_rgba(0,212,255,0.14)]"
+              : "bg-cyan-950/20 border-cyan-400/30 shadow-[0_0_28px_rgba(0,212,255,0.22)]"
           }`}
-          style={{ transform: "rotate(4deg)", animationDelay: "1.2s" }}
+          style={{ animationDelay: "1.2s" }}
         >
           <span className="h-2 w-2 rounded-full bg-cyan-400 shadow-[0_0_8px_#00d4ff] animate-pulse" />
-          <span className="text-[11px] font-semibold tracking-wide">Secondary Glass</span>
         </div>
 
-        {/* Floating pill 3: Glass search badge */}
+        {/* Floating orb 3: Subtle Sky caustic glass orb */}
         <div
-          className={`absolute left-[16%] bottom-[10%] flex items-center gap-2 rounded-full px-3.5 py-1.5 border backdrop-blur-2xl shadow-xl transition-all duration-700 animate-float-slow ${
+          className={`absolute left-[16%] bottom-[10%] flex h-8 w-8 items-center justify-center rounded-full border backdrop-blur-2xl shadow-xl transition-all duration-700 animate-float-slow ${
             isLight
-              ? "bg-white/80 border-slate-300/60 text-slate-700 shadow-[0_12px_24px_rgba(0,0,0,0.06)]"
-              : "bg-white/[0.05] border-white/20 text-white/70 shadow-[0_0_20px_rgba(255,255,255,0.08)]"
+              ? "bg-white/80 border-slate-300/60 shadow-[0_12px_24px_rgba(0,0,0,0.06)]"
+              : "bg-white/[0.04] border-white/20 shadow-[0_0_20px_rgba(255,255,255,0.08)]"
           }`}
-          style={{ transform: "rotate(3deg)", animationDelay: "2.4s" }}
+          style={{ animationDelay: "2.4s" }}
         >
-          <span className="text-[10px] font-medium">Search radar…</span>
-          <span className="flex h-4 w-4 items-center justify-center rounded-full bg-cyan-500/20 text-[9px] font-bold text-cyan-400">
-            +
-          </span>
+          <span className="h-2 w-2 rounded-full bg-cyan-400/80 shadow-[0_0_8px_#38bdf8]" />
         </div>
 
         {/* Floating glass droplet 4 */}
@@ -101,7 +95,7 @@ export function LiquidGlassBackground() {
           }`}
           style={{ animationDelay: "0.8s" }}
         >
-          <span className="h-3 w-3 rounded-full bg-pink-400/80 shadow-[0_0_8px_#f472b6]" />
+          <span className="h-2.5 w-2.5 rounded-full bg-pink-400/80 shadow-[0_0_8px_#f472b6]" />
         </div>
       </div>
 

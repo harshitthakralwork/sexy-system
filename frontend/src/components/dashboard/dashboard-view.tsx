@@ -33,6 +33,15 @@ interface JobListResponse {
   total: number;
 }
 
+const COMPONENT_DISPLAY_NAMES: Record<string, string> = {
+  database: "Database",
+  redis: "Redis",
+  worker: "Worker",
+  searxng: "SearXNG (Metasearch)",
+  osm_imagery: "OpenStreetMap (Imagery)",
+  openstreetmap: "OpenStreetMap (Imagery)",
+};
+
 function sumCounts(buckets: AnalyticsBucket[]): number {
   return buckets.reduce((total, bucket) => total + bucket.count, 0);
 }
@@ -456,8 +465,8 @@ export function DashboardView() {
                         className="liquid-glass-subcard flex items-center justify-between px-4 py-2.5 animate-slide-up"
                         style={{ animationDelay: `${i * 40}ms` }}
                       >
-                        <span className="text-xs font-semibold capitalize text-[var(--color-foreground)]">
-                          {component.name}
+                        <span className="text-xs font-semibold text-[var(--color-foreground)]">
+                          {COMPONENT_DISPLAY_NAMES[component.name.toLowerCase()] ?? component.name}
                         </span>
                         <span
                           className={cn(

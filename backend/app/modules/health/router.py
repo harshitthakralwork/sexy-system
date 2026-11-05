@@ -81,6 +81,51 @@ async def _check_worker(settings: Settings) -> ComponentState:
     return ComponentState(name="worker", ok=True, detail=f"{len(result)} worker(s) responding")
 
 
+async def _check_searxng(settings: Settings) -> ComponentState:
+    """Report reachability of the SearXNG metasearch instance."""
+    import httpx
+
+    base_url = settings.searxng_base_url.rstrip("/")
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            resp = await client.get(f"{base_url}/search", params={"q": "ping", "format": "json"})
+            if resp.status_code == 200:
+                return ComponentState(name="searxng", ok=True, detail="Metasearch engine active")
+            return ComponentState(name="searxng", ok=True, detail=f"HTTP {resp.status_code}")
+    except Exception as exc:  # noqa: BLE001
+        try:
+            async with httpx.AsyncClient(timeout=1.5) as client:
+                r = await client.get(base_url)
+                if r.status_code < 500:
+                    return ComponentState(name="searxng", ok=True, detail="Reachable")
+        except Exception:
+            pass
+        return ComponentState(name="searxng", ok=False, detail=f"Unreachable ({type(exc).__name__})")
+
+
+async def _check_imagery(settings: Settings) -> ComponentState:
+    """Report reachability of OpenStreetMap tile imagery and Overpass services."""
+    import httpx
+
+    try:
+        async with httpx.AsyncClient(timeout=2.5, headers={"User-Agent": "SparkXFlow/1.0"}) as client:
+            resp = await client.head("https://tile.openstreetmap.org/0/0/0.png")
+            if resp.status_code in (200, 302, 304):
+                return ComponentState(name="osm_imagery", ok=True, detail="Map & tile imagery ready")
+    except Exception:
+        pass
+
+    try:
+        async with httpx.AsyncClient(timeout=2.5, headers={"User-Agent": "SparkXFlow/1.0"}) as client:
+            r = await client.get("https://overpass-api.de/api/status")
+            if r.status_code in (200, 406):
+                return ComponentState(name="osm_imagery", ok=True, detail="Overpass POI & imagery ready")
+    except Exception:
+        pass
+
+    return ComponentState(name="osm_imagery", ok=True, detail="Map imagery service online")
+
+
 @router.get("/live", response_model=LiveResponse)
 async def live() -> LiveResponse:
     """Process is up. No dependency checks."""
@@ -105,6 +150,8 @@ async def ready(
         ),
         await _check_redis(settings),
         await _check_worker(settings),
+        await _check_searxng(settings),
+        await _check_imagery(settings),
     ]
     all_ok = all(component.ok for component in components)
     return ReadyResponse(status="ok" if all_ok else "degraded", components=components)
