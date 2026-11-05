@@ -81,10 +81,10 @@ function apiBase(): string {
 
 function buttonClass(active: boolean): string {
   return [
-    "rounded-md border px-2.5 py-1.5 text-xs transition-colors disabled:opacity-50",
+    "rounded-full border px-3 py-1.5 text-xs font-semibold transition-all disabled:opacity-40 cursor-pointer",
     active
-      ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white"
-      : "border-border text-[var(--color-muted)] hover:border-[var(--color-primary)]",
+      ? "refraction-glass-btn border-cyan-400/40 bg-cyan-500/20 text-cyan-200 shadow-[0_0_15px_rgba(0,212,255,0.25)] hover:bg-cyan-500/30 hover:text-white"
+      : "border-white/10 bg-white/[0.04] text-white/70 hover:border-white/25 hover:text-white hover:bg-white/[0.08]",
   ].join(" ");
 }
 
@@ -108,7 +108,7 @@ export function AnalyticsView() {
         title="Analytics"
         subtitle="Counts over the rows you own — every figure is a group-by, never a sample"
       />
-      <main className="flex-1 overflow-y-auto p-4">
+      <main className="flex-1 overflow-y-auto scroll-smooth p-4 lg:p-6">
         {summary.isError && (
           <p className="mb-3 text-sm text-[var(--color-error)]">
             {summary.error instanceof Error ? summary.error.message : "Analytics failed to load"}
@@ -149,9 +149,9 @@ export function AnalyticsView() {
         )}
 
         {data && (
-          <p className="mt-4 text-xs text-[var(--color-muted)]">
+        <p className="mt-4 rounded-lg border border-white/[0.06] bg-white/[0.02] px-3 py-2 text-xs text-white/45">
             Generated {new Date(data.generated_at).toLocaleString()} ·{" "}
-            {BUCKET_KEYS.length} surfaces
+            {BUCKET_KEYS.length} data groups
           </p>
         )}
 
@@ -184,7 +184,7 @@ function BucketCard({ section, buckets }: { section: Section; buckets: Analytics
               </div>
               <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-[var(--color-surface-raised,rgba(139,92,246,0.15))]">
                 <div
-                  className="h-full rounded-full bg-[var(--color-primary)]"
+                  className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-sky-500 shadow-[0_0_8px_rgba(0,212,255,0.4)]"
                   style={{ width: `${max ? (bucket.count / max) * 100 : 0}%` }}
                 />
               </div>
@@ -243,19 +243,22 @@ function ReportsPanel() {
   const rows = reports.data?.items ?? [];
 
   return (
-    <section className="mt-6" id="saved-reports">
-      <h2 className="text-sm font-semibold">Saved reports</h2>
+    <section className="mt-8 scroll-mt-6 rounded-2xl border border-white/[0.1] bg-black/20 p-4 lg:p-5" id="saved-reports">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div><h2 className="text-base font-semibold">Saved reports</h2>
       <p className="mt-1 text-xs text-[var(--color-muted)]">
         A report stores the counts as they were at capture time, so it does not drift when new data
         arrives.
       </p>
+        </div><span className="rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 text-[10px] uppercase tracking-wide text-white/45">Saved counts</span>
+      </div>
       {error && <p className="mt-2 text-sm text-[var(--color-error)]">{error}</p>}
 
-      <div className="mt-3 flex flex-wrap items-end gap-2">
+      <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_180px_auto] sm:items-end">
         <label className="text-sm">
           <span className="text-[var(--color-muted)]">Name</span>
           <input
-            className="mt-1 w-56 rounded-md border border-border bg-[var(--color-background)] px-2 py-1.5"
+            className="mt-1 w-full rounded-xl border border-white/10 bg-[var(--color-background)] px-3 py-2"
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Week 1 funnel"
@@ -264,7 +267,7 @@ function ReportsPanel() {
         <label className="text-sm">
           <span className="text-[var(--color-muted)]">Type</span>
           <select
-            className="mt-1 block rounded-md border border-border bg-[var(--color-background)] px-2 py-1.5"
+            className="mt-1 block w-full rounded-xl border border-white/10 bg-[var(--color-background)] px-3 py-2"
             value={reportType}
             onChange={(e) => setReportType(e.target.value)}
           >

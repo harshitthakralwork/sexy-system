@@ -235,7 +235,7 @@ export function DiscoverBusinessesView() {
               <button
                 type="submit"
                 disabled={startSweep.isPending || (!query && !city && !selectedAreaId)}
-                className="flex items-center gap-2 rounded-md bg-[var(--color-primary)] px-4 py-2 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+                className="refraction-glass-btn flex items-center gap-2 rounded-full border border-cyan-400/40 bg-cyan-500/20 px-5 py-2 text-xs font-bold text-cyan-200 shadow-[0_0_16px_rgba(0,212,255,0.25)] hover:bg-cyan-500/30 hover:text-white disabled:opacity-40 transition-all cursor-pointer"
               >
                 {startSweep.isPending ? (
                   <>
@@ -321,7 +321,7 @@ export function DiscoverBusinessesView() {
                         <td className="py-2.5 px-3 w-32">
                           <div className="w-full bg-[var(--color-surface)] rounded-full h-1.5 overflow-hidden">
                             <div
-                              className="bg-[var(--color-primary)] h-1.5 rounded-full transition-all duration-300"
+                              className="bg-gradient-to-r from-cyan-400 to-sky-500 shadow-[0_0_8px_rgba(0,212,255,0.4)] h-1.5 rounded-full transition-all duration-300"
                               style={{ width: `${Math.max(job.progress_percent || 0, isDone ? 100 : 5)}%` }}
                             />
                           </div>

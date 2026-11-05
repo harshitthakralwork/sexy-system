@@ -15,7 +15,9 @@ export function getApiOrigin(): string {
   return new URL(getApiBase(), browserOrigin).origin;
 }
 
-const DEFAULT_TIMEOUT_MS = 8000;
+// Discovery and public-page enrichment can legitimately take tens of seconds.
+// A short global deadline makes completed backend jobs look like client failures.
+const DEFAULT_TIMEOUT_MS = 60_000;
 
 export class ApiError extends Error {
   readonly code: string;
@@ -106,11 +108,13 @@ function getEffectiveCsrf(explicit?: string | null): string | undefined {
 export const api = {
   get: <T>(path: string, signal?: AbortSignal) =>
     request<T>(getApiBase(), path, { method: "GET", signal }),
-  post: <T>(path: string, body?: unknown, csrf?: string | null) => {
+  post: <T>(path: string, body?: unknown, csrf?: string | null, timeoutMs?: number, signal?: AbortSignal) => {
     const token = getEffectiveCsrf(csrf);
     return request<T>(getApiBase(), path, {
       method: "POST",
       body,
+      timeoutMs,
+      signal,
       headers: token ? { "X-CSRF-Token": token } : undefined,
     });
   },

@@ -95,7 +95,7 @@ export function SocialDashboard() {
     <div className="flex min-h-0 flex-1 flex-col">
       <Header
         title="Social Intelligence"
-        subtitle="Research public conversation on permitted platforms, honestly"
+        subtitle="Search public posts from configured sources"
       />
 
       <main className="flex-1 overflow-y-auto p-4">
@@ -104,7 +104,7 @@ export function SocialDashboard() {
             Platform catalogue
           </h3>
           <p className="mt-1 text-sm text-[var(--color-muted)]">
-            Cross-platform social intelligence engine. Query public discussions, developer communities, and dorking feeds across all indexed platforms.
+            Search public posts, developer communities, and indexed pages from the sources below.
           </p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {(platforms.data ?? []).map((platform) => (
@@ -163,8 +163,16 @@ export function SocialDashboard() {
                           if (run.status === "deleted") {
                             setNotice("Research query deleted.");
                           } else if (run.status === "completed") {
+                            // A previous platform/text filter can hide the rows just collected.
+                            // Clear it after a run so the operator sees the run's actual output.
+                            setPlatformFilter("");
+                            setTypeFilter("");
+                            setTextQuery("");
+                            setAppliedText("");
                             setNotice(
-                              `Run complete: ${run.collected} collected, ${run.stored_new} new, ${run.duplicates} duplicates.`,
+                              run.collected > 0
+                                ? `Run complete: ${run.collected} collected, ${run.stored_new} new, ${run.duplicates} duplicates.`
+                                : "Run completed, but the source returned 0 public results for this query. Try broader terms or another platform.",
                             );
                           } else {
                             setNotice(`Run failed: ${run.error ?? "unknown error"}`);
@@ -496,6 +504,7 @@ function QueryRow({
         `/social/research-queries/${query.id}/run`,
         undefined,
         csrf,
+        60_000,
       );
       await onChanged(result);
     } catch (caught) {
@@ -607,7 +616,7 @@ function ContentRow({
         )}
       </td>
       <td className="px-3 py-2 text-[var(--color-muted)]">
-        {content.published_at ? new Date(content.published_at).toLocaleDateString() : "—"}
+        {content.published_at ? new Date(content.published_at).toLocaleDateString() : "Not provided"}
       </td>
       <td className="px-3 py-2 text-right">
         <div className="flex items-center justify-end gap-2">
@@ -647,10 +656,10 @@ function describeConfig(config: Record<string, unknown>): string {
 
 function buttonClass(active: boolean): string {
   return [
-    "rounded-md border px-2.5 py-1.5 text-xs transition-colors disabled:opacity-50",
+    "rounded-full border px-3 py-1.5 text-xs font-semibold transition-all disabled:opacity-40 cursor-pointer",
     active
-      ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white"
-      : "border-border text-[var(--color-muted)] hover:border-[var(--color-primary)]",
+      ? "refraction-glass-btn border-cyan-400/40 bg-cyan-500/20 text-cyan-200 shadow-[0_0_15px_rgba(0,212,255,0.25)] hover:bg-cyan-500/30 hover:text-white"
+      : "border-white/10 bg-white/[0.04] text-white/70 hover:border-white/25 hover:text-white hover:bg-white/[0.08]",
   ].join(" ");
 }
 

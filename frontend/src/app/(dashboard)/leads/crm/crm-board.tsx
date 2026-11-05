@@ -166,10 +166,10 @@ function Column({
 
 function buttonClass(active: boolean): string {
   return [
-    "rounded-md border px-2.5 py-1.5 text-xs transition-colors disabled:opacity-50",
+    "rounded-full border px-3 py-1.5 text-xs font-semibold transition-all disabled:opacity-40 cursor-pointer",
     active
-      ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white"
-      : "border-border text-[var(--color-muted)] hover:border-[var(--color-primary)]",
+      ? "refraction-glass-btn border-cyan-400/40 bg-cyan-500/20 text-cyan-200 shadow-[0_0_15px_rgba(0,212,255,0.25)] hover:bg-cyan-500/30 hover:text-white"
+      : "border-white/10 bg-white/[0.04] text-white/70 hover:border-white/25 hover:text-white hover:bg-white/[0.08]",
   ].join(" ");
 }
 

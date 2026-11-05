@@ -148,7 +148,7 @@ export function QualifiedLeadsView() {
             <button
               type="button"
               onClick={applyFilters}
-              className="rounded-md bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90"
+              className="refraction-glass-btn rounded-full border border-cyan-400/40 bg-cyan-500/20 px-4 py-1.5 text-xs font-bold text-cyan-200 shadow-[0_0_12px_rgba(0,212,255,0.2)] hover:bg-cyan-500/30 hover:text-white transition-all cursor-pointer"
             >
               Filter Leads
             </button>
@@ -247,7 +247,7 @@ export function QualifiedLeadsView() {
                       <td className="py-2.5 px-3 text-right space-x-2">
                         <Link
                           href={`/email?business_id=${b.id}`}
-                          className="inline-flex items-center gap-1 rounded bg-[var(--color-primary)] px-2.5 py-1 text-[11px] font-medium text-white hover:opacity-90"
+                          className="refraction-glass-btn inline-flex items-center gap-1 rounded-full border border-cyan-400/40 bg-cyan-500/20 px-3 py-1 text-[11px] font-semibold text-cyan-200 shadow-[0_0_10px_rgba(0,212,255,0.2)] hover:bg-cyan-500/30 hover:text-white transition-all"
                         >
                           <Mail size={11} />
                           <span>Outreach</span>

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from datetime import UTC, datetime
 from typing import Any, Literal
 from urllib.parse import urljoin, urlsplit
 
@@ -36,6 +37,7 @@ class PublicPageFetchResult(BaseModel):
     address: str | None = None
     rating: float | None = None
     review_count: int | None = None
+    published_at: datetime | None = None
     website_url: str | None = None
     social_urls: list[str] = Field(default_factory=list)
     contact_urls: list[str] = Field(default_factory=list)
@@ -88,6 +90,18 @@ def _integer(value: Any) -> int | None:
         return int(str(value).replace(",", ""))
     except (TypeError, ValueError):
         return None
+
+
+def _date(value: Any) -> datetime | None:
+    if not isinstance(value, str) or not value.strip():
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed.astimezone(UTC)
 
 
 async def _download(url: str, client: httpx.AsyncClient) -> tuple[str, int, bytes, str]:
@@ -192,6 +206,16 @@ async def fetch_public_page(
         else None
     )
     meta_description = soup.select_one('meta[name="description"], meta[property="og:description"]')
+    published_meta = soup.select_one(
+        'meta[property="article:published_time"], meta[name="datePublished"], meta[name="pubdate"]'
+    )
+    published_at = _date(entity.get("datePublished"))
+    if published_at is None and published_meta and published_meta.get("content"):
+        published_at = _date(published_meta.get("content"))
+    if published_at is None:
+        time_node = soup.select_one("time[datetime]")
+        if time_node and time_node.get("datetime"):
+            published_at = _date(time_node.get("datetime"))
     title = _first_text(entity.get("name"), soup.title.string if soup.title else None)
 
     return PublicPageFetchResult(
@@ -209,6 +233,7 @@ async def fetch_public_page(
         address=_address(entity.get("address")),
         rating=_number(aggregate.get("ratingValue")),
         review_count=_integer(aggregate.get("reviewCount") or aggregate.get("ratingCount")),
+        published_at=published_at,
         website_url=_first_text(entity.get("url"), canonical_url),
         social_urls=social_urls,
         contact_urls=contact_urls,

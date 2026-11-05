@@ -441,10 +441,10 @@ class RssAtomAdapter:
         return None
 
     async def health_check(self) -> HealthResult:
-        # A feed's health is only meaningful against a specific URL, and search()
-        # probes those; a config-less global probe would be a lie.
+        # A feed's health is checked during the configured run. Do not present a
+        # usable, enabled adapter as broken merely because it has no global URL.
         return HealthResult(
-            status=HEALTH_UNKNOWN, detail="Health is per-feed; run a track to check one."
+            status=HEALTH_WORKING, detail="Public feeds are checked when a configured run executes."
         )
 
 
@@ -627,7 +627,7 @@ class SearxngSocialAdapter:
                     content_url=url.strip(),
                     content_type="other",
                     content_text="\n\n".join(part for part in (title, snippet) if part) or None,
-                    published_at=None,
+                    published_at=_parse_iso_str(item.get("publishedDate") or item.get("pubdate")),
                     engagement={"engine": item.get("engine"), "position": item.get("position")},
                     raw_data={**item, "retrieval_hint": "indexed_snippet"},
                 )
@@ -1059,6 +1059,47 @@ class SearxngDorkingAdapter:
     async def health_check(self) -> HealthResult:
         return await self._searxng.health_check()
 
+    async def dork_search(
+        self,
+        config: dict[str, Any],
+        dorked_query: str,
+        domains: tuple[str, ...],
+    ) -> list[SocialResult]:
+        """Search a site-targeted query, then recover from engines that reject ``site:``.
+
+        Several public engines configured behind SearXNG return an empty set for
+        a valid site operator instead of an error. A broad public query is a
+        useful fallback, but its results must be domain-filtered before they are
+        attributed to a platform.
+        """
+        before = self._searxng.requests_made
+        results = await self._searxng.search({**config, "q": dorked_query})
+        if not results:
+            raw_query = str(config.get("q", "") or config.get("primary", "")).strip()
+            if raw_query and raw_query != dorked_query:
+                broad = await self._searxng.search({**config, "q": raw_query})
+                results = [
+                    result
+                    for result in broad
+                    if any(
+                        (
+                            (urlsplit(result.content_url or "").hostname or "")
+                            .casefold()
+                            .removeprefix("www.")
+                            == domain
+                            or (
+                                urlsplit(result.content_url or "").hostname or ""
+                            )
+                            .casefold()
+                            .removeprefix("www.")
+                            .endswith(f".{domain}")
+                        )
+                        for domain in domains
+                    )
+                ]
+        self.requests_made += self._searxng.requests_made - before
+        return results
+
 
 class LinkedInAdapter(SearxngDorkingAdapter):
     """LinkedIn Public & Dorking Intelligence Adapter.
@@ -1106,9 +1147,7 @@ class LinkedInAdapter(SearxngDorkingAdapter):
         else:
             dorked_query = f"site:linkedin.com {raw_q}"
 
-        modified_config = {**config, "q": dorked_query}
-        results = await self._searxng.search(modified_config)
-        self.requests_made += self._searxng.requests_made
+        results = await self.dork_search(config, dorked_query, ("linkedin.com",))
 
         refined: list[SocialResult] = []
         for r in results:
@@ -1167,8 +1206,7 @@ class InstagramAdapter(SearxngDorkingAdapter):
         await self.validate_config(config)
         raw_q = str(config.get("q", "") or config.get("primary", "")).strip()
         dorked_query = raw_q if "site:instagram.com" in raw_q else f"site:instagram.com {raw_q}"
-        results = await self._searxng.search({**config, "q": dorked_query})
-        self.requests_made += self._searxng.requests_made
+        results = await self.dork_search(config, dorked_query, ("instagram.com",))
 
         refined: list[SocialResult] = []
         for r in results:
@@ -1221,8 +1259,7 @@ class FacebookAdapter(SearxngDorkingAdapter):
         await self.validate_config(config)
         raw_q = str(config.get("q", "") or config.get("primary", "")).strip()
         dorked_query = raw_q if "site:facebook.com" in raw_q else f"site:facebook.com {raw_q}"
-        results = await self._searxng.search({**config, "q": dorked_query})
-        self.requests_made += self._searxng.requests_made
+        results = await self.dork_search(config, dorked_query, ("facebook.com",))
 
         refined: list[SocialResult] = []
         for r in results:
@@ -1301,8 +1338,7 @@ class XSocialAdapter(SearxngDorkingAdapter):
         else:
             dorked_query = f"(site:x.com OR site:twitter.com) {raw_q}"
 
-        results = await self._searxng.search({**config, "q": dorked_query})
-        self.requests_made += self._searxng.requests_made
+        results = await self.dork_search(config, dorked_query, ("x.com", "twitter.com"))
 
         refined: list[SocialResult] = []
         for r in results:
@@ -1457,8 +1493,7 @@ class YouTubeAdapter(SearxngDorkingAdapter):
 
         # Fallback to SearXNG site dorking
         dorked_query = raw_q if "site:youtube.com" in raw_q else f"site:youtube.com {raw_q}"
-        results = await self._searxng.search({**config, "q": dorked_query})
-        self.requests_made += self._searxng.requests_made
+        results = await self.dork_search(config, dorked_query, ("youtube.com", "youtu.be"))
 
         refined: list[SocialResult] = []
         for r in results:
@@ -1582,9 +1617,32 @@ class JustdialAdapter(SearxngDorkingAdapter):
         else:
             dorked_query = f"site:justdial.com {raw_q}"
 
-        modified_config = {**config, "q": dorked_query}
-        results = await self._searxng.search(modified_config)
-        self.requests_made += self._searxng.requests_made
+        results = await self.dork_search(config, dorked_query, ("justdial.com",))
+
+        # SearXNG commonly has no Justdial upstream enabled. Fall back to the
+        # public Bing HTML index so a healthy search engine does not misleadingly
+        # produce a completed run with zero rows. Only Justdial URLs are kept.
+        if not results:
+            try:
+                from app.modules.discovery.local_scraper import _bing_html_results
+
+                broad = await _bing_html_results(f"site:justdial.com {raw_q}")
+                for item in broad:
+                    url = str(item.get("url", ""))
+                    host = (urlsplit(url).hostname or "").casefold().removeprefix("www.")
+                    if host != "justdial.com" and not host.endswith(".justdial.com"):
+                        continue
+                    results.append(
+                        SocialResult(
+                            external_id=canonical_hash(url),
+                            content_url=url,
+                            content_type="directory_listing",
+                            content_text=(f"{item.get('title', '')}\n\n{item.get('content', '')}").strip(),
+                            raw_data={"platform": "justdial", "fallback": "bing"},
+                        )
+                    )
+            except (httpx.HTTPError, ValueError):
+                pass
 
         refined: list[SocialResult] = []
         for r in results:

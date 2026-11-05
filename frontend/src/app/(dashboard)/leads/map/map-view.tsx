@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, ExternalLink, Globe2, GlobeX, ListFilter, Sparkles, Trash2 } from "lucide-react";
+import { BriefcaseBusiness, Download, ExternalLink, Globe2, GlobeX, ListFilter, MapPinned, Sparkles, Trash2, X } from "lucide-react";
 
 import { Header } from "@/components/layout/header";
 import { Card, EmptyState } from "@/components/ui/card";
@@ -11,6 +11,28 @@ import { api, getApiBase } from "@/lib/api/client";
 import type { Business, BusinessList } from "@/lib/api/types";
 
 type WebsiteRank = "potential" | "without-first" | "has-first" | "name";
+
+const INDIA_NICHE_OPTIONS = [
+  ["🔧 Plumbers", "plumbers"], ["⚡ Electricians", "electricians"], ["❄️ AC & HVAC repair", "AC repair"],
+  ["🏠 Interior designers", "interior designers"], ["🏗️ Construction companies", "construction companies"], ["🏢 Real-estate agents", "real estate agents"],
+  ["☀️ Solar installers", "solar installers"], ["🧹 Cleaning services", "cleaning services"], ["🚚 Movers & packers", "movers and packers"], ["🚗 Car repair garages", "car repair"],
+  ["🦷 Dentists", "dentists"], ["🏥 Clinics", "clinics"], ["🧘 Physiotherapists", "physiotherapists"], ["💇 Salons & barbers", "salons"], ["💆 Spas", "spas"],
+  ["🏋️ Gyms & fitness", "gyms"], ["🍽️ Restaurants", "restaurants"], ["☕ Cafes", "cafes"], ["🧁 Bakeries", "bakeries"], ["💍 Jewelry stores", "jewelry stores"],
+  ["💒 Wedding planners", "wedding planners"], ["📸 Photographers", "photographers"], ["🎓 Coaching institutes", "coaching institutes"], ["👨‍🏫 Tutors", "tutors"],
+  ["⚖️ Law firms", "law firms"], ["📊 CA & accounting firms", "CA firms"], ["💼 Recruitment agencies", "recruitment agencies"], ["💻 IT consultants", "IT consultants"],
+  ["🏭 Manufacturers", "manufacturers"], ["📦 Wholesalers & distributors", "wholesalers"], ["🛋️ Furniture stores", "furniture stores"], ["👗 Fashion boutiques", "fashion boutiques"],
+] as const;
+
+const TARGET_CITY_OPTIONS = [
+  ["🇮🇳 Bengaluru", "Bengaluru"], ["🇮🇳 Mumbai", "Mumbai"], ["🇮🇳 Delhi NCR", "Delhi NCR"], ["🇮🇳 Hyderabad", "Hyderabad"],
+  ["🇮🇳 Pune", "Pune"], ["🇮🇳 Chennai", "Chennai"], ["🇮🇳 Ahmedabad", "Ahmedabad"], ["🇮🇳 Jaipur", "Jaipur"],
+  ["🇮🇳 Chandigarh", "Chandigarh"], ["🇮🇳 Surat", "Surat"], ["🇮🇳 Indore", "Indore"], ["🇮🇳 Lucknow", "Lucknow"],
+  ["🇮🇳 Kochi", "Kochi"], ["🇮🇳 Goa", "Goa"], ["🇮🇳 Noida", "Noida"], ["🇮🇳 Gurugram", "Gurugram"],
+  ["🇺🇸 New York", "New York"], ["🇺🇸 Los Angeles", "Los Angeles"], ["🇺🇸 San Francisco", "San Francisco"], ["🇺🇸 Chicago", "Chicago"],
+  ["🇨🇦 Toronto", "Toronto"], ["🇬🇧 London", "London"], ["🇦🇺 Sydney", "Sydney"], ["🇦🇪 Dubai", "Dubai"],
+  ["🇸🇬 Singapore", "Singapore"], ["🇩🇪 Berlin", "Berlin"], ["🇳🇱 Amsterdam", "Amsterdam"], ["🇫🇷 Paris", "Paris"],
+  ["🇮🇪 Dublin", "Dublin"], ["🇳🇿 Auckland", "Auckland"], ["🇿🇦 Cape Town", "Cape Town"], ["🌍 Remote / Global", "Global"],
+] as const;
 
 function potentialClient(business: Business) {
   let score = 0;
@@ -40,6 +62,9 @@ export function MapIntelligenceView() {
   const [notice, setNotice] = useState<string | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [crawling, setCrawling] = useState(false);
+  const [crawlProgress, setCrawlProgress] = useState(0);
+  const [crawlStage, setCrawlStage] = useState("Preparing public searches…");
+  const crawlController = useRef<AbortController | null>(null);
   const [websiteFilter, setWebsiteFilter] = useState<"all" | "has" | "without">("all");
   const [websiteRank, setWebsiteRank] = useState<WebsiteRank>("potential");
   const [potentialOnly, setPotentialOnly] = useState(false);
@@ -56,7 +81,6 @@ export function MapIntelligenceView() {
     enabled: Boolean(user),
   });
 
-  if (!user) return null;
   const allRows = businesses.data?.items ?? [];
   const rows = [...allRows]
     .filter((item) => {
@@ -93,6 +117,10 @@ export function MapIntelligenceView() {
       return;
     }
     setCrawling(true);
+    setCrawlProgress(5);
+    setCrawlStage("Preparing public searches…");
+    const controller = new AbortController();
+    crawlController.current = controller;
     setSearchError(null);
     setNotice(null);
     try {
@@ -100,16 +128,41 @@ export function MapIntelligenceView() {
         "/discovery/local-search",
         { niche: cleanNiche, city: cleanCity },
         csrf,
+        120_000,
+        controller.signal,
       );
+      setCrawlProgress(100);
+      setCrawlStage("Search complete");
       setApplied({ niche: cleanNiche, city: cleanCity });
       setNotice(`Crawler found ${result.total_found}; ${result.stored_new} new businesses stored.`);
       await queryClient.invalidateQueries({ queryKey: ["local-business-finder"] });
     } catch (caught) {
-      setSearchError(errorMessage(caught));
+      if (controller.signal.aborted) setSearchError("Search cancelled.");
+      else setSearchError(errorMessage(caught));
     } finally {
       setCrawling(false);
+      crawlController.current = null;
     }
   }
+
+  function cancelSearch() {
+    crawlController.current?.abort();
+  }
+
+  useEffect(() => {
+    if (!crawling) return;
+    const timer = window.setInterval(() => {
+      setCrawlProgress((current) => Math.min(92, current + 3));
+      setCrawlStage((current) => {
+        if (current.includes("Preparing")) return "Searching public indexes…";
+        if (current.includes("indexes")) return "Checking public business pages…";
+        return "Normalising listings and saving results…";
+      });
+    }, 1800);
+    return () => window.clearInterval(timer);
+  }, [crawling]);
+
+  if (!user) return null;
 
   async function removeSelected() {
     const ids = [...selected];
@@ -146,12 +199,21 @@ export function MapIntelligenceView() {
               Search records collected from permitted public sources. Missing values are never guessed.
             </p>
             <div className="mt-5 grid gap-3 md:grid-cols-2">
-              <SearchInput label="Niche" onChange={setNiche} onSearch={search} placeholder="plumbers, hospitals, web agencies…" value={niche} />
-              <SearchInput label="City" onChange={setCity} onSearch={search} placeholder="Hisar" value={city} />
+              <SearchInput icon={BriefcaseBusiness} tone="orange" label="Niche" listId="india-niches" onChange={setNiche} onSearch={search} placeholder="Choose a niche or type your own…" value={niche} />
+              <SearchInput icon={MapPinned} tone="cyan" label="City" listId="target-cities" onChange={setCity} onSearch={search} placeholder="Choose a city or type your own…" value={city} />
             </div>
-            <button className="mt-3 w-full rounded-md bg-[var(--color-primary)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60" disabled={crawling} onClick={search} type="button">
-              {crawling ? "Crawling public results…" : "Search"}
-            </button>
+            <div className="mt-3 flex gap-2">
+              <button className="refraction-glass-btn flex-1 rounded-full border border-cyan-400/40 bg-cyan-500/20 px-4 py-2.5 text-sm font-bold text-cyan-200 shadow-[0_0_18px_rgba(0,212,255,0.25)] hover:bg-cyan-500/30 hover:text-white disabled:opacity-40 transition-all cursor-pointer" disabled={crawling} onClick={search} type="button">
+                {crawling ? "Searching public sources…" : "Search"}
+              </button>
+              {crawling && <button className="rounded-full border border-[var(--color-error)]/60 px-4 py-2.5 text-sm font-semibold text-[var(--color-error)] hover:bg-[var(--color-error)]/10" onClick={cancelSearch} type="button">Cancel</button>}
+            </div>
+            {crawling && (
+              <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] p-3" role="status" aria-live="polite">
+                <div className="mb-1.5 flex justify-between text-xs text-[var(--color-muted)]"><span>{crawlStage}</span><span>{crawlProgress}%</span></div>
+                <div className="h-2 overflow-hidden rounded-full bg-white/10"><div className="h-full rounded-full bg-cyan-400 transition-all duration-500" style={{ width: `${crawlProgress}%` }} /></div>
+              </div>
+            )}
             {searchError && <p className="mt-2 text-sm text-[var(--color-error)]">{searchError}</p>}
             <p className="mt-2 text-xs text-[var(--color-muted)]">
               No Google API key is used. Map links open a normal Google Maps browser search.
@@ -167,16 +229,16 @@ export function MapIntelligenceView() {
               <div className="flex flex-wrap gap-2">
                 <button className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--color-error)]/50 px-3 py-2 text-sm text-[var(--color-error)] transition hover:bg-[var(--color-error)]/10 disabled:opacity-40" disabled={!selected.size || deleting} onClick={removeSelected} type="button"><Trash2 size={14} /> Delete selected ({selected.size})</button>
                 <button className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm text-[var(--color-muted)] transition hover:border-[var(--color-error)] hover:text-[var(--color-error)] disabled:opacity-40" disabled={!businesses.data?.total || deleting} onClick={removeAll} type="button"><Trash2 size={14} /> Delete all</button>
-                <a className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-3 py-2 text-sm font-medium text-white transition hover:opacity-90" href={`${getApiBase()}/businesses/export?${exportParams.toString()}`}><Download size={14} /> Download CSV</a>
+                <a className="refraction-glass-btn inline-flex items-center gap-1.5 rounded-full border border-cyan-400/40 bg-cyan-500/20 px-3.5 py-2 text-sm font-bold text-cyan-200 shadow-[0_0_15px_rgba(0,212,255,0.2)] hover:bg-cyan-500/30 hover:text-white transition-all" href={`${getApiBase()}/businesses/export?${exportParams.toString()}`}><Download size={14} /> Download CSV</a>
               </div>
             </div>
             {notice && <p className="mt-3 text-sm text-[var(--color-success)]">{notice}</p>}
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-[var(--color-background)] p-3">
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="mr-1 inline-flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-[var(--color-muted)]"><ListFilter size={14} /> Filter</span>
                 {([['all', 'All', null], ['has', 'Has website', Globe2], ['without', 'No website', GlobeX]] as const).map(([value, label, Icon]) => (
                   <button
-                    className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition ${websiteFilter === value ? "border-[var(--color-primary)] bg-[var(--color-primary)]/10 text-[var(--color-primary)]" : "border-border text-[var(--color-muted)] hover:border-[var(--color-primary)]/60"}`}
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-all ${websiteFilter === value ? "refraction-glass-btn border-cyan-400/40 bg-cyan-500/20 text-cyan-200 shadow-[0_0_12px_rgba(0,212,255,0.2)]" : "border-white/10 bg-white/[0.04] text-white/70 hover:border-white/25 hover:text-white"}`}
                     key={value}
                     onClick={() => { setWebsiteFilter(value); setSelected(new Set()); }}
                     type="button"
@@ -230,8 +292,12 @@ export function MapIntelligenceView() {
   );
 }
 
-function SearchInput({ label, onChange, onSearch, placeholder, value }: { label: string; onChange: (value: string) => void; onSearch: () => void; placeholder: string; value: string }) {
-  return <label className="text-sm"><span className="font-medium">{label}</span><input className="mt-1 w-full rounded-md border border-border bg-[var(--color-background)] px-3 py-2" onChange={(event) => onChange(event.target.value)} onKeyDown={(event) => event.key === "Enter" && onSearch()} placeholder={placeholder} value={value} /></label>;
+function SearchInput({ icon: Icon, label, listId, onChange, onSearch, placeholder, tone, value }: { icon: typeof BriefcaseBusiness; label: string; listId?: string; onChange: (value: string) => void; onSearch: () => void; placeholder: string; tone: "orange" | "cyan"; value: string }) {
+  const [open, setOpen] = useState(false);
+  const options = listId === "india-niches" ? INDIA_NICHE_OPTIONS : TARGET_CITY_OPTIONS;
+  const filteredOptions = options.filter(([optionLabel, optionValue]) => `${optionLabel} ${optionValue}`.toLowerCase().includes(value.toLowerCase())).slice(0, 12);
+  const accent = tone === "orange" ? "text-orange-300 border-orange-300/30 focus-within:border-orange-300/70 focus-within:ring-orange-300/20" : "text-cyan-300 border-cyan-300/30 focus-within:border-cyan-300/70 focus-within:ring-cyan-300/20";
+  return <label className="relative text-sm"><span className={`mb-1.5 flex items-center gap-2 font-semibold ${accent.split(" ")[0]}`}><span className="flex h-6 w-6 items-center justify-center rounded-lg bg-white/[0.06]"><Icon size={14} /></span>{label}<span className="text-[10px] font-normal text-white/35">{label === "Niche" ? "What service?" : "Where?"}</span></span><span className={`flex items-center rounded-xl border bg-black/20 px-3 transition-all focus-within:ring-4 ${accent}`}><input className="w-full bg-transparent py-2.5 text-sm text-white outline-none placeholder:text-white/35" onFocus={() => setOpen(true)} onChange={(event) => { onChange(event.target.value); setOpen(true); }} onKeyDown={(event) => { if (event.key === "Enter") { setOpen(false); onSearch(); } if (event.key === "Escape") setOpen(false); }} placeholder={placeholder} value={value} />{value && <button aria-label={`Clear ${label}`} className="mr-1 rounded-md p-1 text-white/45 transition hover:bg-white/10 hover:text-white" onClick={(event) => { event.preventDefault(); onChange(""); setOpen(false); }} type="button"><X size={14} /></button>}{listId && <button aria-label={`Show ${label} suggestions`} className="px-1 text-xs text-white/40 hover:text-white" onClick={() => setOpen((current) => !current)} type="button">⌄</button>}</span>{open && listId && filteredOptions.length > 0 && <div className="absolute left-0 right-0 top-[4.65rem] z-40 max-h-72 overflow-y-auto rounded-xl border border-white/15 bg-[#171923]/98 p-1.5 shadow-2xl shadow-black/50 backdrop-blur-xl">{filteredOptions.map(([optionLabel, optionValue]) => <button className="flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-left text-sm text-white/80 transition hover:bg-white/10 hover:text-white" key={optionValue} onClick={() => { onChange(optionValue); setOpen(false); }} type="button"><span>{optionLabel}</span><span className="text-[10px] text-white/35">{optionValue}</span></button>)}</div>}</label>;
 }
 
 function BusinessRow({ business, checked, onChecked }: { business: Business; checked: boolean; onChecked: (checked: boolean) => void }) {

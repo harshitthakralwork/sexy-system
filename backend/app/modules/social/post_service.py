@@ -352,6 +352,8 @@ async def retry_post_fetch(
             body = result.description or result.title or ""
             content.content_text = body[:8000]
             content.title = result.title or content.title
+            if result.published_at is not None:
+                content.published_at = result.published_at
             content.retrieval_status = "full_text"
             content.retrieval_error = None
             content.extraction_method = result.extraction_method

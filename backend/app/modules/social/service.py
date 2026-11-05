@@ -2,8 +2,11 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
+
+import httpx
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +20,7 @@ from app.core.exceptions import (
 )
 from app.modules.businesses.models import Business, BusinessSocialProfile
 from app.modules.discovery.adapters.base import AdapterError
+from app.modules.discovery.public_fetch import fetch_public_page
 from app.modules.social.adapters import RedditAdapter, SocialAdapter, SocialResult
 from app.modules.social.connectors import (
     BlueskyAdapter,
@@ -315,6 +319,11 @@ async def run_research_query(
     finally:
         await adapter.aclose()
 
+    # Indexed search results often omit publication dates. Enrich a bounded
+    # number of public URLs before persistence so dates exposed in JSON-LD/meta
+    # become available without turning one query into an unbounded crawl.
+    results = await _enrich_public_results(results)
+
     source_id = await ensure_source(session, adapter.capabilities)
     stored_new, duplicates = await _store_results(
         session,
@@ -341,6 +350,36 @@ async def run_research_query(
         "duplicates": duplicates,
         "error": None,
     }
+
+
+async def _enrich_public_results(results: Sequence[SocialResult]) -> list[SocialResult]:
+    """Fill missing publication dates from publicly accessible result pages."""
+    max_pages = 25
+    candidates = [
+        result
+        for result in results
+        if result.published_at is None
+        and result.content_url
+        and result.content_url.startswith(("http://", "https://"))
+    ][:max_pages]
+    if not candidates:
+        return list(results)
+
+    enriched: dict[str, SocialResult] = {}
+    async with httpx.AsyncClient(
+        timeout=httpx.Timeout(12.0), follow_redirects=False
+    ) as client:
+        for result in candidates:
+            try:
+                fetched = await fetch_public_page(result.content_url or "", client=client)
+            except (httpx.HTTPError, ValueError):
+                continue
+            if fetched.status == "ok" and fetched.published_at is not None:
+                enriched[result.external_id] = replace(
+                    result, published_at=fetched.published_at
+                )
+
+    return [enriched.get(result.external_id, result) for result in results]
 
 
 async def _store_results(

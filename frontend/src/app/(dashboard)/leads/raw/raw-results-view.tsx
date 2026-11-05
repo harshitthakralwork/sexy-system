@@ -157,7 +157,7 @@ export function RawResultsView() {
             <button
               type="button"
               onClick={applyFilters}
-              className="rounded-md bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90"
+              className="refraction-glass-btn rounded-full border border-cyan-400/40 bg-cyan-500/20 px-4 py-1.5 text-xs font-bold text-cyan-200 shadow-[0_0_12px_rgba(0,212,255,0.2)] hover:bg-cyan-500/30 hover:text-white transition-all cursor-pointer"
             >
               Apply Filters
             </button>
@@ -268,7 +268,7 @@ export function RawResultsView() {
                           <button
                             type="button"
                             onClick={() => shortlist(b.id, b.name)}
-                            className="inline-flex items-center gap-1 rounded border border-[var(--color-primary)]/40 bg-[var(--color-primary)]/10 px-2.5 py-1 text-[11px] text-[var(--color-primary)] hover:bg-[var(--color-primary)] hover:text-white transition-colors"
+                            className="refraction-glass-btn inline-flex items-center gap-1 rounded-full border border-cyan-400/40 bg-cyan-500/15 px-3 py-1 text-[11px] font-semibold text-cyan-200 shadow-[0_0_10px_rgba(0,212,255,0.15)] hover:bg-cyan-500/25 hover:text-white transition-all"
                           >
                             <Star size={11} />
                             <span>Qualify</span>

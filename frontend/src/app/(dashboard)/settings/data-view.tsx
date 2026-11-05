@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Header } from "@/components/layout/header";
-import { Card, EmptyState } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/card";
 import { useSession } from "@/components/providers/session-provider";
 import { api } from "@/lib/api/client";
 import type {
@@ -60,15 +60,19 @@ function statusClass(status: string): string {
 
 function buttonClass(active: boolean): string {
   return [
-    "rounded-md border px-2.5 py-1.5 text-xs transition-colors disabled:opacity-50",
+    "rounded-full border px-2.5 py-1 text-xs font-medium transition-all disabled:opacity-40 cursor-pointer",
     active
-      ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white"
-      : "border-border text-[var(--color-muted)] hover:border-[var(--color-primary)]",
+      ? "border-cyan-400/40 bg-cyan-500/15 text-cyan-200 shadow-[0_0_10px_rgba(0,212,255,0.12)]"
+      : "border-white/[0.08] bg-white/[0.03] text-white/50 hover:border-white/20 hover:text-white/80",
   ].join(" ");
 }
 
+function primaryBtnClass(): string {
+  return "refraction-glass-btn rounded-full px-5 py-2 text-sm font-bold text-white shadow-[0_0_22px_rgba(0,212,255,0.18)] disabled:opacity-40 cursor-pointer";
+}
+
 function fieldClass(): string {
-  return "mt-1 w-full rounded-md border border-border bg-[var(--color-background)] px-2 py-1.5 text-xs";
+  return "refraction-glass-input mt-1 w-full rounded-[10px] px-2.5 py-1.5 text-xs";
 }
 
 function whenSet(value: string | null | undefined): string {
@@ -179,7 +183,7 @@ function ExportPanel() {
   };
 
   return (
-    <Card className="space-y-4">
+    <div className="refraction-glass-card rounded-[20px] p-5 space-y-4">
       <div>
         <h2 className="text-sm font-medium">Export</h2>
         <p className="text-xs text-[var(--color-muted)]">
@@ -312,7 +316,7 @@ function ExportPanel() {
 
       <div className="flex items-center gap-2">
         <button
-          className={buttonClass(true)}
+          className={primaryBtnClass()}
           disabled={create.isPending || !selected}
           type="button"
           onClick={() => create.mutate()}
@@ -322,7 +326,7 @@ function ExportPanel() {
         {message && <p className="text-xs text-[var(--color-muted)]">{message}</p>}
       </div>
 
-      <div className="border-t border-border pt-3">
+      <div className="border-t border-white/[0.06] pt-3">
         <p className="text-xs font-medium text-[var(--color-muted)]">Recent exports</p>
         {jobs.isError && (
           <p className="mt-1 text-xs text-[var(--color-error)]">
@@ -338,7 +342,7 @@ function ExportPanel() {
           ))}
         </ul>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -367,7 +371,7 @@ function ExportRow({ job, onDelete }: { job: ExportJob; onDelete: () => void }) 
   };
 
   return (
-    <li className="rounded-md border border-border p-2 text-xs">
+    <li className="rounded-[14px] border border-white/[0.07] bg-white/[0.03] p-3 text-xs">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span>
           {job.module} · {job.export_format.toUpperCase()} ·{" "}
@@ -476,7 +480,7 @@ function ImportPanel() {
   const mappedFields = Object.values(mapping).filter(Boolean);
 
   return (
-    <Card className="space-y-4">
+    <div className="refraction-glass-card rounded-[20px] p-5 space-y-4">
       <div>
         <h2 className="text-sm font-medium">Import</h2>
         <p className="text-xs text-[var(--color-muted)]">
@@ -504,7 +508,7 @@ function ImportPanel() {
       {message && <p className="text-xs text-[var(--color-muted)]">{message}</p>}
 
       {pending && (
-        <div className="space-y-3 rounded-md border border-border p-3">
+        <div className="space-y-3 rounded-[14px] border border-white/[0.07] bg-white/[0.03] p-3">
           <div>
             <p className="text-xs font-medium">{pending.file_name}</p>
             <p className="text-xs text-[var(--color-muted)]">
@@ -557,7 +561,7 @@ function ImportPanel() {
 
           <div className="flex items-center gap-2">
             <button
-              className={buttonClass(true)}
+              className={primaryBtnClass()}
               disabled={run.isPending || mappedFields.length === 0}
               type="button"
               onClick={() => run.mutate(pending.id)}
@@ -578,7 +582,7 @@ function ImportPanel() {
         </div>
       )}
 
-      <div className="border-t border-border pt-3">
+      <div className="border-t border-white/[0.06] pt-3">
         <p className="text-xs font-medium text-[var(--color-muted)]">Recent imports</p>
         {jobs.isError && (
           <p className="mt-1 text-xs text-[var(--color-error)]">
@@ -597,7 +601,7 @@ function ImportPanel() {
           ))}
         </ul>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -614,7 +618,7 @@ function ImportRow({ job, onDelete }: { job: ImportJob; onDelete: () => void }) 
     | null;
 
   return (
-    <li className="rounded-md border border-border p-2 text-xs">
+    <li className="rounded-[14px] border border-white/[0.07] bg-white/[0.03] p-3 text-xs">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span>
           {job.file_name} · <span className={statusClass(job.status)}>{STATUS_COPY[job.status] ?? job.status}</span>

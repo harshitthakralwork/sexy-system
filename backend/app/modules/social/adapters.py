@@ -218,6 +218,17 @@ class RedditAdapter:
                 ) from exc
             return self._to_results(payload)
         except (AccessDeniedError, RateLimitedError):
+            # Reddit frequently blocks www.reddit.com JSON for anonymous clients.
+            # Try the public old.reddit host before falling back to indexed snippets.
+            if self._base_url != "https://old.reddit.com":
+                try:
+                    retry = await client.get(f"https://old.reddit.com{path}", params=params)
+                    self.requests_made += 1
+                    _raise_for_source_response(retry)
+                    payload = retry.json()
+                    return self._to_results(payload)
+                except (AccessDeniedError, RateLimitedError, MalformedResponseError, ValueError, httpx.HTTPError):
+                    pass
             fallback_res = await self._searxng_fallback(config)
             if fallback_res:
                 return fallback_res
@@ -345,6 +356,18 @@ class RedditAdapter:
                     detail="Responding, but not returning a Listing",
                     response_time_ms=elapsed,
                 )
+        except (AccessDeniedError, RateLimitedError):
+            # Probe the alternate public host before marking the source failed.
+            try:
+                retry = await client.get("https://old.reddit.com/r/announcements.json", params={"limit": "1"})
+                elapsed = int((time.perf_counter() - started) * 1000)
+                _raise_for_source_response(retry)
+                payload = retry.json()
+                if isinstance(payload, dict) and payload.get("kind") == "Listing":
+                    return HealthResult(status=HEALTH_DEGRADED, detail="Primary host blocked; old.reddit fallback works", response_time_ms=elapsed)
+            except Exception:
+                pass
+            return HealthResult(status=HEALTH_DEGRADED, detail="Reddit public JSON is blocked; indexed fallback may still work")
             return HealthResult(status=HEALTH_WORKING, response_time_ms=elapsed)
         except AccessDeniedError as exc:
             return HealthResult(status=HEALTH_FAILED, detail=exc.message)

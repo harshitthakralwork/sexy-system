@@ -4,45 +4,30 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BarChart3,
   Bell,
-  Compass,
-  Globe,
   Grid3X3,
-  LayoutDashboard,
-  MapPinned,
   Search,
   Settings,
-  Shield,
-  Sparkles,
-  Workflow,
   X,
   ChevronRight,
-  Layers,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
 import { navigation } from "./navigation";
 import { cn } from "@/lib/utils";
 
-// Primary rail icons mapped to their main section
-const primaryRailItems = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-  { label: "Analytics", href: "/analytics", icon: BarChart3 },
-  { label: "Lead Discovery", href: "/leads/discover", icon: Compass },
-  { label: "Map Explorer", href: "/leads/map", icon: MapPinned },
-  { label: "Social Radar", href: "/social", icon: Globe },
-  { label: "Startups", href: "/startups", icon: Sparkles },
-  { label: "Automations", href: "/automation/workflows", icon: Workflow },
-  { label: "Source Health", href: "/sources", icon: Shield },
-];
-
 export function Sidebar() {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [expanded, setExpanded] = useState(true);
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>({
+    Overview: true,
+    "Leads Intelligence": true,
+    "Social Intelligence": true,
+  });
 
-  // Close drawer on escape key
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") setDrawerOpen(false);
@@ -57,39 +42,44 @@ export function Sidebar() {
 
   return (
     <>
-      {/* Primary Vertical Rail with Frosted Glass UI */}
+      {/* ── Primary Vertical Rail ── */}
       <aside
         className={cn(
-          "relative z-30 flex h-full flex-col overflow-hidden rounded-[32px] refraction-glass-card border-white/20 shadow-2xl transition-all duration-300 select-none m-2 sm:m-3",
-          expanded ? "w-[260px]" : "w-[78px]"
+          "relative z-30 flex h-full flex-col overflow-hidden",
+          "refraction-glass-card rounded-[28px] border-white/[0.18] shadow-2xl",
+          "transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] select-none m-2 sm:m-3",
+          expanded ? "w-[252px]" : "w-[72px]"
         )}
         aria-label="Primary navigation rail"
       >
-        {/* Brand Logo / Emblem */}
-        <div className="flex h-[72px] items-center justify-between px-4 border-b border-[var(--color-border)]">
+        {/* Brand */}
+        <div
+          className={cn(
+            "flex h-[68px] shrink-0 items-center border-b border-white/[0.08] px-3",
+            expanded ? "justify-between" : "justify-center"
+          )}
+        >
           <Link
             href="/dashboard"
-            className="flex items-center gap-3 group mx-auto"
-            title="SparkXFlow Nexus — Mission Control"
+            className="flex items-center gap-3 group"
+            title="SparkXFlow Nexus dashboard"
           >
-            {/* Brand Logo with User Emblem */}
-            <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl overflow-hidden border border-white/10 shadow-lg shadow-black/40 transition-transform group-hover:scale-105">
+            <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] overflow-hidden border border-white/10 shadow-lg shadow-black/50 transition-transform duration-200 group-hover:scale-105">
               <Image
                 src="/logo.png"
                 alt="SparkXFlow Nexus"
-                width={44}
-                height={44}
+                width={40}
+                height={40}
                 className="h-full w-full object-cover"
                 priority
               />
             </div>
-
             {expanded && (
               <div className="truncate">
-                <span className="block text-sm font-bold tracking-tight text-[var(--color-foreground)]">
+                <span className="block text-sm font-extrabold tracking-tight text-white">
                   SparkXFlow
                 </span>
-                <span className="block text-[10px] font-semibold tracking-widest text-[#FF7849] uppercase">
+                <span className="block text-[9px] font-bold tracking-[0.2em] text-[#FF7849] uppercase">
                   Nexus OS
                 </span>
               </div>
@@ -97,179 +87,136 @@ export function Sidebar() {
           </Link>
         </div>
 
-        {/* Center Nav Rail Icons */}
-        <nav className="flex-1 space-y-1.5 overflow-y-auto px-3 py-4 scrollbar-none">
-          {primaryRailItems.map((item) => {
-            const Icon = item.icon;
-            const active =
-              pathname === item.href ||
-              (item.href !== "/dashboard" && pathname.startsWith(item.href));
-
-            return (
-              <div key={item.href} className="relative group">
-                <Link
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-3 rounded-2xl transition-all duration-200",
-                    expanded ? "px-3.5 py-2.5 w-full" : "h-12 w-12 justify-center mx-auto",
-                    active
-                      ? "bg-white/[0.12] text-white border border-white/25 shadow-[0_0_20px_rgba(0,212,255,0.22),inset_0_1px_1px_rgba(255,255,255,0.35)]"
-                      : "text-white/60 hover:bg-white/[0.05] hover:text-white"
-                  )}
-                >
-                  <Icon
-                    size={20}
-                    className={cn(
-                      "shrink-0 transition-colors",
-                      active ? "text-cyan-400 drop-shadow-[0_0_8px_rgba(0,212,255,0.6)]" : "text-white/50 group-hover:text-white"
-                    )}
-                    aria-hidden
-                  />
-                  {expanded && (
-                    <span className="truncate text-xs font-semibold">{item.label}</span>
-                  )}
-                </Link>
-
-                {/* Floating Tooltip when collapsed */}
-                {!expanded && (
-                  <div className="pointer-events-none absolute left-[calc(100%+10px)] top-1/2 -translate-y-1/2 z-50 hidden rounded-xl border border-white/10 bg-[#2C2A2E]/95 px-3 py-1.5 text-xs font-medium text-white shadow-xl backdrop-blur-md group-hover:block whitespace-nowrap">
-                    {item.label}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          {/* Module Drawer Launcher Button */}
-          <div className="pt-2">
-            <button
-              type="button"
-              onClick={() => setDrawerOpen(true)}
-              className={cn(
-                "flex items-center gap-3 rounded-2xl transition-all duration-200 border border-dashed border-white/15 bg-white/[0.03] text-[var(--color-muted)] hover:border-[#FF7849]/50 hover:text-white hover:bg-[#FF7849]/10",
-                expanded ? "px-3.5 py-2.5 w-full text-left" : "h-12 w-12 justify-center mx-auto"
-              )}
-              title="All Modules & Sub-Routes"
-            >
-              <Grid3X3 size={19} className="shrink-0 text-[#FF7849]" />
-              {expanded && (
-                <div className="truncate flex-1 flex items-center justify-between">
-                  <span className="text-xs font-semibold">All Modules</span>
-                  <span className="text-[10px] text-[#FF7849] font-mono">24+</span>
-                </div>
-              )}
-            </button>
+        {/* ── Nav Items ── */}
+        <nav className="flex-1 overflow-y-auto px-2.5 py-3 space-y-0.5 scrollbar-none">
+          {/* Every feature is available in this rail; no separate All Modules drawer required. */}
+          <div className="mt-3 border-t border-white/[0.08] pt-3">
+            {navigation.map((section) => {
+              const sectionOpen = openSections[section.title] ?? false;
+              return <div key={section.title} className="mb-2">
+                {expanded && <button className="flex w-full items-center justify-between px-2 py-1 text-[9px] font-bold uppercase tracking-[0.16em] text-[#FF7849]/75" onClick={() => setOpenSections((current) => ({ ...current, [section.title]: !sectionOpen }))} type="button"><span>{section.title}</span><ChevronRight className={cn("transition-transform", sectionOpen && "rotate-90")} size={12} /></button>}
+                {(sectionOpen || !expanded) && <div className="space-y-0.5">{section.items.map((item) => {
+                  const Icon = item.icon;
+                  const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+                  return <Link key={`${section.title}-${item.href}`} href={item.href} className={cn("group relative flex items-center gap-3 rounded-[12px] text-xs font-medium transition-all", expanded ? "px-3 py-2" : "mx-auto h-10 w-10 justify-center", active ? "border border-white/[0.16] bg-white/[0.1] text-white" : "text-white/50 hover:bg-white/[0.055] hover:text-white")} title={item.label}><Icon size={16} className={active ? "text-cyan-300" : "text-white/40 group-hover:text-white"} />{expanded && <span className="truncate">{item.label}</span>}{!expanded && <span className="pointer-events-none absolute left-[calc(100%+10px)] z-50 hidden whitespace-nowrap rounded-lg border border-white/10 bg-[#171923]/95 px-2.5 py-1.5 text-xs text-white shadow-xl group-hover:block">{item.label}</span>}</Link>;
+                })}</div>}
+              </div>;
+            })}
           </div>
         </nav>
 
-        {/* Bottom System Controls (Matching Image 2) */}
-        <div className="space-y-2 p-3 border-t border-[var(--color-border)]">
-          {/* Quick Jump Search Button */}
-          <div className="relative group">
-            <button
-              type="button"
-              onClick={triggerSearch}
-              className={cn(
-                "flex items-center gap-3 rounded-2xl text-[var(--color-muted)] hover:bg-white/[0.06] hover:text-[var(--color-foreground)] transition-colors",
-                expanded ? "px-3.5 py-2.5 w-full" : "h-11 w-11 justify-center mx-auto"
-              )}
-              title="Global Search (⌘K)"
-            >
-              <Search size={18} className="shrink-0" />
-              {expanded && (
-                <div className="flex-1 flex items-center justify-between text-xs font-medium">
-                  <span>Search...</span>
-                  <kbd className="rounded bg-black/40 px-1.5 py-0.5 text-[10px] font-mono">⌘K</kbd>
-                </div>
-              )}
-            </button>
-          </div>
+        {/* ── Bottom System Controls ── */}
+        <div className="space-y-1 p-2.5 border-t border-white/[0.07]">
 
-          {/* Notification Icon with Warm Orange Dot Badge */}
-          <div className="relative group">
-            <Link
-              href="/notifications"
-              className={cn(
-                "relative flex items-center gap-3 rounded-2xl text-[var(--color-muted)] hover:bg-white/[0.06] hover:text-[var(--color-foreground)] transition-colors",
-                expanded ? "px-3.5 py-2.5 w-full" : "h-11 w-11 justify-center mx-auto"
-              )}
-              title="Notifications"
-            >
-              <div className="relative shrink-0">
-                <Bell size={18} />
-                <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-[#FF7849] ring-2 ring-[var(--color-sidebar)]" />
+          {/* Search */}
+          <button
+            type="button"
+            onClick={triggerSearch}
+            className={cn(
+              "group flex items-center gap-3 rounded-[14px] w-full",
+              "text-white/45 hover:bg-white/[0.055] hover:text-white transition-all duration-200",
+              expanded ? "px-3 py-2.5" : "h-10 w-10 justify-center mx-auto"
+            )}
+            title="Global Search (⌘K)"
+          >
+            <Search size={16} className="shrink-0 group-hover:text-cyan-400 transition-colors" />
+            {expanded && (
+              <div className="flex-1 flex items-center justify-between text-xs font-medium">
+                <span>Search...</span>
+                <kbd className="rounded-md bg-white/[0.07] px-1.5 py-0.5 text-[9px] font-mono border border-white/[0.10]">⌘K</kbd>
               </div>
-              {expanded && <span className="truncate text-xs font-medium">Notifications</span>}
-            </Link>
-          </div>
+            )}
+          </button>
+
+          {/* Notifications */}
+          <Link
+            href="/notifications"
+            className={cn(
+              "group relative flex items-center gap-3 rounded-[14px] w-full",
+              "text-white/45 hover:bg-white/[0.055] hover:text-white transition-all duration-200",
+              expanded ? "px-3 py-2.5" : "h-10 w-10 justify-center mx-auto"
+            )}
+            title="Notifications"
+          >
+            <div className="relative shrink-0">
+              <Bell size={16} className="group-hover:text-amber-300 transition-colors" />
+              <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-[#FF7849] ring-1 ring-[#06070a] animate-glow-breathe" />
+            </div>
+            {expanded && <span className="truncate text-xs font-medium">Notifications</span>}
+          </Link>
 
           {/* Settings */}
-          <div className="relative group">
-            <Link
-              href="/settings"
-              className={cn(
-                "flex items-center gap-3 rounded-2xl text-[var(--color-muted)] hover:bg-white/[0.06] hover:text-[var(--color-foreground)] transition-colors",
-                expanded ? "px-3.5 py-2.5 w-full" : "h-11 w-11 justify-center mx-auto"
-              )}
-              title="Settings & Data Management"
-            >
-              <Settings size={18} className="shrink-0" />
-              {expanded && <span className="truncate text-xs font-medium">Settings</span>}
-            </Link>
-          </div>
+          <Link
+            href="/settings"
+            className={cn(
+              "group flex items-center gap-3 rounded-[14px] w-full",
+              "text-white/45 hover:bg-white/[0.055] hover:text-white transition-all duration-200",
+              expanded ? "px-3 py-2.5" : "h-10 w-10 justify-center mx-auto"
+            )}
+            title="Settings & Data Management"
+          >
+            <Settings size={16} className="shrink-0 group-hover:rotate-45 transition-transform duration-300" />
+            {expanded && <span className="truncate text-xs font-medium">Settings</span>}
+          </Link>
 
-          {/* Expand/Collapse Rail Toggle */}
-          <div className="pt-1">
-            <button
-              type="button"
-              onClick={() => setExpanded((prev) => !prev)}
-              className={cn(
-                "flex items-center gap-2 rounded-xl text-[11px] text-[var(--color-muted)] hover:text-white transition-colors w-full justify-center py-1.5",
-                !expanded && "hover:bg-white/[0.04]"
-              )}
-              title={expanded ? "Collapse Rail" : "Expand Rail"}
-            >
-              <Layers size={14} />
-              {expanded && <span>Collapse Rail</span>}
-            </button>
-          </div>
+          {/* Collapse/Expand */}
+          <button
+            type="button"
+            onClick={() => setExpanded((prev) => !prev)}
+            className={cn(
+              "group flex items-center gap-2 rounded-[14px] w-full",
+              "text-white/30 hover:text-white/70 hover:bg-white/[0.04] transition-all duration-200",
+              expanded ? "px-3 py-2 justify-start" : "h-9 w-9 justify-center mx-auto"
+            )}
+            title={expanded ? "Collapse Rail" : "Expand Rail"}
+          >
+            {expanded ? (
+              <>
+                <PanelLeftClose size={14} />
+                <span className="text-[10px] font-medium">Collapse</span>
+              </>
+            ) : (
+              <PanelLeftOpen size={14} />
+            )}
+          </button>
         </div>
       </aside>
 
-      {/* Full Module Explorer Flyout Drawer (Preserves access to all 24+ routes without visual clutter) */}
+      {/* ── All Modules Flyout Drawer ── */}
       {drawerOpen && (
         <div className="fixed inset-0 z-50 flex">
           {/* Backdrop */}
           <div
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
+            className="fixed inset-0 bg-black/55 backdrop-blur-sm"
             onClick={() => setDrawerOpen(false)}
           />
 
-          {/* Slide-out Panel */}
-          <div className="relative ml-[78px] flex h-full w-[380px] max-w-[85vw] flex-col border-r border-white/10 bg-[#252428] shadow-2xl z-10 animate-in slide-in-from-left duration-200">
+          {/* Panel */}
+          <div className="relative ml-[78px] flex h-full w-[360px] max-w-[85vw] flex-col border-r border-white/[0.10] bg-[#111318]/95 backdrop-blur-2xl shadow-2xl z-10 animate-slide-up">
+
             {/* Drawer Header */}
-            <div className="flex items-center justify-between border-b border-white/10 px-6 py-4">
+            <div className="flex items-center justify-between border-b border-white/[0.08] px-5 py-4">
               <div className="flex items-center gap-2.5">
-                <Grid3X3 size={18} className="text-[#FF7849]" />
+                <Grid3X3 size={16} className="text-[#FF7849]" />
                 <h2 className="text-sm font-bold tracking-tight text-white">All Modules & Tools</h2>
               </div>
               <button
                 type="button"
                 onClick={() => setDrawerOpen(false)}
-                className="rounded-lg p-1 text-[var(--color-muted)] hover:bg-white/10 hover:text-white"
+                className="rounded-lg p-1.5 text-white/40 hover:bg-white/[0.08] hover:text-white transition-colors"
               >
-                <X size={18} />
+                <X size={16} />
               </button>
             </div>
 
-            {/* Categorized Full Route List */}
-            <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6 scrollbar-thin">
+            {/* Route List */}
+            <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
               {navigation.map((section) => (
-                <div key={section.title} className="space-y-2">
-                  <h3 className="text-[11px] font-bold uppercase tracking-wider text-[#FF7849]">
+                <div key={section.title} className="space-y-1.5">
+                  <h3 className="px-2 text-[9px] font-bold uppercase tracking-[0.18em] text-[#FF7849]/80">
                     {section.title}
                   </h3>
-                  <div className="space-y-1">
+                  <div className="space-y-0.5">
                     {section.items.map((item) => {
                       const Icon = item.icon;
                       const active = pathname === item.href;
@@ -280,20 +227,20 @@ export function Sidebar() {
                           href={item.href}
                           onClick={() => setDrawerOpen(false)}
                           className={cn(
-                            "flex items-center justify-between rounded-xl px-3 py-2 text-xs font-medium transition-colors",
+                            "flex items-center justify-between rounded-[12px] px-3 py-2 text-xs font-medium transition-all duration-150",
                             active
-                              ? "bg-[#3A373E] text-white border border-white/10"
-                              : "text-[var(--color-muted)] hover:bg-white/[0.06] hover:text-white"
+                              ? "bg-white/[0.09] text-white border border-white/[0.12]"
+                              : "text-white/50 hover:bg-white/[0.05] hover:text-white"
                           )}
                         >
                           <div className="flex items-center gap-2.5 truncate">
                             <Icon
-                              size={15}
-                              className={active ? "text-[#FF7849]" : "text-[var(--color-muted)]"}
+                              size={14}
+                              className={active ? "text-[#FF7849]" : "text-white/40"}
                             />
                             <span className="truncate">{item.label}</span>
                           </div>
-                          <ChevronRight size={13} className="text-[var(--color-muted)] opacity-60" />
+                          <ChevronRight size={12} className="text-white/25 shrink-0" />
                         </Link>
                       );
                     })}
@@ -302,10 +249,10 @@ export function Sidebar() {
               ))}
             </div>
 
-            {/* Drawer Footer */}
-            <div className="border-t border-white/10 p-4 bg-black/20 text-center">
-              <p className="text-[11px] text-[var(--color-muted)]">
-                Press <kbd className="rounded bg-black/40 px-1 py-0.5 font-mono text-[10px]">⌘K</kbd> to jump anywhere instantly.
+            {/* Footer */}
+            <div className="border-t border-white/[0.07] p-4 bg-black/20 text-center">
+              <p className="text-[10px] text-white/35">
+                Press <kbd className="rounded bg-white/[0.08] px-1 py-0.5 font-mono text-[9px] border border-white/[0.10]">⌘K</kbd> to jump anywhere instantly.
               </p>
             </div>
           </div>

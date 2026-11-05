@@ -84,10 +84,10 @@ export function NotificationsView() {
               <button
                 type="button"
                 onClick={() => setFilter("all")}
-                className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
+                className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-all ${
                   filter === "all"
-                    ? "bg-[var(--color-primary)] text-white"
-                    : "bg-[var(--color-surface)] text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+                    ? "refraction-glass-btn border-cyan-400/40 bg-cyan-500/20 text-cyan-200 shadow-[0_0_12px_rgba(0,212,255,0.2)]"
+                    : "border-white/10 bg-white/[0.04] text-white/70 hover:border-white/20 hover:text-white"
                 }`}
               >
                 All Notifications ({items.length})
@@ -95,10 +95,10 @@ export function NotificationsView() {
               <button
                 type="button"
                 onClick={() => setFilter("unread")}
-                className={`rounded-md px-3 py-1.5 font-medium transition-colors ${
+                className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-all ${
                   filter === "unread"
-                    ? "bg-[var(--color-primary)] text-white"
-                    : "bg-[var(--color-surface)] text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+                    ? "refraction-glass-btn border-cyan-400/40 bg-cyan-500/20 text-cyan-200 shadow-[0_0_12px_rgba(0,212,255,0.2)]"
+                    : "border-white/10 bg-white/[0.04] text-white/70 hover:border-white/20 hover:text-white"
                 }`}
               >
                 Unread Only ({unreadCount})

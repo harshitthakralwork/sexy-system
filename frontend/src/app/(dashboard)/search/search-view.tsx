@@ -78,7 +78,7 @@ export function SearchView() {
           />
           <button
             type="submit"
-            className="rounded-md border border-[var(--color-primary)] bg-[var(--color-primary)] px-4 py-2 text-sm text-white disabled:opacity-50"
+            className="refraction-glass-btn rounded-full border border-cyan-400/40 bg-cyan-500/20 px-5 py-2 text-sm font-bold text-cyan-200 shadow-[0_0_15px_rgba(0,212,255,0.25)] hover:bg-cyan-500/30 hover:text-white disabled:opacity-40 transition-all cursor-pointer"
             disabled={loading || !term.trim()}
           >
             {loading ? "Searching…" : "Search"}
@@ -92,7 +92,7 @@ export function SearchView() {
             <button
               type="button"
               onClick={() => void runSearch(submitted || term)}
-              className="mt-2 rounded border border-[var(--color-primary)] bg-[var(--color-primary)] px-3 py-1 text-xs text-white hover:opacity-90"
+              className="refraction-glass-btn mt-2 rounded-full border border-cyan-400/40 bg-cyan-500/20 px-3.5 py-1 text-xs font-semibold text-cyan-200 shadow-[0_0_10px_rgba(0,212,255,0.2)] hover:bg-cyan-500/30 hover:text-white transition-all cursor-pointer"
             >
               Retry search
             </button>

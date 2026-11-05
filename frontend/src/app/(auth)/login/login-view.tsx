@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Eye, EyeOff, UserRound, Sparkles, Check } from "lucide-react";
+import { Eye, EyeOff, UserRound } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
@@ -126,7 +126,7 @@ export function LoginView() {
           </div>
 
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium bg-white/10 border border-white/15 text-cyan-300">
-            <span className="size-1.5 rounded-full bg-cyan-400 animate-pulse" /> Mission Control
+            <span className="size-1.5 rounded-full bg-cyan-400 animate-pulse" /> Sign in to your account
           </span>
         </div>
 

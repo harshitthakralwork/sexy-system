@@ -450,7 +450,7 @@ export function CommandPalette() {
                     <span
                       className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-md ${
                         isSelected
-                          ? "bg-[var(--color-primary)] text-white shadow-sm"
+                          ? "bg-cyan-500/25 text-cyan-200 border border-cyan-400/40 shadow-[0_0_10px_rgba(0,212,255,0.25)]"
                           : "bg-[var(--color-surface-elevated)] text-[var(--color-muted)]"
                       }`}
                     >

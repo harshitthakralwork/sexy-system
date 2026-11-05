@@ -494,10 +494,10 @@ function TagsPanel({
       <div className="mt-2 flex flex-wrap gap-1.5">
         {(allTags.data ?? []).map((tag) => (
           <button
-            className={`rounded-full border px-2.5 py-1 text-xs ${
+            className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition-all cursor-pointer ${
               names.includes(tag.name)
-                ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white"
-                : "border-border text-[var(--color-muted)] hover:border-[var(--color-primary)]"
+                ? "refraction-glass-btn border-cyan-400/40 bg-cyan-500/20 text-cyan-200 shadow-[0_0_12px_rgba(0,212,255,0.2)]"
+                : "border-white/10 bg-white/[0.04] text-white/70 hover:border-white/25 hover:text-white"
             }`}
             key={tag.id}
             onClick={() => toggle(tag.name)}
@@ -539,10 +539,10 @@ function Field({ label, value }: { label: string; value: string }) {
 
 function buttonClass(active: boolean): string {
   return [
-    "rounded-md border px-2.5 py-1.5 text-xs transition-colors disabled:opacity-50",
+    "rounded-full border px-3 py-1.5 text-xs font-semibold transition-all disabled:opacity-40 cursor-pointer",
     active
-      ? "border-[var(--color-primary)] bg-[var(--color-primary)] text-white"
-      : "border-border text-[var(--color-muted)] hover:border-[var(--color-primary)]",
+      ? "refraction-glass-btn border-cyan-400/40 bg-cyan-500/20 text-cyan-200 shadow-[0_0_15px_rgba(0,212,255,0.25)] hover:bg-cyan-500/30 hover:text-white"
+      : "border-white/10 bg-white/[0.04] text-white/70 hover:border-white/25 hover:text-white hover:bg-white/[0.08]",
   ].join(" ");
 }
 

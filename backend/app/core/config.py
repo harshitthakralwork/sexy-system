@@ -108,7 +108,10 @@ class Settings(BaseSettings):
     # Priority-2 key-free connectors (Phase 6). Each is optional at runtime: a
     # disabled or unreachable source is reported honestly, never faked.
     stackoverflow_base_url: str = "https://api.stackexchange.com"
-    bluesky_base_url: str = "https://public.api.bsky.app"
+    # api.bsky.app is the public appview search endpoint. bsky.social now
+    # requires auth for this endpoint and public.api.bsky.app is CDN-blocked
+    # in some regions.
+    bluesky_base_url: str = "https://api.bsky.app"
     mastodon_base_url: str = "https://mastodon.social"
     social_timeout_seconds: float = 20.0
     # Confidence at or above which a new demand result raises an in-app alert.

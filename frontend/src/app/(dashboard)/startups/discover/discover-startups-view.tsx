@@ -139,7 +139,7 @@ export function DiscoverStartupsView() {
             <button
               type="button"
               onClick={() => setShowAddForm((s) => !s)}
-              className="flex items-center gap-1.5 rounded-md bg-[var(--color-primary)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 transition-opacity"
+              className="refraction-glass-btn flex items-center gap-1.5 rounded-full border border-cyan-400/40 bg-cyan-500/20 px-3.5 py-1.5 text-xs font-bold text-cyan-200 shadow-[0_0_12px_rgba(0,212,255,0.2)] hover:bg-cyan-500/30 hover:text-white transition-all cursor-pointer"
             >
               <Plus size={14} />
               <span>Ingest / Track Startup</span>
@@ -244,7 +244,7 @@ export function DiscoverStartupsView() {
                 <button
                   type="submit"
                   disabled={addStartup.isPending || !newName.trim()}
-                  className="rounded bg-[var(--color-primary)] px-4 py-1 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+                  className="refraction-glass-btn rounded-full border border-cyan-400/40 bg-cyan-500/20 px-4 py-1.5 text-xs font-bold text-cyan-200 shadow-[0_0_12px_rgba(0,212,255,0.2)] hover:bg-cyan-500/30 hover:text-white disabled:opacity-40 cursor-pointer"
                 >
                   {addStartup.isPending ? "Ingesting…" : "Save Startup"}
                 </button>
@@ -269,7 +269,7 @@ export function DiscoverStartupsView() {
               <button
                 type="button"
                 onClick={() => setAppliedQuery(query.trim())}
-                className="rounded-md bg-[var(--color-primary)] px-4 py-1.5 text-xs font-medium text-white hover:opacity-90"
+                className="refraction-glass-btn rounded-full border border-cyan-400/40 bg-cyan-500/20 px-4 py-1.5 text-xs font-bold text-cyan-200 shadow-[0_0_12px_rgba(0,212,255,0.2)] hover:bg-cyan-500/30 hover:text-white cursor-pointer"
               >
                 Search
               </button>
@@ -283,10 +283,10 @@ export function DiscoverStartupsView() {
                   key={ind}
                   type="button"
                   onClick={() => setSelectedIndustry(ind)}
-                  className={`rounded-full px-2.5 py-0.5 text-[11px] transition-colors ${
+                  className={`rounded-full px-2.5 py-0.5 text-[11px] transition-all cursor-pointer ${
                     selectedIndustry === ind
-                      ? "bg-[var(--color-primary)] text-white font-medium"
-                      : "bg-[var(--color-surface)] text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+                      ? "refraction-glass-btn border border-cyan-400/40 bg-cyan-500/20 text-cyan-200 shadow-[0_0_10px_rgba(0,212,255,0.2)] font-semibold"
+                      : "border border-white/10 bg-white/[0.04] text-white/70 hover:border-white/20 hover:text-white"
                   }`}
                 >
                   {ind}
@@ -302,10 +302,10 @@ export function DiscoverStartupsView() {
                   key={stg}
                   type="button"
                   onClick={() => setSelectedStage(stg)}
-                  className={`rounded-full px-2.5 py-0.5 text-[11px] transition-colors ${
+                  className={`rounded-full px-2.5 py-0.5 text-[11px] transition-all cursor-pointer ${
                     selectedStage === stg
-                      ? "bg-[var(--color-primary)] text-white font-medium"
-                      : "bg-[var(--color-surface)] text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+                      ? "refraction-glass-btn border border-cyan-400/40 bg-cyan-500/20 text-cyan-200 shadow-[0_0_10px_rgba(0,212,255,0.2)] font-semibold"
+                      : "border border-white/10 bg-white/[0.04] text-white/70 hover:border-white/20 hover:text-white"
                   }`}
                 >
                   {stg}
