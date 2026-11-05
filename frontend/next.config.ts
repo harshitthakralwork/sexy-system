@@ -1,9 +1,8 @@
 import type { NextConfig } from "next";
 
-// Local development talks to the API on the host; deployment receives the
-// public API URL through Railway. Keeping this in one place also makes
-// same-origin rewrites work for requests that do not use the client helper.
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://127.0.0.1:8002/api/v1";
+// Browser requests stay same-origin so the HttpOnly session cookie belongs to
+// the frontend domain. Railway supplies the upstream target server-side only.
+const apiBaseUrl = process.env.API_BACKEND_BASE_URL ?? "http://127.0.0.1:8002/api/v1";
 const apiOrigin = apiBaseUrl.replace(/\/api\/v1\/?$/, "");
 
 const nextConfig: NextConfig = {
