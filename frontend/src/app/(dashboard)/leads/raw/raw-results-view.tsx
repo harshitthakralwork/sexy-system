@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Search, Download, Star, ExternalLink, MapPin, CheckCircle } from "lucide-react";
+import { Search, Download, Star, ExternalLink, MapPin, CheckCircle, Trash2 } from "lucide-react";
 
 import { Header } from "@/components/layout/header";
 import { Card, EmptyState } from "@/components/ui/card";
@@ -24,6 +24,8 @@ export function RawResultsView() {
   const [websiteStatus, setWebsiteStatus] = useState("");
   const [hasPhone, setHasPhone] = useState("");
   const [offset, setOffset] = useState(0);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -59,6 +61,33 @@ export function RawResultsView() {
       await queryClient.invalidateQueries({ queryKey: ["raw-businesses"] });
     } catch (caught) {
       setError(isApiError(caught) ? caught.message : "Failed to save prospect");
+    }
+  }
+
+  async function removeSelected() {
+    const ids = [...selected];
+    if (!ids.length || !window.confirm(`Delete ${ids.length} selected businesses?`)) return;
+    await remove({ ids, delete_all: false });
+  }
+
+  async function removeAll() {
+    if (!window.confirm(`Delete all ${total.toLocaleString()} business records?`)) return;
+    await remove({ ids: [], delete_all: true });
+  }
+
+  async function remove(payload: { ids: string[]; delete_all: boolean }) {
+    setDeleting(true);
+    setNotice(null);
+    setError(null);
+    try {
+      const result = await api.post<{ deleted: number }>("/businesses/bulk-delete", payload, csrf);
+      setSelected(new Set());
+      setNotice(`${result.deleted} businesses deleted.`);
+      await queryClient.invalidateQueries({ queryKey: ["raw-businesses"] });
+    } catch (caught) {
+      setError(isApiError(caught) ? caught.message : "Failed to delete businesses");
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -161,14 +190,36 @@ export function RawResultsView() {
               Apply Filters
             </button>
 
-            <button
-              type="button"
-              onClick={exportCsv}
-              className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-surface)] ml-auto"
-            >
-              <Download size={13} />
-              <span>Export Raw CSV</span>
-            </button>
+            <div className="flex items-center gap-2 ml-auto">
+              <button
+                type="button"
+                disabled={!selected.size || deleting}
+                onClick={removeSelected}
+                className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-error)]/50 px-3 py-1.5 text-xs text-[var(--color-error)] transition hover:bg-[var(--color-error)]/10 disabled:opacity-40 cursor-pointer"
+              >
+                <Trash2 size={13} />
+                <span>Delete selected ({selected.size})</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={!total || deleting}
+                onClick={removeAll}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-[var(--color-muted)] transition hover:border-[var(--color-error)] hover:text-[var(--color-error)] disabled:opacity-40 cursor-pointer"
+              >
+                <Trash2 size={13} />
+                <span>Delete all</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={exportCsv}
+                className="flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)] hover:bg-[var(--color-surface)]"
+              >
+                <Download size={13} />
+                <span>Export Raw CSV</span>
+              </button>
+            </div>
           </div>
         </Card>
 
@@ -188,6 +239,21 @@ export function RawResultsView() {
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-border text-[var(--color-muted)]">
+                    <th className="py-2.5 px-3 w-8">
+                      <input
+                        type="checkbox"
+                        aria-label="Select all visible businesses"
+                        checked={rows.length > 0 && rows.every((b: Business) => selected.has(b.id))}
+                        onChange={(e) =>
+                          setSelected(
+                            e.target.checked
+                              ? new Set([...selected, ...rows.map((b: Business) => b.id)])
+                              : new Set(Array.from(selected).filter((id) => !rows.some((b: Business) => b.id === id)))
+                          )
+                        }
+                        className="h-3.5 w-3.5 rounded accent-[var(--color-primary)] cursor-pointer"
+                      />
+                    </th>
                     <th className="py-2.5 px-3 font-medium">Business / Entity</th>
                     <th className="py-2.5 px-3 font-medium">Category</th>
                     <th className="py-2.5 px-3 font-medium">Location</th>
@@ -199,6 +265,7 @@ export function RawResultsView() {
                 </thead>
                 <tbody className="divide-y divide-border/60">
                   {rows.map((b: Business) => {
+                    const isChecked = selected.has(b.id);
                     const statusColor =
                       b.website_status === "available"
                         ? "text-[var(--color-success)] bg-[var(--color-success)]/10"
@@ -207,7 +274,21 @@ export function RawResultsView() {
                         : "text-[var(--color-muted)] bg-[var(--color-muted)]/10";
 
                     return (
-                      <tr key={b.id} className="hover:bg-[var(--color-surface)]/50">
+                      <tr key={b.id} className={`hover:bg-[var(--color-surface)]/50 ${isChecked ? "bg-cyan-500/[0.04]" : ""}`}>
+                        <td className="py-2.5 px-3">
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${b.name}`}
+                            checked={isChecked}
+                            onChange={(e) => {
+                              const next = new Set(selected);
+                              if (e.target.checked) next.add(b.id);
+                              else next.delete(b.id);
+                              setSelected(next);
+                            }}
+                            className="h-3.5 w-3.5 rounded accent-[var(--color-primary)] cursor-pointer"
+                          />
+                        </td>
                         <td className="py-2.5 px-3">
                           <Link
                             href={`/leads/${b.id}`}
