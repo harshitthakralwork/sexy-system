@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import { Header } from "@/components/layout/header";
+import { AppFooter } from "@/components/layout/app-footer";
 import { useSession } from "@/components/providers/session-provider";
 import { api } from "@/lib/api/client";
 import type { LeadsDashboardResponse } from "@/lib/api/types";
@@ -258,6 +259,7 @@ export function OverviewView() {
             </div>
           </div>
 
+          <AppFooter />
         </div>
       </main>
     </div>

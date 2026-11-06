@@ -163,6 +163,60 @@ export interface ViewportResponse {
   bbox: number[];
 }
 
+export interface ScanUnit {
+  id: string;
+  source_name: string;
+  unit_kind: string;
+  query_or_url: string;
+  locality: string | null;
+  status: string;
+  candidates_found: number;
+  candidates_accepted: number;
+  candidates_duplicate: number;
+  retry_count: number;
+  error_message: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
+export interface SourceCoverageStats {
+  queries_run: number;
+  pages_checked: number;
+  candidates_found: number;
+  accepted: number;
+  duplicates: number;
+  errors: number;
+}
+
+export interface ScanRun {
+  id: string;
+  niche: string;
+  city: string;
+  country: string;
+  query_variants: string[];
+  locality_units: string[];
+  status: "queued" | "running" | "completed" | "failed" | "cancelled" | "cancellation_requested";
+  stage: "planning" | "source_discovery" | "page_verification" | "contact_page_checks" | "deduplication" | "saving" | "completed";
+  progress_percent: number;
+  candidate_count: number;
+  accepted_count: number;
+  duplicate_count: number;
+  rejected_count: number;
+  retries: number;
+  source_coverage: Record<string, SourceCoverageStats>;
+  cancellation_requested: boolean;
+  error_summary: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+  created_at: string;
+  units: ScanUnit[];
+}
+
+export interface ScanRunList {
+  items: ScanRun[];
+  total: number;
+}
+
 // --- Leads intelligence (Phase 2) -------------------------------------------
 
 export interface Business {

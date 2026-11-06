@@ -86,7 +86,12 @@ services:
       SPARKX_REDIS_URL: redis://redis:6379/0
       SPARKX_CELERY_BROKER_URL: redis://redis:6379/1
       SPARKX_CELERY_RESULT_BACKEND: redis://redis:6379/2
-      SPARKX_SEARXNG_BASE_URL: http://searxng:8080
+      # Use the published host port so this stack can use either its bundled
+      # SearXNG service or the existing infra SearXNG container. This survives
+      # container recreation without a manual `docker network connect` alias.
+      SPARKX_SEARXNG_BASE_URL: http://host.docker.internal:8080
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
@@ -118,7 +123,9 @@ services:
       SPARKX_REDIS_URL: redis://redis:6379/0
       SPARKX_CELERY_BROKER_URL: redis://redis:6379/1
       SPARKX_CELERY_RESULT_BACKEND: redis://redis:6379/2
-      SPARKX_SEARXNG_BASE_URL: http://searxng:8080
+      SPARKX_SEARXNG_BASE_URL: http://host.docker.internal:8080
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./backend/app:/app/app:ro
       - ./backend/migrations:/app/migrations:ro

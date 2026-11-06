@@ -1,6 +1,7 @@
 "use client";
 
-import { Bell, Moon, Search, Sun, Activity } from "lucide-react";
+import Image from "next/image";
+import { Bell, Moon, Search, Sun, Activity, Plus } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
 
@@ -26,12 +27,12 @@ function StatusBadge() {
     <Link
       href="/sources"
       className={cn(
-        "hidden items-center gap-2 rounded-full px-3.5 py-1.5 text-xs font-semibold shadow-sm transition-all sm:flex",
+        "hidden items-center gap-2 rounded-lg px-2.5 py-1 text-xs font-medium border sm:flex transition-all",
         isOnline
-          ? "liquid-badge-emerald"
+          ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
           : isDegraded
-            ? "liquid-badge-amber"
-            : "liquid-badge-rose"
+            ? "bg-purple-500/10 border-purple-500/20 text-purple-400"
+            : "bg-red-500/10 border-red-500/20 text-red-400"
       )}
       title="Infrastructure & Source Health"
     >
@@ -69,22 +70,23 @@ function StatusBadge() {
 }
 
 export function Header({ title, subtitle }: { title: string; subtitle?: string }) {
-  const { toggleTheme } = useTheme();
+  const { theme, toggleTheme } = useTheme();
 
   function triggerSearch() {
     window.dispatchEvent(new CustomEvent("open-command-palette"));
   }
 
   return (
-    <header className="mx-3 mt-3 flex h-[64px] shrink-0 items-center justify-between gap-4 rounded-[24px] liquid-glass-panel px-5 shadow-2xl sm:px-6">
+    <header className="liquid-glass-panel mx-2 mt-2 flex min-h-14 shrink-0 items-center justify-between gap-3 px-4 py-2.5 lg:mx-3 lg:px-5">
 
-      {/* Page Title */}
+      {/* Page title */}
       <div className="min-w-0">
-        <h1 className="truncate text-lg font-extrabold tracking-tight text-[var(--color-foreground)] sm:text-xl font-sans">
-          {title}
-        </h1>
+        <h1 className="truncate text-sm font-semibold text-[var(--color-foreground)]">{title}</h1>
         {subtitle && (
-          <p className="truncate text-[11px] font-medium text-[var(--color-muted)] mt-0.5">{subtitle}</p>
+          <div className="flex items-center gap-1.5 mt-0.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--color-primary)]" />
+            <p className="truncate text-[11px] font-medium text-[var(--color-muted)]">{subtitle}</p>
+          </div>
         )}
       </div>
 
@@ -92,41 +94,53 @@ export function Header({ title, subtitle }: { title: string; subtitle?: string }
       <div className="flex shrink-0 items-center gap-2.5">
         <StatusBadge />
 
+        {/* New Discovery Action Button */}
+        <Link
+          href="/leads/discover"
+          className="hidden sm:inline-flex items-center gap-1.5 rounded-lg bg-[var(--color-primary)] px-3 py-2 text-xs font-semibold text-black transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:bg-[var(--color-primary-hover)] hover:-translate-y-px active:scale-[0.98] cursor-pointer"
+          title="New Discovery Sweep"
+        >
+          <Plus size={13} />
+          <span>New discovery</span>
+        </Link>
+
         {/* Search trigger */}
         <button
           type="button"
           onClick={triggerSearch}
-          className="liquid-btn-secondary group flex items-center gap-2.5 rounded-full px-4 py-1.5 text-xs text-[var(--color-muted)] transition-all hover:text-[var(--color-foreground)] cursor-pointer"
-          title="Search Anything (⌘K)"
+          className="group flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-black/20 px-3 py-2 text-xs text-[var(--color-muted)] transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-[var(--color-primary)]/50 hover:text-[var(--color-foreground)] cursor-pointer"
+          title="Search Leads... (⌘K)"
         >
-          <Search size={13} className="text-cyan-400 group-hover:scale-110 transition-transform" aria-hidden />
-          <span className="hidden sm:inline font-medium">Search...</span>
-          <kbd className="rounded-full bg-white/[0.08] dark:bg-white/[0.08] px-2 py-0.5 text-[9px] font-mono text-[var(--color-foreground)] border border-white/[0.12]">
+          <Search size={13} className="text-[var(--color-muted)] transition-colors group-hover:text-[var(--color-primary)]" aria-hidden />
+          <span className="hidden sm:inline font-medium">Search leads...</span>
+          <kbd className="rounded bg-[var(--color-surface-elevated)] px-1.5 py-0.5 text-[9px] font-mono text-[var(--color-muted)] border border-[var(--color-border)]">
             ⌘K
           </kbd>
         </button>
 
-        {/* Theme toggle */}
+        {/* Dark / Light Mode Toggle */}
         <button
           type="button"
           onClick={toggleTheme}
-          className="liquid-btn-secondary relative flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-muted)] shadow-sm transition-all hover:text-[var(--color-foreground)] hover:rotate-12 cursor-pointer"
-          title="Toggle color theme"
-          aria-label="Toggle color theme"
+          className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border)] bg-black/20 text-[var(--color-muted)] transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-[var(--color-primary)]/50 hover:text-[var(--color-foreground)] cursor-pointer"
+          title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          aria-label="Toggle dark/light mode"
         >
-          <Moon className="theme-icon-light" size={15} />
-          <Sun  className="theme-icon-dark"  size={15} />
+          {theme === "dark" ? (
+            <Sun size={14} className="text-amber-400" />
+          ) : (
+            <Moon size={14} className="text-blue-500" />
+          )}
         </button>
 
         {/* Notifications */}
         <Link
           href="/notifications"
-          className="liquid-btn-secondary relative flex h-9 w-9 items-center justify-center rounded-full text-[var(--color-muted)] shadow-sm transition-all hover:text-amber-400 cursor-pointer"
+          className="relative flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border)] bg-black/20 text-[var(--color-muted)] transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-[var(--color-primary)]/50 hover:text-[var(--color-foreground)] cursor-pointer"
           title="Notifications & Alerts"
         >
-          <Bell size={15} />
-          {/* Breathing pulse dot */}
-          <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-[#FF7849] shadow-[0_0_6px_rgba(255,120,73,0.7)] animate-glow-breathe" />
+          <Bell size={14} />
+          <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[var(--color-primary)]" />
         </Link>
 
         {/* User avatar capsule */}
@@ -142,33 +156,21 @@ function UserCapsule() {
 
   if (!user) return null;
 
-  const initials = user.display_name
-    ? user.display_name
-        .split(" ")
-        .map((n) => n[0])
-        .slice(0, 2)
-        .join("")
-        .toUpperCase()
-    : "?";
-
   return (
     <div className="flex items-center gap-2">
-      {/* Avatar with glow ring */}
       <div
-        className={cn(
-          "relative flex h-9 w-9 items-center justify-center rounded-full",
-          "bg-gradient-to-tr from-cyan-500 via-sky-400 to-indigo-500",
-          "border-2 border-white/30 shadow-[0_0_16px_rgba(0,212,255,0.40)]",
-          "font-extrabold text-xs text-white cursor-default select-none"
-        )}
+        className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-elevated)] cursor-default select-none"
         title={user.email}
       >
-        {initials}
-        {/* Outer pulse ring */}
-        <span className="absolute inset-0 rounded-full border-2 border-cyan-400/30 animate-ping opacity-50 pointer-events-none" />
+        <Image
+          src="/user-avatar.jpg"
+          alt={user.display_name || "User Avatar"}
+          fill
+        sizes="36px"
+          className="object-cover"
+        />
       </div>
 
-      {/* Sign out button */}
       <button
         type="button"
         disabled={busy}
@@ -180,11 +182,7 @@ function UserCapsule() {
             setBusy(false);
           }
         }}
-        className={cn(
-          "hidden sm:inline-flex rounded-full liquid-btn-secondary px-4 py-1.5 text-xs font-bold text-[var(--color-muted)]",
-          "hover:text-rose-400 hover:border-rose-400/40 hover:shadow-[0_0_16px_rgba(248,113,113,0.20)]",
-          "transition-all disabled:opacity-50 cursor-pointer"
-        )}
+        className="hidden sm:inline-flex rounded-lg border border-[var(--color-border)] bg-black/20 px-3 py-2 text-xs font-medium text-[var(--color-muted)] transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] hover:border-[var(--color-primary)]/50 hover:text-[var(--color-foreground)] disabled:opacity-50 cursor-pointer"
       >
         {busy ? "…" : "Sign out"}
       </button>

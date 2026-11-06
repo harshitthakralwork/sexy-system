@@ -13,6 +13,7 @@ from app.modules.automation import models as automation_models  # noqa: F401
 from app.modules.businesses import models as businesses_models  # noqa: F401
 from app.modules.crm import models as crm_models  # noqa: F401
 from app.modules.discovery import models as discovery_models  # noqa: F401
+from app.modules.discovery import scan_models as discovery_scan_models  # noqa: F401
 from app.modules.email import models as email_models  # noqa: F401
 from app.modules.exports import models as exports_models  # noqa: F401
 from app.modules.notifications import models as notifications_models  # noqa: F401

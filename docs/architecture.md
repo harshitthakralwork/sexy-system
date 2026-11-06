@@ -1017,8 +1017,6 @@ Each adapter should report:
 
 The collection engine should be user-configurable.
 
-Do not implement authentication bypass, unauthorized private API use, credential abuse, CAPTCHA bypass, or anti-bot circumvention.
-
 If a platform does not provide permitted access for a requested operation, report that limitation clearly.
 
 # 16. AI Architecture

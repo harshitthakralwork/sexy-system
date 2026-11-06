@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Header } from "@/components/layout/header";
+import { AppFooter } from "@/components/layout/app-footer";
 import { Card, CardTitle, EmptyState } from "@/components/ui/card";
 import { useSession } from "@/components/providers/session-provider";
 import { api } from "@/lib/api/client";
@@ -151,6 +152,7 @@ export function WatchlistsView() {
             </Card>
           ))}
         </div>
+        <AppFooter />
       </main>
     </div>
   );

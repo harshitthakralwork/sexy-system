@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 
 import { Header } from "@/components/layout/header";
+import { AppFooter } from "@/components/layout/app-footer";
 import { Card, EmptyState } from "@/components/ui/card";
 import { api } from "@/lib/api/client";
 import type { GlobalSearchItem, GlobalSearchOut, SearchGroup } from "@/lib/api/types";
@@ -126,6 +127,7 @@ export function SearchView() {
               ) : null,
             )}
         </div>
+        <AppFooter />
       </main>
     </div>
   );

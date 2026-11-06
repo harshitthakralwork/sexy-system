@@ -39,6 +39,7 @@ class PublicPageFetchResult(BaseModel):
     review_count: int | None = None
     published_at: datetime | None = None
     website_url: str | None = None
+    website_urls: list[str] = Field(default_factory=list)
     social_urls: list[str] = Field(default_factory=list)
     contact_urls: list[str] = Field(default_factory=list)
     extraction_method: str
@@ -116,6 +117,31 @@ def _date(value: Any) -> datetime | None:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=UTC)
     return parsed.astimezone(UTC)
+
+
+def _external_website_links(final_url: str, links: list[str]) -> list[str]:
+    """Return plausible public business-site links, never social profiles.
+
+    A directory page can link to a business website.  Its own canonical URL is
+    provenance, not the business website, so only cross-domain non-social links
+    are retained for later review by the caller.
+    """
+    source_host = urlsplit(final_url).netloc.lower().removeprefix("www.")
+    blocked_hosts = (
+        "facebook.com", "instagram.com", "linkedin.com", "x.com", "twitter.com",
+        "youtube.com", "google.com", "googleusercontent.com",
+    )
+    candidates: list[str] = []
+    for link in links:
+        parsed = urlsplit(link)
+        if parsed.scheme not in {"http", "https"}:
+            continue
+        host = parsed.netloc.lower().removeprefix("www.")
+        is_blocked = any(host == item or host.endswith(f".{item}") for item in blocked_hosts)
+        if not host or host == source_host or is_blocked:
+            continue
+        candidates.append(link)
+    return list(dict.fromkeys(candidates))[:12]
 
 
 async def _download(url: str, client: httpx.AsyncClient) -> tuple[str, int, bytes, str]:
@@ -206,6 +232,7 @@ async def fetch_public_page(
             if any(host in urlsplit(link).netloc.lower() for host in social_hosts)
         )
     )[:12]
+    website_urls = _external_website_links(final_url, links)
     contact_urls = list(
         dict.fromkeys(
             link
@@ -249,6 +276,7 @@ async def fetch_public_page(
         review_count=_integer(aggregate.get("reviewCount") or aggregate.get("ratingCount")),
         published_at=published_at,
         website_url=_first_text(entity.get("url"), canonical_url),
+        website_urls=website_urls,
         social_urls=social_urls,
         contact_urls=contact_urls,
         extraction_method="schema_org_json_ld" if entity else "visible_html",

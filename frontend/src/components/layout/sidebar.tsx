@@ -6,12 +6,13 @@ import { usePathname } from "next/navigation";
 import {
   Bell,
   Grid3X3,
-  Search,
   Settings,
   X,
   ChevronRight,
   PanelLeftClose,
   PanelLeftOpen,
+  Moon,
+  Sun,
 } from "lucide-react";
 import { useState, useEffect } from "react";
 
@@ -19,10 +20,12 @@ import { navigation } from "./navigation";
 import { cn } from "@/lib/utils";
 import { useSession } from "@/components/providers/session-provider";
 import { useTaskActivity } from "@/components/providers/task-activity-provider";
+import { useTheme } from "@/components/providers/theme-provider";
 
 export function Sidebar() {
   const pathname = usePathname();
   const { user } = useSession();
+  const { theme, toggleTheme } = useTheme();
   const { getTaskForHref, isTaskRunning } = useTaskActivity();
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [expanded, setExpanded] = useState(true);
@@ -51,33 +54,21 @@ export function Sidebar() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  function triggerSearch() {
-    window.dispatchEvent(new CustomEvent("open-command-palette"));
-  }
-
   return (
     <>
       {/* ── Primary Vertical Rail ── */}
       <aside
         className={cn(
-          "relative z-30 flex h-full flex-col overflow-hidden",
-          "liquid-glass-shell shadow-2xl",
-          "transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] select-none m-2 sm:m-3",
-          expanded ? "w-[252px]" : "w-[72px]"
+          "relative z-30 m-0 mr-0 flex h-full flex-col overflow-hidden rounded-none border border-[var(--color-border)] bg-[var(--color-sidebar)]/90 shadow-[0_18px_42px_rgba(0,0,0,0.28)] backdrop-blur-xl",
+          "transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] select-none",
+          expanded ? "w-[248px]" : "w-[68px]"
         )}
         aria-label="Primary navigation rail"
       >
-        {/* Window controls matching Liquid Glass UI Kit */}
-        <div className={cn("flex items-center gap-1.5 px-4 pt-3.5 pb-1", !expanded && "justify-center px-0")}>
-          <span className="h-2.5 w-2.5 rounded-full bg-rose-500/80 shadow-[0_0_8px_rgba(244,63,94,0.6)]" />
-          <span className="h-2.5 w-2.5 rounded-full bg-amber-400/80 shadow-[0_0_8px_rgba(251,191,36,0.6)]" />
-          <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
-        </div>
-
         {/* Brand */}
         <div
           className={cn(
-            "flex h-[60px] shrink-0 items-center border-b border-white/[0.08] dark:border-white/[0.08] border-slate-300/40 px-3",
+            "flex h-[64px] shrink-0 items-center border-b border-[var(--color-border)] px-4",
             expanded ? "justify-between" : "justify-center"
           )}
         >
@@ -86,22 +77,22 @@ export function Sidebar() {
             className="flex items-center gap-3 group"
             title="SparkXFlow Nexus dashboard"
           >
-            <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] overflow-hidden border border-white/20 dark:border-white/10 shadow-lg shadow-black/20 dark:shadow-black/50 transition-transform duration-200 group-hover:scale-105">
+            <div className="relative flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[var(--color-border-highlight)] bg-[var(--color-surface)] transition-transform duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-105">
               <Image
                 src="/logo.png"
                 alt="SparkXFlow Nexus"
-                width={40}
-                height={40}
+                width={36}
+                height={36}
                 className="h-full w-full object-cover"
                 priority
               />
             </div>
             {expanded && (
               <div className="truncate">
-                <span className="block text-sm font-extrabold tracking-tight text-slate-900 dark:text-white">
+                <span className="block text-sm font-semibold tracking-tight text-[var(--color-foreground)]">
                   SparkXFlow
                 </span>
-                <span className="block text-[9px] font-bold tracking-[0.2em] text-[#FF7849] uppercase">
+                <span className="block text-[9px] font-semibold tracking-[0.18em] text-[var(--color-muted)] uppercase">
                   Nexus OS
                 </span>
               </div>
@@ -110,129 +101,118 @@ export function Sidebar() {
         </div>
 
         {/* ── Nav Items ── */}
-        <nav className="flex-1 overflow-y-auto px-2.5 py-3 space-y-0.5 scrollbar-none">
-          {/* Every feature is available in this rail; no separate All Modules drawer required. */}
-          <div className="mt-2 border-t border-white/[0.06] dark:border-white/[0.06] border-slate-300/30 pt-3">
-            {navigation.map((section) => {
-              const sectionOpen = openSections[section.title] ?? false;
-              return <div key={section.title} className="mb-2">
-                {expanded && <button className="flex w-full items-center justify-between px-2.5 py-1 text-[9px] font-bold uppercase tracking-[0.18em] text-[#FF7849]" onClick={() => setOpenSections((current) => ({ ...current, [section.title]: !sectionOpen }))} type="button"><span>{section.title}</span><ChevronRight className={cn("transition-transform", sectionOpen && "rotate-90")} size={12} /></button>}
-                {(sectionOpen || !expanded) && <div className="space-y-1">{section.items.map((item) => {
-                  const Icon = item.icon;
-                  const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
-                  const task = getTaskForHref(item.href);
+        <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1 scrollbar-none">
+          {navigation.map((section) => {
+            const sectionOpen = openSections[section.title] ?? false;
+            return (
+              <div key={section.title} className="mb-3">
+                {expanded && (
+                  <button
+                    className="flex w-full items-center justify-between px-2 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#737373] hover:text-[#a3a3a3] transition-colors"
+                    onClick={() => setOpenSections((current) => ({ ...current, [section.title]: !sectionOpen }))}
+                    type="button"
+                  >
+                    <span>{section.title}</span>
+                    <ChevronRight className={cn("transition-transform text-[#666666]", sectionOpen && "rotate-90")} size={12} />
+                  </button>
+                )}
+                {(sectionOpen || !expanded) && (
+                  <div className="space-y-1 mt-0.5">
+                    {section.items.map((item) => {
+                      const Icon = item.icon;
+                      const active = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+                      const task = getTaskForHref(item.href);
 
-                  return (
-                    <Link
-                      key={`${section.title}-${item.href}`}
-                      href={item.href}
-                      className={cn(
-                        "group relative flex items-center gap-3 rounded-full text-xs font-semibold transition-all duration-200",
-                        expanded ? "px-3.5 py-2" : "mx-auto h-10 w-10 justify-center",
-                        active
-                          ? "border border-cyan-400/40 bg-gradient-to-r from-cyan-500/20 to-violet-500/15 text-white shadow-[0_0_18px_rgba(0,212,255,0.20)]"
-                          : "text-slate-600 dark:text-white/60 hover:bg-white/[0.06] hover:text-slate-950 dark:hover:text-white"
-                      )}
-                      title={item.label}
-                    >
-                      <div className="relative shrink-0 flex items-center justify-center">
-                        <Icon
-                          size={16}
-                          className={active ? "text-cyan-300" : "text-slate-500 dark:text-white/45 group-hover:text-cyan-300 transition-colors"}
-                        />
-                        {!expanded && task && (
-                          <span className="absolute -top-1 -right-1 flex h-3 w-3">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75" />
-                            <span className="relative inline-flex rounded-full h-3 w-3 bg-gradient-to-r from-cyan-400 to-violet-500 shadow-[0_0_10px_rgba(0,212,255,0.9)]" />
-                          </span>
-                        )}
-                      </div>
-
-                      {expanded && <span className="truncate flex-1">{item.label}</span>}
-
-                      {/* AI LLM-style pulsating spinner indicator when background task is running */}
-                      {expanded && task && (
-                        <div
-                          className="ml-auto flex items-center shrink-0 pl-1.5"
-                          title={`${task.label || "Task running"} in background…`}
+                      return (
+                        <Link
+                          key={`${section.title}-${item.href}`}
+                          href={item.href}
+                          className={cn(
+                            "group relative flex items-center gap-3 rounded-lg text-xs font-medium transition-all duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]",
+                            expanded ? "px-3 py-2" : "mx-auto h-10 w-10 justify-center",
+                            active
+                              ? "border border-[var(--color-primary)]/35 bg-[var(--color-primary)]/12 font-semibold text-[var(--color-primary)]"
+                              : "text-[var(--color-muted)] hover:bg-white/[0.06] hover:text-[var(--color-foreground)]"
+                          )}
+                          title={item.label}
                         >
-                          <div className="relative flex h-4 w-4 items-center justify-center">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400/30" />
-                            <span className="absolute inline-flex h-3 w-3 rounded-full bg-cyan-500/20 blur-[2px]" />
-                            <svg
-                              className="animate-spin h-4 w-4 text-cyan-400 drop-shadow-[0_0_10px_rgba(0,212,255,0.9)]"
-                              xmlns="http://www.w3.org/2000/svg"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                            >
-                              <circle
-                                className="opacity-20"
-                                cx="12"
-                                cy="12"
-                                r="10"
-                                stroke="currentColor"
-                                strokeWidth="3"
-                              />
-                              <path
-                                className="opacity-100"
-                                fill="currentColor"
-                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                              />
-                            </svg>
-                            <span className="absolute h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_6px_#00d4ff]" />
+                          <div className="relative shrink-0 flex items-center justify-center">
+                            <Icon
+                              size={16}
+                              className={active ? "text-[var(--color-primary)]" : "text-[var(--color-muted-dim)] transition-colors group-hover:text-[var(--color-foreground)]"}
+                            />
+                            {!expanded && task && (
+                              <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
+                                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500 shadow-[0_0_6px_#3b82f6]" />
+                              </span>
+                            )}
                           </div>
-                        </div>
-                      )}
 
-                      {!expanded && (
-                        <span className="pointer-events-none absolute left-[calc(100%+10px)] z-50 hidden whitespace-nowrap rounded-lg border border-white/10 bg-[#171923]/95 px-2.5 py-1.5 text-xs text-white shadow-xl group-hover:block">
-                          {item.label} {task ? " (Running…)" : ""}
-                        </span>
-                      )}
-                    </Link>
-                  );
-                })}</div>}
-              </div>;
-            })}
-          </div>
+                          {expanded && <span className="truncate flex-1">{item.label}</span>}
+
+                          {/* Task running indicator */}
+                          {expanded && task && (
+                            <div
+                              className="ml-auto flex items-center shrink-0 pl-1"
+                              title={`${task.label || "Task running"} in background…`}
+                            >
+                              <div className="relative flex h-3.5 w-3.5 items-center justify-center">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400/40" />
+                                <svg
+                                  className="animate-spin h-3.5 w-3.5 text-blue-400"
+                                  xmlns="http://www.w3.org/2000/svg"
+                                  fill="none"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <circle
+                                    className="opacity-25"
+                                    cx="12"
+                                    cy="12"
+                                    r="10"
+                                    stroke="currentColor"
+                                    strokeWidth="3"
+                                  />
+                                  <path
+                                    className="opacity-100"
+                                    fill="currentColor"
+                                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                                  />
+                                </svg>
+                              </div>
+                            </div>
+                          )}
+
+                          {!expanded && (
+                            <span className="pointer-events-none absolute left-[calc(100%+10px)] z-50 hidden whitespace-nowrap rounded-lg border border-[#333333] bg-[#1c1c1c] px-2.5 py-1.5 text-xs text-white shadow-xl group-hover:block">
+                              {item.label} {task ? " (Running…)" : ""}
+                            </span>
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </nav>
 
         {/* ── Bottom System Controls ── */}
-        <div className="space-y-1 p-2.5 border-t border-white/[0.07]">
-
-          {/* Search */}
-          <button
-            type="button"
-            onClick={triggerSearch}
-            className={cn(
-              "group flex items-center gap-3 rounded-[14px] w-full",
-              "text-white/45 hover:bg-white/[0.055] hover:text-white transition-all duration-200",
-              expanded ? "px-3 py-2.5" : "h-10 w-10 justify-center mx-auto"
-            )}
-            title="Global Search (⌘K)"
-          >
-            <Search size={16} className="shrink-0 group-hover:text-cyan-400 transition-colors" />
-            {expanded && (
-              <div className="flex-1 flex items-center justify-between text-xs font-medium">
-                <span>Search...</span>
-                <kbd className="rounded-md bg-white/[0.07] px-1.5 py-0.5 text-[9px] font-mono border border-white/[0.10]">⌘K</kbd>
-              </div>
-            )}
-          </button>
-
+        <div className="space-y-1 p-2.5 border-t border-[#262626]">
           {/* Notifications */}
           <Link
             href="/notifications"
             className={cn(
-              "group relative flex items-center gap-3 rounded-[14px] w-full",
-              "text-slate-600 dark:text-white/45 hover:bg-slate-900/5 dark:hover:bg-white/[0.055] hover:text-slate-900 dark:hover:text-white transition-all duration-200",
-              expanded ? "px-3 py-2.5" : "h-10 w-10 justify-center mx-auto"
+              "group relative flex items-center gap-3 rounded-xl w-full",
+              "text-[#888888] hover:bg-[#202020] hover:text-[#f3f4f6] transition-all duration-150",
+              expanded ? "px-3 py-2" : "h-10 w-10 justify-center mx-auto"
             )}
             title="Notifications"
           >
             <div className="relative shrink-0">
-              <Bell size={16} className="group-hover:text-amber-500 dark:group-hover:text-amber-300 transition-colors" />
-              <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-[#FF7849] ring-1 ring-[#06070a] animate-glow-breathe" />
+              <Bell size={16} className="group-hover:text-blue-400 transition-colors" />
+              <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-blue-500" />
             </div>
             {expanded && <span className="truncate text-xs font-medium">Notifications</span>}
           </Link>
@@ -241,31 +221,77 @@ export function Sidebar() {
           <Link
             href="/settings"
             className={cn(
-              "group flex items-center gap-3 rounded-full w-full",
-              "text-slate-600 dark:text-white/50 hover:bg-white/[0.06] hover:text-slate-900 dark:hover:text-white transition-all duration-200",
-              expanded ? "px-3.5 py-2" : "h-10 w-10 justify-center mx-auto"
+              "group flex items-center gap-3 rounded-xl w-full",
+              "text-[#888888] hover:bg-[var(--color-surface-elevated)] hover:text-[var(--color-foreground)] transition-all duration-150",
+              expanded ? "px-3 py-2" : "h-10 w-10 justify-center mx-auto"
             )}
             title="Settings & Data Management"
           >
-            <Settings size={16} className="shrink-0 group-hover:rotate-45 transition-transform duration-300" />
-            {expanded && <span className="truncate text-xs font-semibold">Settings</span>}
+            <Settings size={16} className="shrink-0" />
+            {expanded && <span className="truncate text-xs font-medium">Settings</span>}
           </Link>
 
-          {/* User Profile Capsule (Matching Image 1 Liquid Glass UI Kit) */}
-          {expanded && user && (
-            <div className="liquid-glass-card mt-2 mb-1 flex items-center gap-2.5 rounded-full px-3 py-2 border border-white/10 dark:border-white/10 shadow-sm">
-              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-tr from-cyan-500 via-sky-400 to-violet-600 text-[10px] font-extrabold text-white shadow-[0_0_12px_rgba(0,212,255,0.4)]">
-                {user.display_name ? user.display_name[0].toUpperCase() : "U"}
+          {/* Theme Toggle Button */}
+          <button
+            type="button"
+            onClick={toggleTheme}
+            className={cn(
+              "group flex items-center gap-3 rounded-xl w-full",
+              "text-[#888888] hover:bg-[var(--color-surface-elevated)] hover:text-[var(--color-foreground)] transition-all duration-150 cursor-pointer",
+              expanded ? "px-3 py-2" : "h-10 w-10 justify-center mx-auto"
+            )}
+            title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+          >
+            {theme === "dark" ? (
+              <Sun size={16} className="shrink-0 text-amber-400" />
+            ) : (
+              <Moon size={16} className="shrink-0 text-blue-500" />
+            )}
+            {expanded && (
+              <span className="truncate text-xs font-medium">
+                {theme === "dark" ? "Light Mode" : "Dark Mode"}
+              </span>
+            )}
+          </button>
+
+          {/* User Profile Capsule */}
+          {user && (
+            expanded ? (
+              <div className="mt-2 mb-1 flex items-center gap-2.5 rounded-xl px-3 py-2 bg-[var(--color-surface-elevated)] border border-[var(--color-border)]">
+                <div className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-[10px] font-extrabold text-white overflow-hidden border border-white/20">
+                  <Image
+                    src="/user-avatar.jpg"
+                    alt={user.display_name || "User Avatar"}
+                    fill
+                    sizes="28px"
+                    className="object-cover"
+                  />
+                </div>
+                <div className="min-w-0 flex-1 truncate">
+                  <span className="block truncate text-xs font-bold text-[var(--color-foreground)] leading-tight">
+                    {user.display_name || user.email.split("@")[0]}
+                  </span>
+                  <span className="block text-[9px] font-medium text-emerald-400 leading-tight">
+                    Verified Account
+                  </span>
+                </div>
               </div>
-              <div className="min-w-0 flex-1 truncate">
-                <span className="block truncate text-xs font-bold text-slate-900 dark:text-white leading-tight">
-                  {user.display_name || user.email.split("@")[0]}
-                </span>
-                <span className="block text-[9px] font-medium text-emerald-400 leading-tight">
-                  Verified Account
-                </span>
+            ) : (
+              <div
+                className="mt-2 mb-1 flex items-center justify-center"
+                title={user.display_name || user.email}
+              >
+                <div className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-lg overflow-hidden border border-[var(--color-border)]">
+                  <Image
+                    src="/user-avatar.jpg"
+                    alt={user.display_name || "User Avatar"}
+                    fill
+                    sizes="32px"
+                    className="object-cover"
+                  />
+                </div>
               </div>
-            </div>
+            )
           )}
 
           {/* Collapse/Expand */}
@@ -273,19 +299,19 @@ export function Sidebar() {
             type="button"
             onClick={() => setExpanded((prev) => !prev)}
             className={cn(
-              "group flex items-center gap-2 rounded-full w-full",
-              "text-slate-500 dark:text-white/40 hover:text-slate-900 dark:hover:text-white hover:bg-white/[0.06] transition-all duration-200",
-              expanded ? "px-3.5 py-2 justify-start" : "h-9 w-9 justify-center mx-auto"
+              "group flex items-center gap-2 rounded-xl w-full",
+              "text-[#737373] hover:text-[#f3f4f6] hover:bg-[#202020] transition-all duration-150",
+              expanded ? "px-3 py-2 justify-start" : "h-9 w-9 justify-center mx-auto"
             )}
             title={expanded ? "Collapse Rail" : "Expand Rail"}
           >
             {expanded ? (
               <>
-                <PanelLeftClose size={14} />
-                <span className="text-[10px] font-semibold">Collapse</span>
+                <PanelLeftClose size={15} className="shrink-0" />
+                <span className="text-xs font-medium">Collapse</span>
               </>
             ) : (
-              <PanelLeftOpen size={14} />
+              <PanelLeftOpen size={15} />
             )}
           </button>
         </div>

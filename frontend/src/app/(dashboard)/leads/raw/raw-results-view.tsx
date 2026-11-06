@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Search, Download, Star, ExternalLink, MapPin, CheckCircle, Trash2 } from "lucide-react";
 
 import { Header } from "@/components/layout/header";
+import { AppFooter } from "@/components/layout/app-footer";
 import { Card, EmptyState } from "@/components/ui/card";
 import { useSession } from "@/components/providers/session-provider";
 import { api, getApiBase, isApiError } from "@/lib/api/client";
@@ -414,6 +415,7 @@ export function RawResultsView() {
             </div>
           )}
         </Card>
+        <AppFooter />
       </main>
     </div>
   );

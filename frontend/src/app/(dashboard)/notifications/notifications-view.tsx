@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, Check, CheckCheck, Clock, ArrowRight } from "lucide-react";
 
 import { Header } from "@/components/layout/header";
+import { AppFooter } from "@/components/layout/app-footer";
 import { Card, EmptyState } from "@/components/ui/card";
 import { useSession } from "@/components/providers/session-provider";
 import { api, isApiError } from "@/lib/api/client";
@@ -226,6 +227,7 @@ export function NotificationsView() {
             </div>
           )}
         </Card>
+        <AppFooter />
       </main>
     </div>
   );

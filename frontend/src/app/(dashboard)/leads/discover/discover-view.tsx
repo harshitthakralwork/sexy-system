@@ -6,6 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Compass, Play, MapPin, RefreshCw, CheckCircle2, AlertCircle, ArrowRight, Layers, Trash2, X } from "lucide-react";
 
 import { Header } from "@/components/layout/header";
+import { AppFooter } from "@/components/layout/app-footer";
 import { Card, CardTitle, EmptyState } from "@/components/ui/card";
 import { useSession } from "@/components/providers/session-provider";
 import { api, isApiError } from "@/lib/api/client";
@@ -508,6 +509,7 @@ export function DiscoverBusinessesView() {
             </div>
           )}
         </Card>
+        <AppFooter />
       </main>
     </div>
   );

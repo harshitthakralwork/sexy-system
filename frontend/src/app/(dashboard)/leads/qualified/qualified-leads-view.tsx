@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { CheckSquare, Search, Download, ExternalLink, Mail, FolderKanban, Phone, MapPin, ArrowRight } from "lucide-react";
 
 import { Header } from "@/components/layout/header";
+import { AppFooter } from "@/components/layout/app-footer";
 import { Card, EmptyState } from "@/components/ui/card";
 import { api, getApiBase } from "@/lib/api/client";
 import type { Business, BusinessList } from "@/lib/api/types";
@@ -291,6 +292,7 @@ export function QualifiedLeadsView() {
             </div>
           )}
         </Card>
+        <AppFooter />
       </main>
     </div>
   );

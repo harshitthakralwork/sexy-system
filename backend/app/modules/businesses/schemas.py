@@ -4,7 +4,9 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.modules.discovery.provenance import is_official_website
 
 
 class BusinessOut(BaseModel):
@@ -30,6 +32,12 @@ class BusinessOut(BaseModel):
     lifecycle_status: str
     first_discovered_at: datetime | None = None
     last_researched_at: datetime | None = None
+
+    @field_validator("website_url", mode="before")
+    @classmethod
+    def hide_non_business_website_urls(cls, value: str | None) -> str | None:
+        """Prevent historical Maps image/assets from rendering as a website."""
+        return value if value is None or is_official_website(str(value)) else None
 
 
 class ContactOut(BaseModel):

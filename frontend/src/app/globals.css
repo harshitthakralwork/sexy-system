@@ -35,68 +35,61 @@
 
 :root,
 [data-theme="dark"] {
-  --color-background: #06070a;
-  --color-sidebar: rgba(14, 18, 28, 0.45);
-  --color-surface: rgba(14, 18, 30, 0.55);
-  --color-surface-elevated: rgba(24, 28, 42, 0.65);
-  --color-card: rgba(14, 18, 30, 0.55);
-  --color-card-elevated: rgba(24, 30, 48, 0.65);
-  --color-primary: #00d4ff;
-  --color-primary-hover: #38bdf8;
-  --color-secondary: #c084fc;
-  --color-accent-orange: #ff7849;
-  --color-accent-lime: #34d399;
-  --color-accent-lavender: #c084fc;
-  --color-accent-sky: #38bdf8;
-  --color-foreground: #ffffff;
-  --color-muted: rgba(255, 255, 255, 0.70);
-  --color-muted-dim: rgba(255, 255, 255, 0.45);
-  --color-border: rgba(255, 255, 255, 0.16);
-  --color-border-subtle: rgba(255, 255, 255, 0.06);
-  --color-border-highlight: rgba(255, 255, 255, 0.32);
-  --color-success: #34d399;
-  --color-warning: #fbbf24;
-  --color-error: #f87171;
-  --color-info: #38bdf8;
-  --color-shell: rgba(10, 12, 18, 0.35);
-  --app-background:
-    radial-gradient(circle at 14% 8%, rgba(0, 212, 255, 0.18), transparent 32rem),
-    radial-gradient(circle at 88% 92%, rgba(192, 132, 252, 0.15), transparent 36rem),
-    radial-gradient(circle at 50% 50%, rgba(255, 120, 73, 0.08), transparent 28rem),
-    linear-gradient(145deg, #090a0f 0%, #06070a 100%);
+  --color-background: #121212;
+  --color-sidebar: #151515;
+  --color-surface: #171717;
+  --color-surface-elevated: #1c1c1c;
+  --color-card: #181818;
+  --color-card-elevated: #1e1e1e;
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-secondary: #8b5cf6;
+  --color-accent-orange: #f97316;
+  --color-accent-lime: #10b981;
+  --color-accent-lavender: #8b5cf6;
+  --color-accent-sky: #0ea5e9;
+  --color-foreground: #f3f4f6;
+  --color-muted: #9ca3af;
+  --color-muted-dim: #6b7280;
+  --color-border: #262626;
+  --color-border-subtle: #1f1f1f;
+  --color-border-highlight: #333333;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #2563eb;
+  --color-shell: #151515;
+  --app-background: #121212;
   color-scheme: dark;
 }
 
-[data-theme="light"] {
-  --color-background: #f1f5f9;
-  --color-sidebar: rgba(255, 255, 255, 0.72);
-  --color-surface: rgba(255, 255, 255, 0.80);
-  --color-surface-elevated: rgba(255, 255, 255, 0.95);
-  --color-card: rgba(255, 255, 255, 0.78);
-  --color-card-elevated: rgba(255, 255, 255, 0.92);
-  --color-primary: #0284c7;
-  --color-primary-hover: #0369a1;
-  --color-secondary: #9333ea;
+[data-theme="light"],
+.light {
+  --color-background: #f8fafc;
+  --color-sidebar: #ffffff;
+  --color-surface: #ffffff;
+  --color-surface-elevated: #f1f5f9;
+  --color-card: #ffffff;
+  --color-card-elevated: #f8fafc;
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-secondary: #8b5cf6;
   --color-accent-orange: #f97316;
   --color-accent-lime: #10b981;
   --color-accent-lavender: #8b5cf6;
   --color-accent-sky: #0ea5e9;
   --color-foreground: #0f172a;
-  --color-muted: #475569;
+  --color-muted: #64748b;
   --color-muted-dim: #94a3b8;
-  --color-border: rgba(15, 23, 42, 0.12);
-  --color-border-subtle: rgba(15, 23, 42, 0.06);
-  --color-border-highlight: rgba(15, 23, 42, 0.22);
+  --color-border: #e2e8f0;
+  --color-border-subtle: #f1f5f9;
+  --color-border-highlight: #cbd5e1;
   --color-success: #10b981;
   --color-warning: #f59e0b;
   --color-error: #ef4444;
-  --color-info: #0ea5e9;
-  --color-shell: rgba(255, 255, 255, 0.65);
-  --app-background:
-    radial-gradient(circle at 14% 8%, rgba(2, 132, 199, 0.12), transparent 32rem),
-    radial-gradient(circle at 88% 92%, rgba(147, 51, 234, 0.10), transparent 36rem),
-    radial-gradient(circle at 50% 50%, rgba(249, 115, 22, 0.05), transparent 28rem),
-    linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%);
+  --color-info: #2563eb;
+  --color-shell: #ffffff;
+  --app-background: #f8fafc;
   color-scheme: light;
 }
 
@@ -154,6 +147,56 @@ input,
 select,
 textarea {
   color: var(--color-foreground);
+}
+
+/* ---------------------------------------------------------------------------
+   Universal Select & Option Dark / Light Mode Theming
+   Fixes Chromium/Safari/Firefox native popup menu contrast bugs on Windows/macOS.
+   Ensures dropdown option lists never render with white backgrounds in dark mode.
+--------------------------------------------------------------------------- */
+select {
+  color-scheme: dark;
+}
+
+select option,
+select optgroup {
+  background-color: #181818 !important;
+  color: #f3f4f6 !important;
+}
+
+[data-theme="dark"] select,
+.dark select,
+:root:not([data-theme="light"]) select {
+  color-scheme: dark !important;
+  background-color: #181818;
+  color: #f3f4f6;
+}
+
+[data-theme="dark"] select option,
+.dark select option,
+[data-theme="dark"] select optgroup,
+.dark select optgroup,
+:root:not([data-theme="light"]) select option,
+:root:not([data-theme="light"]) select optgroup {
+  background-color: #1c1c1c !important;
+  color: #f3f4f6 !important;
+  color-scheme: dark !important;
+}
+
+[data-theme="light"] select,
+.light select {
+  color-scheme: light !important;
+  background-color: #ffffff;
+  color: #0f172a;
+}
+
+[data-theme="light"] select option,
+.light select option,
+[data-theme="light"] select optgroup,
+.light select optgroup {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  color-scheme: light !important;
 }
 
 input::placeholder,
@@ -568,6 +611,18 @@ textarea::placeholder {
   color: #ffffff;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.25);
   transition: all 0.2s ease;
+  color-scheme: dark;
+}
+
+select.liquid-glass-input {
+  background-color: #181818 !important;
+  color-scheme: dark !important;
+}
+
+select.liquid-glass-input option,
+.liquid-glass-input option {
+  background-color: #1a1a1a !important;
+  color: #f3f4f6 !important;
 }
 
 [data-theme="light"] .liquid-glass-input {
@@ -575,6 +630,18 @@ textarea::placeholder {
   border: 1px solid rgba(203, 213, 225, 0.65);
   color: #0f172a;
   box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.05);
+  color-scheme: light;
+}
+
+[data-theme="light"] select.liquid-glass-input {
+  background-color: #ffffff !important;
+  color-scheme: light !important;
+}
+
+[data-theme="light"] select.liquid-glass-input option,
+[data-theme="light"] .liquid-glass-input option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
 }
 
 .liquid-glass-input:focus,
@@ -675,6 +742,18 @@ textarea::placeholder {
   color: #ffffff;
   box-shadow: inset 0 2px 6px rgba(0, 0, 0, 0.25);
   transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  color-scheme: dark;
+}
+
+select.refraction-glass-input {
+  background-color: #181818 !important;
+  color-scheme: dark !important;
+}
+
+select.refraction-glass-input option,
+.refraction-glass-input option {
+  background-color: #1a1a1a !important;
+  color: #f3f4f6 !important;
 }
 
 [data-theme="light"] .refraction-glass-input {
@@ -682,6 +761,18 @@ textarea::placeholder {
   border: 1px solid rgba(148, 163, 184, 0.35);
   color: #0f172a;
   box-shadow: inset 0 2px 4px rgba(15, 23, 42, 0.05);
+  color-scheme: light;
+}
+
+[data-theme="light"] select.refraction-glass-input {
+  background-color: #ffffff !important;
+  color-scheme: light !important;
+}
+
+[data-theme="light"] select.refraction-glass-input option,
+[data-theme="light"] .refraction-glass-input option {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
 }
 
 .refraction-glass-input:focus {
@@ -840,4 +931,818 @@ input[type="radio"],
 [role="button"] {
   cursor: pointer;
   touch-action: manipulation;
+}
+
+/* ---------------------------------------------------------------------------
+   Nexus product UI system
+
+   A single restrained dark glass system. This intentionally overrides the
+   earlier mix of cyan glows, warm panels, gradients, and unrelated radii.
+--------------------------------------------------------------------------- */
+
+:root,
+[data-theme="dark"] {
+  --color-background: #171717;
+  --color-sidebar: #121212;
+  --color-surface: #1d1d1d;
+  --color-surface-elevated: #242424;
+  --color-card: #202020;
+  --color-card-elevated: #2a2a2a;
+  --color-primary: #75c9ff;
+  --color-primary-hover: #a4dcff;
+  --color-secondary: #aab8ff;
+  --color-foreground: #f3f3f3;
+  --color-muted: #a6a6a6;
+  --color-muted-dim: #737373;
+  --color-border: #303030;
+  --color-border-subtle: #292929;
+  --color-border-highlight: #505050;
+  --color-success: #73d4a2;
+  --color-warning: #e5bb71;
+  --color-error: #ef8b91;
+  --color-info: #75c9ff;
+  --color-shell: #121212;
+  --app-background: #171717;
+}
+
+body {
+  background: #171717;
+  text-wrap: pretty;
+}
+
+/* Keep the page edge in the same Astra atmosphere as the dashboard shell. */
+html[data-theme="light"] body,
+html.light body {
+  background: #dcecff;
+}
+
+html[data-theme="dark"] body,
+html.dark body {
+  background: #10182d;
+}
+
+.heading-1 { font-size: var(--text-6xl); line-height: 1; font-weight: 600; text-wrap: balance; }
+.heading-2 { font-size: var(--text-5xl); line-height: 1; font-weight: 600; text-wrap: balance; }
+.heading-3 { font-size: var(--text-4xl); line-height: 1.1; font-weight: 600; text-wrap: balance; }
+.heading-4 { font-size: var(--text-3xl); line-height: 1.2; font-weight: 600; text-wrap: balance; }
+.title-1 { font-size: var(--text-xl); line-height: 1.4; font-weight: 500; }
+.title-2 { font-size: var(--text-lg); line-height: 1.55; font-weight: 500; }
+.title-3 { font-size: var(--text-base); line-height: 1.5; font-weight: 500; }
+.title-4 { font-size: var(--text-sm); line-height: 1.45; font-weight: 500; }
+.caption-2 { font-size: var(--text-sm); line-height: 1.45; font-weight: 400; }
+
+.dashboard-shell { gap: 0; padding: 0; }
+.dashboard-shell::before { background: none; mask-image: none; }
+
+.liquid-glass-shell,
+.liquid-glass-panel,
+.liquid-glass-card,
+.liquid-glass-subcard {
+  background: rgba(31, 31, 31, 0.78);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.11);
+  box-shadow: 0 20px 42px rgba(0, 0, 0, 0.28);
+}
+
+.liquid-glass-shell { border-radius: 1.5rem; }
+.liquid-glass-panel { border-radius: 1rem; transition: border-color 300ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 300ms cubic-bezier(0.22, 1, 0.36, 1); }
+.liquid-glass-card { border-radius: 0.75rem; }
+.liquid-glass-subcard { border-radius: 0.5rem; }
+.liquid-glass-panel:hover,
+.liquid-glass-card:hover { transform: none; background: rgba(39, 39, 39, 0.82); border-color: rgba(117, 201, 255, 0.32); box-shadow: 0 20px 42px rgba(0, 0, 0, 0.34); }
+
+.refraction-glass-card,
+.refraction-glass-input,
+.refraction-glass-btn,
+.glass-dock,
+.glass-pill {
+  background: rgba(31, 31, 31, 0.74);
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  box-shadow: none;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.refraction-glass-card { border-radius: 1rem; }
+.refraction-glass-input { border-radius: 0.5rem; }
+.refraction-glass-btn { border-radius: 0.5rem; }
+.refraction-glass-input:focus,
+.refraction-glass-input:focus-visible {
+  background: rgba(39, 39, 39, 0.88);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(117, 201, 255, 0.18);
+}
+.refraction-glass-btn:hover,
+.glass-pill:hover { background: #313131; border-color: rgba(117, 201, 255, 0.42); transform: translateY(-1px); }
+.refraction-glass-btn:active { transform: scale(0.98); }
+
+.liquid-btn-primary,
+button[class*="bg-[var(--color-primary)]"],
+a[class*="bg-[var(--color-primary)]"] {
+  background: var(--color-primary) !important;
+  color: #000000 !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+}
+.liquid-btn-primary:hover,
+button[class*="bg-[var(--color-primary)]"]:hover,
+a[class*="bg-[var(--color-primary)]"]:hover { background: var(--color-primary-hover) !important; transform: translateY(-1px); }
+.liquid-btn-primary:active,
+button[class*="bg-[var(--color-primary)]"]:active,
+a[class*="bg-[var(--color-primary)]"]:active { transform: scale(0.98); }
+
+.nav-active-strip,
+.job-progress-fill,
+.job-progress-fill.indeterminate { background: var(--color-primary); box-shadow: none; }
+
+.auth-page {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  min-height: 100svh;
+  place-items: center;
+  overflow: hidden;
+  padding: 2rem 1rem;
+  background: #000000;
+  color: #ffffff;
+}
+
+.auth-page__image { z-index: -3; object-fit: cover; opacity: 0.68; }
+.auth-page__veil { position: absolute; inset: 0; z-index: -2; background: rgba(0, 0, 0, 0.52); }
+
+.auth-panel {
+  width: min(100%, 28rem);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 1.5rem;
+  background: rgba(24, 24, 24, 0.72);
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.48);
+  padding: 1.25rem;
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.auth-brand { display: flex; align-items: center; gap: 0.75rem; }
+.auth-brand__logo { position: relative; width: 2.25rem; height: 2.25rem; overflow: hidden; border: 1px solid rgba(255,255,255,0.2); border-radius: 0.625rem; background: #272727; }
+.auth-brand__name { margin: 0; font-size: 0.875rem; line-height: 1.25rem; font-weight: 600; }
+.auth-brand__label { margin: 0; color: #a1a1a1; font-size: 0.75rem; line-height: 1rem; }
+.auth-brand__state { margin-left: auto; display: inline-flex; align-items: center; gap: 0.375rem; color: #c9f7df; font-size: 0.75rem; line-height: 1rem; }
+.auth-brand__state > span { width: 0.5rem; height: 0.5rem; border-radius: 9999px; background: #73d4a2; }
+
+.auth-heading { margin-top: 2rem; }
+.auth-heading__eyebrow { margin: 0 0 0.5rem; color: #a4dcff; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; }
+.auth-heading h1 { margin: 0; font-size: 2.25rem; line-height: 2.5rem; font-weight: 600; letter-spacing: -0.04em; text-wrap: balance; }
+.auth-heading > p:last-child { margin: 0.75rem 0 0; color: #d1d1d1; font-size: 0.875rem; line-height: 1.25rem; }
+
+.auth-form { display: grid; gap: 0.75rem; margin-top: 1.5rem; }
+.auth-field { display: grid; gap: 0.5rem; color: #e5e5e5; font-size: 0.875rem; line-height: 1.25rem; font-weight: 500; }
+.auth-field__control { display: flex; align-items: center; gap: 0.625rem; min-height: 3rem; padding: 0 0.875rem; border: 1px solid rgba(255,255,255,0.18); border-radius: 0.625rem; background: rgba(0,0,0,0.38); color: #a1a1a1; transition: border-color 300ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 300ms cubic-bezier(0.22, 1, 0.36, 1); }
+.auth-field__control:focus-within { border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(117,201,255,0.18); }
+.auth-field__control input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: #ffffff; font-size: 0.875rem; line-height: 1.25rem; }
+.auth-field__control input::placeholder { color: #737373; }
+.auth-field__reveal { display: grid; flex: none; width: 2rem; height: 2rem; place-items: center; border: 0; border-radius: 0.375rem; background: transparent; color: #a1a1a1; transition: color 300ms cubic-bezier(0.22, 1, 0.36, 1), background-color 300ms cubic-bezier(0.22, 1, 0.36, 1); }
+.auth-field__reveal:hover { background: #313131; color: #ffffff; }
+.auth-field__reveal:active { transform: scale(0.98); }
+
+.auth-options { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; color: #a1a1a1; font-size: 0.75rem; line-height: 1rem; }
+.auth-options label { display: inline-flex; align-items: center; gap: 0.5rem; color: #d1d1d1; }
+.auth-options input { width: 1rem; height: 1rem; accent-color: var(--color-primary); }
+.auth-error { margin: 0; border: 1px solid rgba(239, 139, 145, 0.5); border-radius: 0.5rem; background: rgba(127, 29, 29, 0.3); padding: 0.75rem; color: #fecaca; font-size: 0.75rem; line-height: 1rem; }
+.auth-submit { min-height: 3rem; border: 1px solid transparent; border-radius: 0.625rem; background: var(--color-primary); color: #000000; font-size: 1rem; line-height: 1.5rem; font-weight: 600; transition: transform 300ms cubic-bezier(0.22,1,0.36,1), background-color 300ms cubic-bezier(0.22,1,0.36,1); }
+.auth-submit:hover:not(:disabled) { background: var(--color-primary-hover); transform: translateY(-1px); }
+.auth-submit:active:not(:disabled) { transform: scale(0.98); }
+.auth-submit:disabled { cursor: not-allowed; opacity: 0.6; }
+.auth-switch { margin: 0; text-align: center; color: #a1a1a1; font-size: 0.75rem; line-height: 1rem; }
+.auth-switch button { border: 0; background: transparent; color: #a4dcff; font: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+.auth-footer { margin-top: 1.5rem; color: #737373; font-size: 0.75rem; line-height: 1rem; text-align: center; }
+
+@media (min-width: 640px) {
+  .auth-panel { padding: 2rem; }
+}
+
+/* ---------------------------------------------------------------------------
+   Astra glass workspace
+
+   Icy blue, cobalt and soft violet surfaces derived from the supplied
+   dashboard reference. Motion is transform and opacity only.
+--------------------------------------------------------------------------- */
+
+.astra-shell {
+  --color-background: #dcecff;
+  --color-sidebar: rgba(232, 242, 255, 0.72);
+  --color-surface: rgba(239, 246, 255, 0.72);
+  --color-surface-elevated: rgba(255, 255, 255, 0.62);
+  --color-card: rgba(239, 246, 255, 0.78);
+  --color-card-elevated: rgba(255, 255, 255, 0.72);
+  --color-primary: #3565df;
+  --color-primary-hover: #254fc4;
+  --color-secondary: #7367df;
+  --color-foreground: #18244a;
+  --color-muted: #617096;
+  --color-muted-dim: #8794b5;
+  --color-border: rgba(255, 255, 255, 0.58);
+  --color-border-subtle: rgba(111, 139, 201, 0.16);
+  --color-border-highlight: rgba(58, 91, 180, 0.28);
+  --color-success: #178b69;
+  --color-warning: #b66b20;
+  --color-error: #c44862;
+  --color-info: #3565df;
+  background: #dcecff;
+}
+
+.astra-workspace {
+  /* Keep the atmospheric background visible across the entire workspace,
+     instead of confining the blue glass treatment to the sidebar. */
+  background: transparent;
+}
+
+/* Bring the dashboard's custom cards in line with the established analytics
+   panel language: brighter glass, thin white borders and softer shadows. */
+.astra-dashboard [class*="bg-[var(--color-surface)]"] {
+  background: rgba(255, 255, 255, 0.72) !important;
+  border-color: rgba(255, 255, 255, 0.85) !important;
+  box-shadow: 0 16px 40px -8px rgba(15, 23, 42, 0.08) !important;
+}
+
+html[data-theme="dark"] .astra-dashboard [class*="bg-[var(--color-surface)]"],
+html.dark .astra-dashboard [class*="bg-[var(--color-surface)]"] {
+  background: rgba(13, 17, 30, 0.52) !important;
+  border-color: rgba(255, 255, 255, 0.11) !important;
+  box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.55) !important;
+}
+
+/* Keep every dashboard route aligned to the same content gutter as the overview. */
+.astra-workspace > main {
+  padding: 1rem !important;
+}
+
+/* Optional calmer interaction mode: no hover fills, only an accessible focus ring. */
+html.hover-effects-off [class*="hover:bg-"]:hover {
+  background-color: transparent !important;
+}
+
+html.hover-effects-off [class*="hover:text-"]:hover {
+  color: inherit !important;
+}
+
+html.hover-effects-off button:focus-visible,
+html.hover-effects-off a:focus-visible,
+html.hover-effects-off input:focus-visible,
+html.hover-effects-off select:focus-visible,
+html.hover-effects-off textarea:focus-visible {
+  outline: 2px solid var(--color-primary) !important;
+  outline-offset: 2px;
+}
+
+@media (min-width: 1024px) {
+  .astra-workspace > main {
+    padding: 1.5rem !important;
+  }
+}
+
+
+.astra-atmosphere {
+  overflow: hidden;
+  background: #dcecff;
+}
+
+.astra-atmosphere__orb,
+.auth-page__orb {
+  position: absolute;
+  display: block;
+  border-radius: 9999px;
+  filter: blur(72px);
+  will-change: transform, opacity;
+}
+
+.astra-atmosphere__orb--sky {
+  top: -18%;
+  left: -9%;
+  width: 48rem;
+  height: 48rem;
+  background: #94d7ff;
+  opacity: 0.72;
+  animation: astra-drift-one 18s cubic-bezier(0.22, 1, 0.36, 1) infinite alternate;
+}
+
+.astra-atmosphere__orb--blue {
+  top: 8%;
+  right: -12%;
+  width: 46rem;
+  height: 46rem;
+  background: #5579ed;
+  opacity: 0.48;
+  animation: astra-drift-two 22s cubic-bezier(0.22, 1, 0.36, 1) infinite alternate;
+}
+
+.astra-atmosphere__orb--violet {
+  bottom: -28%;
+  left: 28%;
+  width: 54rem;
+  height: 54rem;
+  background: #a69bf4;
+  opacity: 0.52;
+  animation: astra-drift-three 24s cubic-bezier(0.22, 1, 0.36, 1) infinite alternate;
+}
+
+.astra-atmosphere__grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.22) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.22) 1px, transparent 1px);
+  background-size: 56px 56px;
+  opacity: 0.22;
+}
+
+@keyframes astra-drift-one {
+  from { transform: translate3d(-3%, -2%, 0) scale(0.96); opacity: 0.62; }
+  to { transform: translate3d(15%, 12%, 0) scale(1.12); opacity: 0.82; }
+}
+
+@keyframes astra-drift-two {
+  from { transform: translate3d(6%, -4%, 0) scale(1); opacity: 0.4; }
+  to { transform: translate3d(-16%, 16%, 0) scale(1.14); opacity: 0.62; }
+}
+
+@keyframes astra-drift-three {
+  from { transform: translate3d(-8%, 8%, 0) scale(0.94); opacity: 0.42; }
+  to { transform: translate3d(12%, -14%, 0) scale(1.1); opacity: 0.62; }
+}
+
+.astra-shell .liquid-glass-shell,
+.astra-shell .liquid-glass-panel,
+.astra-shell .liquid-glass-card,
+.astra-shell .liquid-glass-subcard,
+.astra-shell .refraction-glass-card,
+.astra-shell .refraction-glass-input,
+.astra-shell .refraction-glass-btn,
+.astra-shell .glass-dock,
+.astra-shell .glass-pill {
+  background: rgba(239, 246, 255, 0.66);
+  border-color: rgba(255, 255, 255, 0.68);
+  border-top-color: rgba(255, 255, 255, 0.92);
+  box-shadow:
+    0 18px 46px rgba(55, 76, 142, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88);
+  color: var(--color-foreground);
+  backdrop-filter: blur(26px) saturate(135%);
+  -webkit-backdrop-filter: blur(26px) saturate(135%);
+}
+
+.astra-shell .liquid-glass-panel:hover,
+.astra-shell .liquid-glass-card:hover {
+  background: rgba(247, 250, 255, 0.78);
+  border-color: rgba(75, 105, 196, 0.32);
+  box-shadow: 0 22px 54px rgba(55, 76, 142, 0.2);
+  transform: none;
+}
+
+.astra-shell aside[aria-label="Primary navigation rail"] {
+  background: rgba(222, 237, 255, 0.7) !important;
+  border-color: rgba(255, 255, 255, 0.72) !important;
+  box-shadow: 0 20px 52px rgba(54, 75, 145, 0.18) !important;
+  backdrop-filter: blur(30px) saturate(135%);
+  -webkit-backdrop-filter: blur(30px) saturate(135%);
+}
+
+.astra-shell aside[aria-label="Primary navigation rail"] a,
+.astra-shell aside[aria-label="Primary navigation rail"] button {
+  color: #617096 !important;
+}
+
+.astra-shell aside[aria-label="Primary navigation rail"] a:hover,
+.astra-shell aside[aria-label="Primary navigation rail"] button:hover {
+  color: #1b2a59 !important;
+  background-color: rgba(255, 255, 255, 0.42) !important;
+}
+
+.astra-shell aside[aria-label="Primary navigation rail"] a[aria-current="page"] {
+  color: #254fc4 !important;
+}
+
+/* Sidebar active links do not expose aria-current, so target the existing
+   primary surface utility used by the navigation component. */
+.astra-shell aside[aria-label="Primary navigation rail"] a[class*="bg-[var(--color-primary)]"] {
+  background: rgba(53, 101, 223, 0.16) !important;
+  border-color: rgba(53, 101, 223, 0.32) !important;
+  color: #173e9a !important;
+}
+
+.astra-shell aside[aria-label="Primary navigation rail"] a[class*="bg-[var(--color-primary)]"] svg {
+  color: #2455c6 !important;
+}
+
+.astra-shell .text-white {
+  color: #18244a !important;
+}
+
+.astra-shell [class*="text-white/"] {
+  color: #617096 !important;
+}
+
+.astra-shell [class*="text-cyan-200"] { color: #1767b3 !important; }
+.astra-shell [class*="text-cyan-300"] { color: #087ea4 !important; }
+.astra-shell [class*="bg-cyan-500/20"] { background: rgba(35, 166, 211, 0.16) !important; }
+.astra-shell [class*="bg-cyan-500/15"] { background: rgba(35, 166, 211, 0.12) !important; }
+
+/* Old page-specific dark utility classes need a light glass equivalent. */
+.astra-shell [class*="bg-black/"],
+.astra-shell [class*="bg-[rgba(14,18,30"],
+.astra-shell [class*="bg-[#0c101c"] {
+  background: rgba(92, 119, 162, 0.24) !important;
+  color: #24345f;
+}
+
+.astra-shell [class*="border-white/"] {
+  border-color: rgba(255, 255, 255, 0.62) !important;
+}
+
+/* SearchInput suggestion menus should belong to the same glass surface as
+   the page instead of retaining the legacy dark navy panel. */
+.astra-shell [class*="bg-[#121624]"] {
+  background: rgba(246, 250, 255, 0.96) !important;
+  border-color: rgba(104, 139, 207, 0.34) !important;
+  box-shadow: 0 22px 46px rgba(54, 76, 143, 0.24) !important;
+}
+
+.astra-shell [class*="bg-[#121624]"] button {
+  color: #314675 !important;
+}
+
+.astra-shell [class*="bg-[#121624]"] button:hover {
+  background: rgba(71, 112, 211, 0.12) !important;
+  color: #1b3f9d !important;
+}
+
+.astra-shell aside[aria-label="Primary navigation rail"] .text-\[\#737373\],
+.astra-shell aside[aria-label="Primary navigation rail"] .text-\[\#666666\],
+.astra-shell aside[aria-label="Primary navigation rail"] .text-\[\#888888\] {
+  color: #58709f !important;
+}
+
+.astra-shell select,
+.astra-shell select option,
+.astra-shell select optgroup {
+  color-scheme: light !important;
+  background-color: #edf5ff !important;
+  color: #18244a !important;
+}
+
+html[data-theme="dark"] .astra-shell select,
+html[data-theme="dark"] .astra-shell select option,
+html[data-theme="dark"] .astra-shell select optgroup,
+html.dark .astra-shell select,
+html.dark .astra-shell select option,
+html.dark .astra-shell select optgroup {
+  color-scheme: dark !important;
+  background-color: #182746 !important;
+  color: #edf4ff !important;
+}
+
+html[data-theme="dark"] .astra-shell input[type="text"],
+html[data-theme="dark"] .astra-shell textarea,
+html.dark .astra-shell input[type="text"],
+html.dark .astra-shell textarea {
+  background: rgba(14, 22, 42, 0.82) !important;
+  border-color: rgba(120, 153, 218, 0.42) !important;
+  color: #edf4ff !important;
+}
+
+.astra-shell input,
+.astra-shell textarea {
+  color: #18244a;
+}
+
+.astra-shell input[type="text"],
+.astra-shell textarea {
+  background: rgba(246, 250, 255, 0.78) !important;
+  border-color: rgba(92, 126, 194, 0.44) !important;
+  color: #18244a !important;
+}
+
+.astra-shell input[type="text"]:focus,
+.astra-shell textarea:focus {
+  border-color: #3565df !important;
+  box-shadow: 0 0 0 3px rgba(53, 101, 223, 0.16) !important;
+}
+
+.astra-shell input::placeholder,
+.astra-shell textarea::placeholder {
+  color: #8794b5;
+}
+
+.astra-shell :focus-visible {
+  outline-color: #3565df;
+}
+
+/* Dark mode changes the actual surfaces, not only the toggle icon. */
+html[data-theme="dark"] .astra-shell {
+  --color-background: #10182d;
+  --color-sidebar: rgba(17, 28, 54, 0.78);
+  --color-surface: rgba(19, 31, 59, 0.78);
+  --color-surface-elevated: rgba(29, 44, 78, 0.82);
+  --color-card: rgba(20, 33, 64, 0.82);
+  --color-card-elevated: rgba(35, 51, 91, 0.84);
+  --color-foreground: #edf4ff;
+  --color-muted: #a8b8da;
+  --color-muted-dim: #8192bb;
+  --color-border: rgba(148, 181, 255, 0.24);
+  --color-border-subtle: rgba(148, 181, 255, 0.16);
+  --color-border-highlight: rgba(145, 178, 255, 0.38);
+  --app-background: #10182d;
+  background: #10182d;
+}
+
+html[data-theme="dark"] .astra-workspace,
+html[data-theme="dark"] .astra-atmosphere {
+  background: #10182d;
+}
+
+html[data-theme="dark"] .astra-atmosphere__orb--sky { background: #2e83c8; opacity: 0.35; }
+html[data-theme="dark"] .astra-atmosphere__orb--blue { background: #3856ca; opacity: 0.34; }
+html[data-theme="dark"] .astra-atmosphere__orb--violet { background: #674ec5; opacity: 0.3; }
+
+html[data-theme="dark"] .astra-shell .liquid-glass-shell,
+html[data-theme="dark"] .astra-shell .liquid-glass-panel,
+html[data-theme="dark"] .astra-shell .liquid-glass-card,
+html[data-theme="dark"] .astra-shell .liquid-glass-subcard,
+html[data-theme="dark"] .astra-shell .refraction-glass-card,
+html[data-theme="dark"] .astra-shell .refraction-glass-input,
+html[data-theme="dark"] .astra-shell .refraction-glass-btn,
+html[data-theme="dark"] .astra-shell .glass-dock,
+html[data-theme="dark"] .astra-shell .glass-pill {
+  background: rgba(19, 31, 59, 0.74);
+  border-color: rgba(148, 181, 255, 0.22);
+  border-top-color: rgba(193, 214, 255, 0.3);
+  color: #edf4ff;
+  box-shadow: 0 18px 46px rgba(2, 8, 24, 0.34), inset 0 1px 0 rgba(193, 214, 255, 0.12);
+}
+
+html[data-theme="dark"] .astra-shell .liquid-glass-panel:hover,
+html[data-theme="dark"] .astra-shell .liquid-glass-card:hover {
+  background: rgba(29, 44, 78, 0.82);
+  border-color: rgba(130, 168, 255, 0.42);
+  transform: none;
+}
+
+html[data-theme="dark"] .astra-shell aside[aria-label="Primary navigation rail"] {
+  background: rgba(14, 24, 48, 0.82) !important;
+  border-color: rgba(148, 181, 255, 0.22) !important;
+}
+
+html[data-theme="dark"] .astra-shell .text-white { color: #edf4ff !important; }
+html[data-theme="dark"] .astra-shell [class*="text-white/"] { color: #a8b8da !important; }
+
+/* ThemeProvider also maintains html.dark for Tailwind and older components. */
+html.dark .astra-shell {
+  --color-background: #10182d;
+  --color-sidebar: rgba(17, 28, 54, 0.78);
+  --color-surface: rgba(19, 31, 59, 0.78);
+  --color-surface-elevated: rgba(29, 44, 78, 0.82);
+  --color-card: rgba(20, 33, 64, 0.82);
+  --color-card-elevated: rgba(35, 51, 91, 0.84);
+  --color-foreground: #edf4ff;
+  --color-muted: #a8b8da;
+  --color-muted-dim: #8192bb;
+  --color-border: rgba(148, 181, 255, 0.24);
+  --color-border-subtle: rgba(148, 181, 255, 0.16);
+  --color-border-highlight: rgba(145, 178, 255, 0.38);
+  background: #10182d;
+}
+
+html.dark .astra-workspace,
+html.dark .astra-atmosphere { background: #10182d; }
+
+html.dark .astra-shell .liquid-glass-panel,
+html.dark .astra-shell .liquid-glass-card,
+html.dark .astra-shell .refraction-glass-card,
+html.dark .astra-shell .refraction-glass-input,
+html.dark .astra-shell .refraction-glass-btn {
+  background: rgba(19, 31, 59, 0.74);
+  border-color: rgba(148, 181, 255, 0.22);
+  border-top-color: rgba(193, 214, 255, 0.3);
+  color: #edf4ff;
+  box-shadow: 0 18px 46px rgba(2, 8, 24, 0.34), inset 0 1px 0 rgba(193, 214, 255, 0.12);
+}
+
+html.dark .astra-shell aside[aria-label="Primary navigation rail"] {
+  background: rgba(14, 24, 48, 0.82) !important;
+  border-color: rgba(148, 181, 255, 0.22) !important;
+}
+
+html.dark .astra-shell .text-white { color: #edf4ff !important; }
+html.dark .astra-shell [class*="text-white/"] { color: #a8b8da !important; }
+html.dark .astra-shell [class*="text-cyan-200"] { color: #b9eaff !important; }
+html.dark .astra-shell [class*="text-cyan-300"] { color: #7edcff !important; }
+html.dark .astra-shell aside[aria-label="Primary navigation rail"] a[class*="bg-[var(--color-primary)]"] {
+  background: rgba(90, 135, 244, 0.2) !important;
+  border-color: rgba(130, 168, 255, 0.42) !important;
+  color: #dbe8ff !important;
+}
+
+html.dark .astra-shell [class*="bg-black/"],
+html.dark .astra-shell [class*="bg-[rgba(14,18,30"],
+html.dark .astra-shell [class*="bg-[#0c101c"] {
+  background: rgba(5, 12, 28, 0.5) !important;
+  color: #edf4ff;
+}
+
+html.dark .astra-shell [class*="bg-[#121624]"] {
+  background: rgba(16, 25, 49, 0.98) !important;
+  border-color: rgba(148, 181, 255, 0.28) !important;
+  box-shadow: 0 22px 46px rgba(2, 8, 24, 0.48) !important;
+}
+
+html.dark .astra-shell [class*="bg-[#121624]"] button {
+  color: #c5d4f3 !important;
+}
+
+html.dark .astra-shell [class*="bg-[#121624]"] button:hover {
+  background: rgba(118, 157, 239, 0.16) !important;
+  color: #f3f7ff !important;
+}
+
+html.dark .astra-shell [class*="bg-black/"],
+html.dark .astra-shell [class*="bg-[rgba(14,18,30"],
+html.dark .astra-shell [class*="bg-[#0c101c"] {
+  background: rgba(5, 12, 28, 0.5) !important;
+  color: #edf4ff;
+}
+
+html.dark .astra-shell aside[aria-label="Primary navigation rail"] a,
+html.dark .astra-shell aside[aria-label="Primary navigation rail"] button {
+  color: #c5d4f3 !important;
+}
+
+html.dark .astra-shell aside[aria-label="Primary navigation rail"] a:hover,
+html.dark .astra-shell aside[aria-label="Primary navigation rail"] button:hover {
+  color: #f3f7ff !important;
+}
+
+html.dark .astra-shell aside[aria-label="Primary navigation rail"] [class*="text-\[\#737373\]"],
+html.dark .astra-shell aside[aria-label="Primary navigation rail"] [class*="text-\[\#666666\]"] {
+  color: #9eb1d8 !important;
+}
+
+/* Keep a small active state, remove decorative CTA/card jumping. */
+.astra-shell a[class*="hover:-translate"],
+.astra-shell button[class*="hover:-translate"],
+.astra-shell .liquid-btn-primary:hover,
+.astra-shell .refraction-glass-btn:hover {
+  transform: none !important;
+}
+
+.astra-shell a[class*="hover:-translate"],
+.astra-shell button[class*="hover:-translate"],
+.astra-shell .liquid-btn-primary,
+.astra-shell .refraction-glass-btn {
+  transition-property: color, background-color, border-color, box-shadow, opacity !important;
+}
+
+/* Login uses the same palette but keeps a stronger focal panel. */
+.auth-page {
+  background: #dcecff;
+  color: #18244a;
+}
+
+.auth-page__image {
+  opacity: 0.12;
+  filter: saturate(0.72) hue-rotate(178deg);
+}
+
+.auth-page__veil {
+  background: rgba(224, 238, 255, 0.36);
+}
+
+.auth-page__aurora {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+}
+
+.auth-page__orb--one {
+  top: -18%;
+  left: -12%;
+  width: 42rem;
+  height: 42rem;
+  background: #8ed2ff;
+  opacity: 0.72;
+  animation: astra-drift-one 18s cubic-bezier(0.22, 1, 0.36, 1) infinite alternate;
+}
+
+.auth-page__orb--two {
+  top: 20%;
+  right: -18%;
+  width: 46rem;
+  height: 46rem;
+  background: #5776e9;
+  opacity: 0.56;
+  animation: astra-drift-two 22s cubic-bezier(0.22, 1, 0.36, 1) infinite alternate;
+}
+
+.auth-page__orb--three {
+  bottom: -28%;
+  left: 20%;
+  width: 44rem;
+  height: 44rem;
+  background: #b3a4f4;
+  opacity: 0.58;
+  animation: astra-drift-three 24s cubic-bezier(0.22, 1, 0.36, 1) infinite alternate;
+}
+
+.auth-panel {
+  border-color: rgba(255, 255, 255, 0.74);
+  background: rgba(236, 245, 255, 0.64);
+  box-shadow:
+    0 30px 80px rgba(49, 70, 145, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  color: #18244a;
+  backdrop-filter: blur(30px) saturate(140%);
+  -webkit-backdrop-filter: blur(30px) saturate(140%);
+}
+
+.auth-brand__logo {
+  border-color: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.54);
+  box-shadow: 0 8px 20px rgba(53, 101, 223, 0.18);
+}
+
+.auth-brand__label,
+.auth-heading > p:last-child,
+.auth-options,
+.auth-options label,
+.auth-switch,
+.auth-footer {
+  color: #617096;
+}
+
+.auth-brand__state {
+  color: #176d5a;
+}
+
+.auth-brand__state > span {
+  background: #249b7d;
+}
+
+.auth-heading__eyebrow,
+.auth-switch button {
+  color: #3565df;
+}
+
+.auth-field {
+  color: #26345f;
+}
+
+.auth-field__control {
+  border-color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.42);
+  color: #617096;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.72);
+}
+
+.auth-field__control:focus-within {
+  border-color: #3565df;
+  box-shadow: 0 0 0 3px rgba(53, 101, 223, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+.auth-field__control input {
+  color: #18244a;
+}
+
+.auth-field__control input::placeholder {
+  color: #8794b5;
+}
+
+.auth-field__reveal {
+  color: #617096;
+}
+
+.auth-field__reveal:hover {
+  background: rgba(53, 101, 223, 0.1);
+  color: #254fc4;
+}
+
+.auth-submit {
+  border-color: rgba(255, 255, 255, 0.66);
+  background: #3565df;
+  color: #ffffff;
+  box-shadow: 0 12px 28px rgba(53, 101, 223, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.36);
+}
+
+.auth-submit:hover:not(:disabled) {
+  background: #254fc4;
+}
+
+@media (max-width: 639px) {
+  .auth-panel {
+    border-radius: 1rem;
+    padding: 1.5rem;
+  }
+
+  .auth-brand__state {
+    display: none;
+  }
 }

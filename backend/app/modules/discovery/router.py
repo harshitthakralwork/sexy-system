@@ -1,25 +1,34 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any
 
 import httpx
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, status
-from sqlalchemy import select
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response, status
+from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
 
 from app.core.audit import client_ip, record_audit
 from app.core.config import get_settings
 from app.core.database import AsyncSession, AsyncSessionDep
-from app.core.exceptions import SourceUnavailableError, TooManyRequestsError, ValidationFailedError
+from app.core.exceptions import (
+    NotFoundError,
+    SourceUnavailableError,
+    TooManyRequestsError,
+    ValidationFailedError,
+)
 from app.core.ratelimit import RateLimitRule, get_rate_limiter
 from app.modules.auth.dependencies import CurrentUser, require_csrf_for_state_changes
+from app.modules.businesses.models import Business
+from app.modules.businesses.schemas import BulkDeleteIn, BulkDeleteOut
 from app.modules.discovery import areas as area_service
-from app.modules.discovery import job_service, runner
+from app.modules.discovery import job_service, runner, scan_service
 from app.modules.discovery.local_scraper import (
     LocalScrapeRequest,
     LocalScrapeResponse,
+    run_local_search_job,
     scrape_google_local,
 )
-from app.modules.businesses.schemas import BulkDeleteIn, BulkDeleteOut
 from app.modules.discovery.models import DiscoveryJob, JobLog, Search
 from app.modules.discovery.public_fetch import (
     PublicPageFetchRequest,
@@ -27,6 +36,8 @@ from app.modules.discovery.public_fetch import (
     UnsafeUrlError,
     fetch_public_page,
 )
+from app.modules.discovery.scan_models import LocalScanBusiness, LocalScanRun
+from app.modules.discovery.scan_schemas import ScanCreateIn, ScanRunListOut, ScanRunOut
 from app.modules.discovery.schemas import (
     DiscoveryJobIn,
     JobListOut,
@@ -47,6 +58,10 @@ Csrf = Depends(require_csrf_for_state_changes())
 # other expensive action: generous enough for real work, tight enough that a
 # runaway script cannot queue hundreds of concurrent crawls.
 JOB_RULE = RateLimitRule(max_attempts=10, window_seconds=300)
+# Local Business Finder performs one slow, source-respectful job at a time in
+# the UI. It should not inherit the much tighter generic sweep limit, because
+# correcting a city or niche would otherwise lock an operator out for minutes.
+LOCAL_SEARCH_RULE = RateLimitRule(max_attempts=30, window_seconds=300)
 AREA_RULE = RateLimitRule(max_attempts=60, window_seconds=300)
 PUBLIC_FETCH_RULE = RateLimitRule(max_attempts=30, window_seconds=300)
 
@@ -106,7 +121,7 @@ async def local_search(
     session: AsyncSessionDep,
     user: CurrentUser,
 ) -> LocalScrapeResponse:
-    allowed, retry_after = get_rate_limiter().check("local_search", str(user.id), JOB_RULE)
+    allowed, retry_after = get_rate_limiter().check("local_search", str(user.id), LOCAL_SEARCH_RULE)
     if not allowed:
         raise TooManyRequestsError(
             "Too many local searches. Try again later.",
@@ -127,6 +142,49 @@ async def local_search(
         },
     )
     return result
+
+
+@router.post("/local-search/jobs", response_model=JobOut, status_code=status.HTTP_201_CREATED)
+async def create_local_search_job(
+    request: Request,
+    payload: LocalScrapeRequest,
+    background: BackgroundTasks,
+    session: AsyncSessionDep,
+    user: CurrentUser,
+    _csrf: None = Csrf,
+) -> JobOut:
+    """Queue a long local evidence pass rather than tying it to one HTTP request."""
+    allowed, retry_after = get_rate_limiter().check("local_search", str(user.id), LOCAL_SEARCH_RULE)
+    if not allowed:
+        raise TooManyRequestsError(
+            "Too many local searches. Try again later.",
+            headers={"Retry-After": str(int(retry_after))},
+        )
+    job = await job_service.create_job(
+        session,
+        owner_user_id=user.id,
+        config={
+            "niche": payload.niche.strip(),
+            "city": payload.city.strip(),
+            "kind": "local_search",
+        },
+        correlation_id=getattr(request.state, "correlation_id", None),
+    )
+    job.job_type = "local_search"
+    # The worker has its own transaction. Commit before scheduling it so it
+    # cannot race an uncommitted job row.
+    await session.commit()
+    background.add_task(run_local_search_job, job_id=str(job.id))
+    await record_audit(
+        session,
+        action="discovery.local_search",
+        owner_user_id=user.id,
+        entity_type="discovery_job",
+        entity_id=job.id,
+        ip_address=client_ip(request),
+        metadata={"niche": payload.niche, "city": payload.city},
+    )
+    return _job_out(job)
 
 
 def _job_out(job: DiscoveryJob, area_id: uuid.UUID | None = None) -> JobOut:
@@ -385,7 +443,6 @@ async def bulk_delete_jobs(
     return BulkDeleteOut(deleted=deleted)
 
 
-
 @router.post("/areas", response_model=SearchAreaOut, status_code=status.HTTP_201_CREATED)
 async def create_area(
     request: Request,
@@ -472,4 +529,163 @@ async def delete_area(
         entity_type="search_area",
         entity_id=area_id,
         ip_address=client_ip(request),
+    )
+
+
+# ── Evidence-First Resumable Scan Runs ──────────────────────────────────────
+
+
+@router.post("/scans", response_model=ScanRunOut, status_code=status.HTTP_201_CREATED)
+async def create_scan(
+    request: Request,
+    payload: ScanCreateIn,
+    background: BackgroundTasks,
+    session: AsyncSessionDep,
+    user: CurrentUser,
+    _csrf: None = Csrf,
+) -> ScanRunOut:
+    """Create a planned, multi-source Local Business Finder scan run."""
+    allowed, retry_after = get_rate_limiter().check("local_scan", str(user.id), LOCAL_SEARCH_RULE)
+    if not allowed:
+        raise TooManyRequestsError(
+            "Too many scans created. Try again later.",
+            headers={"Retry-After": str(int(retry_after))},
+        )
+
+    scan = await scan_service.create_scan_run(
+        session,
+        owner_user_id=user.id,
+        niche=payload.niche,
+        city=payload.city,
+        country=payload.country,
+    )
+    background.add_task(scan_service.execute_scan_run, scan_run_id=str(scan.id))
+    await record_audit(
+        session,
+        action="discovery.scan.create",
+        owner_user_id=user.id,
+        entity_type="local_scan_run",
+        entity_id=scan.id,
+        ip_address=client_ip(request),
+        metadata={"niche": payload.niche, "city": payload.city, "country": payload.country},
+    )
+    # Reload with units
+    stmt = (
+        select(LocalScanRun)
+        .where(LocalScanRun.id == scan.id)
+        .options(selectinload(LocalScanRun.units))
+    )
+    loaded = await session.scalar(stmt)
+    return ScanRunOut.model_validate(loaded)
+
+
+@router.get("/scans", response_model=ScanRunListOut)
+async def list_scans(
+    session: AsyncSessionDep,
+    user: CurrentUser,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+) -> ScanRunListOut:
+    """List recent scan runs for the authenticated operator."""
+    count_stmt = select(func.count(LocalScanRun.id)).where(LocalScanRun.owner_user_id == user.id)
+    total = (await session.scalar(count_stmt)) or 0
+
+    stmt = (
+        select(LocalScanRun)
+        .where(LocalScanRun.owner_user_id == user.id)
+        .options(selectinload(LocalScanRun.units))
+        .order_by(LocalScanRun.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    )
+    rows = list((await session.scalars(stmt)).all())
+    return ScanRunListOut(items=[ScanRunOut.model_validate(r) for r in rows], total=total)
+
+
+@router.get("/scans/{scan_id}", response_model=ScanRunOut)
+async def get_scan(
+    scan_id: uuid.UUID,
+    session: AsyncSessionDep,
+    user: CurrentUser,
+) -> ScanRunOut:
+    """Poll status, progress, real stage and source coverage for a scan run."""
+    stmt = (
+        select(LocalScanRun)
+        .where(LocalScanRun.id == scan_id, LocalScanRun.owner_user_id == user.id)
+        .options(selectinload(LocalScanRun.units))
+    )
+    scan = await session.scalar(stmt)
+    if not scan:
+        raise NotFoundError("Scan run not found")
+    return ScanRunOut.model_validate(scan)
+
+
+@router.post("/scans/{scan_id}/cancel", status_code=status.HTTP_200_OK)
+async def cancel_scan(
+    scan_id: uuid.UUID,
+    session: AsyncSessionDep,
+    user: CurrentUser,
+    _csrf: None = Csrf,
+) -> dict[str, Any]:
+    """Gracefully cancel a scan run; collected evidence is kept."""
+    ok = await scan_service.cancel_scan_run(session, scan_id, user.id)
+    if not ok:
+        raise NotFoundError("Scan run not found or already cancelled")
+    return {"status": "cancellation_requested", "scan_id": str(scan_id)}
+
+
+@router.post("/scans/{scan_id}/resume", response_model=ScanRunOut)
+async def resume_scan(
+    scan_id: uuid.UUID,
+    background: BackgroundTasks,
+    session: AsyncSessionDep,
+    user: CurrentUser,
+    _csrf: None = Csrf,
+) -> ScanRunOut:
+    """Resume failed or incomplete units of a scan run without repeating completed work."""
+    ok = await scan_service.resume_scan_run(session, scan_id, user.id)
+    if not ok:
+        raise NotFoundError("Scan run not found")
+    background.add_task(scan_service.execute_scan_run, scan_run_id=str(scan_id))
+    stmt = (
+        select(LocalScanRun)
+        .where(LocalScanRun.id == scan_id, LocalScanRun.owner_user_id == user.id)
+        .options(selectinload(LocalScanRun.units))
+    )
+    scan = await session.scalar(stmt)
+    return ScanRunOut.model_validate(scan)
+
+
+@router.get("/scans/{scan_id}/export")
+async def export_scan_csv(
+    scan_id: uuid.UUID,
+    session: AsyncSessionDep,
+    user: CurrentUser,
+) -> Response:
+    """Export all businesses and evidence URLs discovered in this scan run as a CSV."""
+    stmt = select(LocalScanRun).where(
+        LocalScanRun.id == scan_id, LocalScanRun.owner_user_id == user.id
+    )
+    scan = await session.scalar(stmt)
+    if not scan:
+        raise NotFoundError("Scan run not found")
+
+    biz_stmt = (
+        select(Business)
+        .join(LocalScanBusiness, LocalScanBusiness.business_id == Business.id)
+        .where(
+            LocalScanBusiness.scan_run_id == scan_id,
+            Business.owner_user_id == user.id,
+            Business.deleted_at.is_(None),
+        )
+        .order_by(Business.name)
+    )
+    businesses = list((await session.scalars(biz_stmt)).all())
+    csv_content = scan_service.generate_scan_csv(businesses)
+
+    filename = f"scan-{scan.niche.replace(' ', '_')}-{scan.city.replace(' ', '_')}.csv"
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )

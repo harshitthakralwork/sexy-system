@@ -54,19 +54,15 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
   return (
     <TaskActivityProvider>
-      <div className="dashboard-shell relative isolate flex h-screen overflow-hidden bg-[#06070a] text-[var(--color-foreground)] transition-colors duration-300">
-        {/* Animated Liquid Glass Background with moving particles, caustics & 3D floating glass elements */}
+      <div className="astra-shell relative isolate flex h-screen overflow-hidden text-[var(--color-foreground)] select-none">
+        {/* Subtle Matte Background */}
         <LiquidGlassBackground />
 
-        {/* Subtle blurred ambient light blooms in deep cyan, violet, and restrained pink around edges */}
-        <div className="pointer-events-none absolute -left-20 -top-20 h-[40rem] w-[40rem] rounded-full bg-cyan-500/15 blur-[160px] -z-10 animate-caustic-1" />
-        <div className="pointer-events-none absolute -right-20 -bottom-20 h-[44rem] w-[44rem] rounded-full bg-violet-600/16 blur-[170px] -z-10 animate-caustic-2" />
-        <div className="pointer-events-none absolute right-1/4 -top-24 h-[32rem] w-[32rem] rounded-full bg-pink-500/10 blur-[150px] -z-10" />
-        <div className="pointer-events-none absolute left-1/3 -bottom-24 h-[36rem] w-[36rem] rounded-full bg-cyan-600/10 blur-[160px] -z-10" />
-
-        {/* Layered Dark Frosted Glass Shell (28px radius) */}
+        {/* Sidebar */}
         <Sidebar />
-        <div className="flex min-w-0 flex-1 flex-col overflow-hidden liquid-glass-shell m-2 sm:m-3 transition-colors duration-300">
+
+        {/* Main Workspace Surface */}
+        <div className="astra-workspace flex min-w-0 flex-1 flex-col overflow-hidden">
           {children}
         </div>
         <CommandPalette />

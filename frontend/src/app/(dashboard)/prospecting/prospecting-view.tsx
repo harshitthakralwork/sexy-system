@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Database, ExternalLink, FileUp, Globe2, LoaderCircle, ShieldCheck, X } from "lucide-react";
 
 import { Header } from "@/components/layout/header";
+import { AppFooter } from "@/components/layout/app-footer";
 import { useSession } from "@/components/providers/session-provider";
 import { Card, EmptyState } from "@/components/ui/card";
 import { api } from "@/lib/api/client";
@@ -164,6 +165,7 @@ export function VerifiedProspectingView() {
               />
             )}
           </Card>
+          <AppFooter />
         </div>
       </main>
     </div>

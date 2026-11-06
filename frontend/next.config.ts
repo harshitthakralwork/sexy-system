@@ -2,7 +2,9 @@ import type { NextConfig } from "next";
 
 // Browser requests stay same-origin so the HttpOnly session cookie belongs to
 // the frontend domain. Railway supplies the upstream target server-side only.
-const apiBaseUrl = process.env.API_BACKEND_BASE_URL ?? "http://127.0.0.1:8002/api/v1";
+// Docker Compose exposes the local API on 8000. Keep the same default here and
+// in start-local.bat so the dashboard cannot proxy to a stale 8002 process.
+const apiBaseUrl = process.env.API_BACKEND_BASE_URL ?? "http://127.0.0.1:8000/api/v1";
 const apiOrigin = apiBaseUrl.replace(/\/api\/v1\/?$/, "");
 
 const nextConfig: NextConfig = {

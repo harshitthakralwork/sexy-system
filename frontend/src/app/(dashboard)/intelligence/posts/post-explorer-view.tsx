@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 import { Header } from "@/components/layout/header";
+import { AppFooter } from "@/components/layout/app-footer";
 import { useSession } from "@/components/providers/session-provider";
 import { api } from "@/lib/api/client";
 import type { PostItem, PostListResponse, PostAnnotation } from "@/lib/api/types";
@@ -64,7 +65,7 @@ const LEAD_STAGES = [
 
 // ── Shared select style ───────────────────────────────────────────────────────
 const selectCls =
-  "refraction-glass-input rounded-[12px] px-2.5 py-1.5 text-xs focus:outline-none appearance-none cursor-pointer";
+  "rounded-xl border border-white/[0.14] bg-[#1a1a1a] text-[#f3f4f6] px-3 py-1.5 text-xs focus:outline-none focus:border-blue-500 cursor-pointer transition-all";
 
 export function PostExplorerView() {
   const { user, csrf } = useSession();
@@ -84,6 +85,7 @@ export function PostExplorerView() {
   const pageSize = 20;
 
   const [selectedPostIds, setSelectedPostIds] = useState<Set<string>>(new Set());
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const [activePost,      setActivePost]      = useState<PostItem | null>(null);
   const [drawerTab,       setDrawerTab]       = useState<"provenance" | "annotation">("provenance");
 
@@ -205,6 +207,30 @@ export function PostExplorerView() {
     document.body.removeChild(link);
   };
 
+  const handleDeleteSelected = async () => {
+    if (selectedPostIds.size === 0 || !window.confirm(`Delete ${selectedPostIds.size} selected posts?`)) return;
+    setDeleteBusy(true);
+    try {
+      await api.post("/social/posts/bulk-action", { post_ids: Array.from(selectedPostIds), action: "delete" }, csrf);
+      setSelectedPostIds(new Set());
+      await queryClient.invalidateQueries({ queryKey: ["social-posts"] });
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
+  const handleDeleteAll = async () => {
+    if (!window.confirm("Delete all discovered posts? This cannot be undone.")) return;
+    setDeleteBusy(true);
+    try {
+      await api.post("/social/posts/bulk-action", { post_ids: [], action: "delete_all" }, csrf);
+      setSelectedPostIds(new Set());
+      await queryClient.invalidateQueries({ queryKey: ["social-posts"] });
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
   if (!user) return null;
 
   return (
@@ -252,30 +278,36 @@ export function PostExplorerView() {
                   <Download className="w-3.5 h-3.5" />
                   Export
                 </button>
+                <button type="button" disabled={deleteBusy || selectedPostIds.size === 0} onClick={handleDeleteSelected} className="refraction-glass-btn rounded-full px-4 py-2 text-xs font-semibold text-rose-300 disabled:opacity-40">
+                  Delete selected ({selectedPostIds.size})
+                </button>
+                <button type="button" disabled={deleteBusy} onClick={handleDeleteAll} className="refraction-glass-btn rounded-full px-4 py-2 text-xs font-semibold text-rose-300 disabled:opacity-40">
+                  Delete all
+                </button>
               </div>
             </div>
 
             {/* Filter selects */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 pt-2 border-t border-white/[0.07]">
-              <select value={selectedCategory}   onChange={(e) => setSelectedCategory(e.target.value)}   className={selectCls}>
-                {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)} className={selectCls}>
+                {CATEGORIES.map((c) => <option key={c} value={c} className="bg-[#1a1a1a] text-[#f3f4f6]">{c}</option>)}
               </select>
-              <select value={selectedPlatform}   onChange={(e) => setSelectedPlatform(e.target.value)}   className={selectCls}>
-                {PLATFORMS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+              <select value={selectedPlatform} onChange={(e) => setSelectedPlatform(e.target.value)} className={selectCls}>
+                {PLATFORMS.map((p) => <option key={p.id} value={p.id} className="bg-[#1a1a1a] text-[#f3f4f6]">{p.label}</option>)}
               </select>
               <select value={selectedLeadStatus} onChange={(e) => setSelectedLeadStatus(e.target.value)} className={selectCls}>
-                <option value="all">All Lead Stages</option>
-                {LEAD_STAGES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                <option value="all" className="bg-[#1a1a1a] text-[#f3f4f6]">All Lead Stages</option>
+                {LEAD_STAGES.map((s) => <option key={s.id} value={s.id} className="bg-[#1a1a1a] text-[#f3f4f6]">{s.label}</option>)}
               </select>
               <select value={selectedServiceTag} onChange={(e) => setSelectedServiceTag(e.target.value)} className={selectCls}>
-                {SERVICE_TAGS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+                {SERVICE_TAGS.map((t) => <option key={t.id} value={t.id} className="bg-[#1a1a1a] text-[#f3f4f6]">{t.label}</option>)}
               </select>
-              <select value={retrievalStatus}    onChange={(e) => setRetrievalStatus(e.target.value)}    className={selectCls}>
-                <option value="all">All Retrieval</option>
-                <option value="full_text">Full Text</option>
-                <option value="snippet_only">Snippet Only</option>
-                <option value="blocked">Blocked</option>
-                <option value="failed">Failed</option>
+              <select value={retrievalStatus} onChange={(e) => setRetrievalStatus(e.target.value)} className={selectCls}>
+                <option value="all" className="bg-[#1a1a1a] text-[#f3f4f6]">All Retrieval</option>
+                <option value="full_text" className="bg-[#1a1a1a] text-[#f3f4f6]">Full Text</option>
+                <option value="snippet_only" className="bg-[#1a1a1a] text-[#f3f4f6]">Snippet Only</option>
+                <option value="blocked" className="bg-[#1a1a1a] text-[#f3f4f6]">Blocked</option>
+                <option value="failed" className="bg-[#1a1a1a] text-[#f3f4f6]">Failed</option>
               </select>
               <div className="refraction-glass-input flex items-center gap-1.5 rounded-[12px] px-2.5 py-1 text-xs text-white/50">
                 <span className="shrink-0">Score:</span>
@@ -488,6 +520,7 @@ export function PostExplorerView() {
               </div>
             )}
           </div>
+          <AppFooter />
         </div>
       </main>
 
@@ -649,7 +682,7 @@ export function PostExplorerView() {
                         onChange={(e) => setEditAnnotation({ ...editAnnotation, lead_status: e.target.value })}
                         className={cn(selectCls, "w-full")}
                       >
-                        {LEAD_STAGES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                        {LEAD_STAGES.map((s) => <option key={s.id} value={s.id} className="bg-[#1a1a1a] text-[#f3f4f6]">{s.label}</option>)}
                       </select>
                     </div>
 

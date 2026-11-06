@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 
 import { Header } from "@/components/layout/header";
+import { AppFooter } from "@/components/layout/app-footer";
 import { Card, CardTitle, EmptyState } from "@/components/ui/card";
 import { useSession } from "@/components/providers/session-provider";
 import { api, isApiError } from "@/lib/api/client";
@@ -412,6 +413,7 @@ export function DiscoverStartupsView() {
               ))}
             </div>
           )}
+          <AppFooter />
         </div>
       </main>
     </div>

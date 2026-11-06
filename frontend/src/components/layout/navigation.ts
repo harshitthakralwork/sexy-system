@@ -47,7 +47,7 @@ export const navigation: NavSection[] = [
     items: [
       { label: "Source health", href: "/sources", icon: Shield, available: true },
       { label: "Alerts", href: "/notifications", icon: Bell, available: true },
-      { label: "Workspace settings", href: "/settings", icon: Settings, available: true },
+      { label: "Settings", href: "/settings", icon: Settings, available: true },
     ],
   },
 ];

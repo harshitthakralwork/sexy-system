@@ -30,7 +30,7 @@ const COMMAND_ITEMS: CommandItem[] = [
   { id: "sys-analytics", title: "Analytics", subtitle: "Review saved counts and recent activity", category: "Workspace", href: "/analytics", icon: BarChart3 },
   { id: "sys-sources", title: "Source health", subtitle: "Test public data sources and inspect their status", category: "Workspace", href: "/sources", icon: Shield },
   { id: "sys-alerts", title: "Alerts", subtitle: "Discovery results, source failures, and demand triggers", category: "Workspace", href: "/notifications", icon: Bell },
-  { id: "sys-settings", title: "Workspace settings", subtitle: "Manage profile, data and safe connection settings", category: "Workspace", href: "/settings", icon: Settings },
+  { id: "sys-settings", title: "Settings", subtitle: "Manage profile, preferences, and data options", category: "Workspace", href: "/settings", icon: Settings },
 ];
 
 export function CommandPalette() {

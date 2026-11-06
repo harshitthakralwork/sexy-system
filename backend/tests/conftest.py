@@ -1,12 +1,16 @@
 from __future__ import annotations
 
-import sys
-if sys.platform == "win32":
-    import asyncio
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-
-
+import asyncio
 import contextlib
+import sys
+
+if sys.platform == "win32":
+    # Python 3.12's selector loop can block while creating its fallback
+    # socketpair on Windows before a database connection is even attempted.
+    # Asyncpg works with the Windows default proactor loop, so keep that
+    # policy explicit for deterministic local integration tests.
+    asyncio.set_event_loop_policy(asyncio.WindowsProactorEventLoopPolicy())
+
 import uuid
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
@@ -104,7 +108,7 @@ def database_available() -> bool:
 
 @pytest.fixture(autouse=True)
 def _preserve_source_observability(
-    database_available: bool,
+    request: pytest.FixtureRequest,
 ) -> Iterator[None]:
     """Undo only this test's writes to the shared, unowned source tables.
 
@@ -116,6 +120,11 @@ def _preserve_source_observability(
     snapshots the registry and, afterwards, restores those columns and deletes only
     the rows stamped at or after its own start.
     """
+    if request.node.get_closest_marker("no_source_observability") is not None:
+        yield
+        return
+
+    database_available = request.getfixturevalue("database_available")
     if not database_available:
         yield
         return

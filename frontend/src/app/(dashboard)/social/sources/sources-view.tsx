@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { Header } from "@/components/layout/header";
+import { AppFooter } from "@/components/layout/app-footer";
 import { Card, EmptyState } from "@/components/ui/card";
 import { useSession } from "@/components/providers/session-provider";
 import { api } from "@/lib/api/client";
@@ -58,6 +59,7 @@ export function SourcesView() {
           required credentials are set server-side); a connector that cannot be reached is shown as
           disabled or failed rather than presented as working.
         </p>
+        <AppFooter />
       </main>
     </div>
   );

@@ -386,13 +386,24 @@ async def bulk_post_action(
     payload: PostBulkActionIn,
 ) -> dict[str, Any]:
     """Applies bulk actions across selected post records."""
+    if payload.action == "delete_all":
+        posts = (
+            await session.scalars(
+                select(SocialContent).where(SocialContent.owner_user_id == owner_user_id)
+            )
+        ).all()
+        for post in posts:
+            await session.delete(post)
+        await session.commit()
+        return {"deleted": len(posts)}
+
     if not payload.post_ids:
         return {"updated": 0}
 
     # Verify posts ownership
     posts = (
         await session.scalars(
-            select(SocialContent.id).where(
+            select(SocialContent).where(
                 SocialContent.id.in_(payload.post_ids),
                 SocialContent.owner_user_id == owner_user_id,
             )
@@ -403,15 +414,19 @@ async def bulk_post_action(
     now = datetime.now(UTC)
 
     for p_id in posts:
+        if payload.action == "delete":
+            await session.delete(p_id)
+            updated += 1
+            continue
         stmt = select(SocialContentUserAnnotation).where(
-            SocialContentUserAnnotation.content_id == p_id,
+            SocialContentUserAnnotation.content_id == p_id.id,
             SocialContentUserAnnotation.owner_user_id == owner_user_id,
         )
         ann = await session.scalar(stmt)
         if ann is None:
             ann = SocialContentUserAnnotation(
                 id=uuid.uuid4(),
-                content_id=p_id,
+                content_id=p_id.id,
                 owner_user_id=owner_user_id,
             )
             session.add(ann)

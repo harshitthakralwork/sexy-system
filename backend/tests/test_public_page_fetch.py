@@ -4,6 +4,7 @@ import httpx
 import pytest
 
 from app.modules.discovery import public_fetch
+from app.modules.discovery.local_scraper import _select_official_website, _source_kind
 
 
 @pytest.mark.asyncio
@@ -48,6 +49,38 @@ async def test_public_page_fetch_prefers_schema_org_and_collects_public_links(
     assert result.contact_urls == ["https://honest.example/contact"]
     assert result.social_urls == ["https://www.linkedin.com/company/honest-bakery"]
     assert result.extraction_method == "schema_org_json_ld"
+
+
+@pytest.mark.asyncio
+async def test_directory_page_keeps_listing_separate_from_official_website(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    html = """
+    <html><body>
+      <a href="https://www.example-bakery.in">Official website</a>
+      <a href="https://www.instagram.com/examplebakery">Instagram</a>
+    </body></html>
+    """
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, headers={"content-type": "text/html"}, text=html)
+
+    monkeypatch.setattr(public_fetch, "validate_discovered_target", lambda value: value)
+    async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+        result = await public_fetch.fetch_public_page(
+            "https://www.justdial.com/hisar/example-bakery", client=client
+        )
+
+    assert result.website_urls == ["https://www.example-bakery.in"]
+    assert _source_kind("https://www.justdial.com/hisar/example-bakery") == "justdial"
+    assert (
+        _select_official_website(
+            source_url="https://www.justdial.com/hisar/example-bakery",
+            source_kind="justdial",
+            candidates=result.website_urls,
+        )
+        == "https://www.example-bakery.in"
+    )
 
 
 @pytest.mark.asyncio
