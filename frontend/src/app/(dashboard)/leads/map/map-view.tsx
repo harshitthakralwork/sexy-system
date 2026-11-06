@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertCircle,
+  Bookmark,
   BriefcaseBusiness,
   CheckCircle2,
   ChevronDown,
@@ -43,6 +44,15 @@ type FilterTab =
   | "has_email"
   | "high_potential"
   | "needs_review";
+
+type FilterPreset = {
+  id: string;
+  name: string;
+  niche: string;
+  city: string;
+  filters: FilterTab[];
+  rank: WebsiteRank;
+};
 
 const INDIA_NICHE_OPTIONS = [
   ["🔧 Plumbers", "plumbers"],
@@ -197,10 +207,52 @@ export function MapIntelligenceView() {
   const [inspectingBusiness, setInspectingBusiness] = useState<Business | null>(null);
   const [showLimitations, setShowLimitations] = useState(false);
   const [showCoverageTable, setShowCoverageTable] = useState(true);
+  const [presetName, setPresetName] = useState("");
+  const [presets, setPresets] = useState<FilterPreset[]>([]);
 
   const crawling = localSearch.isRunning;
   const crawlProgress = localSearch.progress;
   const crawlStage = localSearch.stage;
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem("sparkx.local-business-presets.v1");
+      if (stored) setPresets(JSON.parse(stored) as FilterPreset[]);
+    } catch {
+      setPresets([]);
+    }
+  }, []);
+
+  function persistPresets(next: FilterPreset[]) {
+    setPresets(next);
+    window.localStorage.setItem("sparkx.local-business-presets.v1", JSON.stringify(next));
+  }
+
+  function savePreset() {
+    const name = presetName.trim();
+    if (!name) return;
+    const next: FilterPreset = {
+      id: crypto.randomUUID(),
+      name,
+      niche: applied.niche || niche.trim(),
+      city: applied.city || city.trim(),
+      filters: [...activeFilters],
+      rank: websiteRank,
+    };
+    persistPresets([next, ...presets.filter((item) => item.name.toLowerCase() !== name.toLowerCase())].slice(0, 12));
+    setPresetName("");
+    setNotice(`Saved filter preset “${name}”.`);
+  }
+
+  function applyPreset(preset: FilterPreset) {
+    setNiche(preset.niche);
+    setCity(preset.city);
+    setApplied({ niche: preset.niche, city: preset.city });
+    setActiveFilters(new Set(preset.filters));
+    setWebsiteRank(preset.rank);
+    setSelected(new Set());
+    setNotice(`Applied filter preset “${preset.name}”.`);
+  }
 
   // Restore fields from active background search if present
   useEffect(() => {
@@ -733,6 +785,32 @@ export function MapIntelligenceView() {
                   Showing {rows.length} of {allRows.length}
                 </span>
               </div>
+            </div>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface-elevated)]/45 p-2.5">
+              <Bookmark size={14} className="text-[var(--color-primary)]" />
+              <input
+                aria-label="Preset name"
+                className="min-w-[150px] flex-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2.5 py-1.5 text-xs text-[var(--color-foreground)] outline-none focus:border-[var(--color-primary)]"
+                onChange={(event) => setPresetName(event.target.value)}
+                onKeyDown={(event) => { if (event.key === "Enter") savePreset(); }}
+                placeholder="Name this filter preset…"
+                value={presetName}
+              />
+              <button
+                className="rounded-lg border border-[var(--color-primary)]/45 px-2.5 py-1.5 text-xs font-semibold text-[var(--color-primary)] hover:border-[var(--color-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-primary)]/40"
+                disabled={!presetName.trim()}
+                onClick={savePreset}
+                type="button"
+              >
+                Save preset
+              </button>
+              {presets.map((preset) => (
+                <span key={preset.id} className="inline-flex items-center gap-1 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1">
+                  <button className="text-xs text-[var(--color-muted)] hover:text-[var(--color-foreground)]" onClick={() => applyPreset(preset)} type="button">{preset.name}</button>
+                  <button aria-label={`Delete ${preset.name}`} className="text-[var(--color-muted)] hover:text-[var(--color-error)]" onClick={() => persistPresets(presets.filter((item) => item.id !== preset.id))} type="button"><X size={12} /></button>
+                </span>
+              ))}
             </div>
 
             {businesses.isError && (
